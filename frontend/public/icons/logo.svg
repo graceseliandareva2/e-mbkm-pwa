@@ -1,0 +1,42 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" width="512" height="512">
+  <!-- Background circle -->
+  <circle cx="256" cy="200" r="160" fill="#1e4db7"/>
+
+  <!-- Graduation cap - board -->
+  <polygon points="256,120 340,152 256,184 172,152" fill="white"/>
+
+  <!-- Graduation cap - body -->
+  <rect x="228" y="184" width="56" height="36" rx="5" fill="white" opacity="0.85"/>
+
+  <!-- Graduation cap - string -->
+  <line x1="340" y1="152" x2="340" y2="200" stroke="white" stroke-width="5" stroke-linecap="round" opacity="0.9"/>
+  <circle cx="340" cy="208" r="8" fill="white" opacity="0.9"/>
+
+  <!-- Document lines (capstone report) -->
+  <rect x="220" y="226" width="72" height="54" rx="6" fill="white" opacity="0.2"/>
+  <line x1="232" y1="238" x2="280" y2="238" stroke="white" stroke-width="4" stroke-linecap="round" opacity="0.7"/>
+  <line x1="232" y1="250" x2="272" y2="250" stroke="white" stroke-width="4" stroke-linecap="round" opacity="0.5"/>
+  <line x1="232" y1="262" x2="276" y2="262" stroke="white" stroke-width="4" stroke-linecap="round" opacity="0.5"/>
+
+  <!-- e-MBKM text -->
+  <text x="256" y="418"
+        text-anchor="middle"
+        font-family="Arial, Helvetica, sans-serif"
+        font-size="72"
+        font-weight="700"
+        letter-spacing="4"
+        fill="#1e4db7">e-MBKM</text>
+
+  <!-- Divider line -->
+  <line x1="140" y1="434" x2="372" y2="434" stroke="#1e4db7" stroke-width="1.5" opacity="0.25"/>
+
+  <!-- ITBSS -->
+  <text x="256" y="468"
+        text-anchor="middle"
+        font-family="Arial, Helvetica, sans-serif"
+        font-size="28"
+        font-weight="400"
+        letter-spacing="14"
+        fill="#1e4db7"
+        opacity="0.6">ITBSS</text>
+</svg>

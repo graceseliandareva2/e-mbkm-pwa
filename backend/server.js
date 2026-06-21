@@ -1,0 +1,46 @@
+const express = require('express');
+const cors = require('cors');
+const path = require('path');
+const { startPeriodeCron, runAutoToggle } = require('./jobs/periodeCron');
+require('dotenv').config();
+
+
+const app = express();
+
+app.use(cors({
+  origin: process.env.FRONTEND_URL || 'http://localhost:5173',
+  credentials: true
+}));
+app.use(express.json());
+app.use(express.urlencoded({ extended: true }));
+
+// Static folder untuk akses file upload
+app.use('/uploads', express.static(path.join(__dirname, 'uploads')));
+app.use('/api/uploads', express.static(path.join(__dirname, 'uploads')));
+
+
+// Routes (akan ditambahkan bertahap)
+app.use('/api/auth', require('./routes/authRoutes'));
+app.use('/api/mahasiswa', require('./routes/mahasiswaRoutes'));
+app.use('/api/dosen', require('./routes/dosenRoutes'));
+app.use('/api/kaprodi', require('./routes/kaprodiRoutes'));
+app.use('/api/staff', require('./routes/staffRoutes'));
+
+// Health check
+app.get('/', (req, res) => {
+  res.json({ message: 'Capstone Project API is running!' });
+});
+
+// Error handler
+app.use((err, req, res, next) => {
+  console.error(err.stack);
+  res.status(500).json({ message: err.message || 'Internal Server Error' });
+});
+
+const PORT = process.env.PORT || 5000;
+app.listen(PORT, () => {
+  console.log(`Server berjalan di http://localhost:${PORT}`);
+});
+startPeriodeCron();
+runAutoToggle();
+console.log('Static folder:', path.join(__dirname, 'uploads'))

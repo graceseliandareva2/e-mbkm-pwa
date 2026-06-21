@@ -1,0 +1,77 @@
+const DB_NAME = 'capstone-offline-db'
+const STORE_NAME = 'offline-queue'
+
+function openDB() {
+  return new Promise((resolve, reject) => {
+    const req = indexedDB.open(DB_NAME, 1)
+    req.onupgradeneeded = function (e) {
+      const db = e.target.result
+      if (!db.objectStoreNames.contains(STORE_NAME)) {
+        db.createObjectStore(STORE_NAME, { keyPath: 'id', autoIncrement: true })
+      }
+    }
+    req.onsuccess = function (e) { resolve(e.target.result) }
+    req.onerror  = function (e) { reject(e.target.error) }
+  })
+}
+
+export async function saveToQueue(item) {
+  const db = await openDB()
+  return new Promise((resolve, reject) => {
+    const tx    = db.transaction(STORE_NAME, 'readwrite')
+    const store = tx.objectStore(STORE_NAME)
+    const req   = store.add({ ...item, createdAt: new Date().toISOString() })
+    req.onsuccess = function () { resolve(req.result) }
+    req.onerror   = function (e) { reject(e.target.error) }
+  })
+}
+
+export async function getAllQueue() {
+  const db = await openDB()
+  return new Promise((resolve, reject) => {
+    const tx    = db.transaction(STORE_NAME, 'readonly')
+    const store = tx.objectStore(STORE_NAME)
+    const req   = store.getAll()
+    req.onsuccess = function () { resolve(req.result) }
+    req.onerror   = function (e) { reject(e.target.error) }
+  })
+}
+
+export async function deleteFromQueue(id) {
+  const db = await openDB()
+  return new Promise((resolve, reject) => {
+    const tx    = db.transaction(STORE_NAME, 'readwrite')
+    const store = tx.objectStore(STORE_NAME)
+    const req   = store.delete(id)
+    req.onsuccess = function () { resolve() }
+    req.onerror   = function (e) { reject(e.target.error) }
+  })
+}
+
+export async function syncQueue(apiInstance) {
+  const queue = await getAllQueue()
+  if (queue.length === 0) return 0
+
+  let successCount = 0
+  for (const item of queue) {
+    try {
+      if (item.method === 'POST') {
+        await apiInstance.post(item.url, item.data)
+      } else if (item.method === 'PUT') {
+        await apiInstance.put(item.url, item.data)
+      }
+      await deleteFromQueue(item.id)
+      successCount++
+    } catch (err) {
+      // Biarkan item tetap di antrian jika gagal (akan dicoba lagi)
+      console.error('[offlineQueue] Sync gagal untuk item:', item.id, err?.response?.data || err.message)
+    }
+  }
+  return successCount
+}
+
+// Utilitas: berapa item yang masih menunggu di antrian
+export async function getPendingCount() {
+  const queue = await getAllQueue()
+  return queue.length
+}
