@@ -45,7 +45,6 @@ const uploadToCloudinary = (req, res, next) => {
   {
     folder: `embkm/${folder}`,
     resource_type: isImage ? 'image' : 'raw',
-    upload_preset: 'embkm_upload',
   },
   (error, result) => {
     if (error) {
