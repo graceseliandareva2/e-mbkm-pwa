@@ -1,19 +1,8 @@
 const multer = require('multer');
-const { CloudinaryStorage } = require('multer-storage-cloudinary');
 const cloudinary = require('../config/cloudinary');
+const { Readable } = require('stream');
 
-const storage = new CloudinaryStorage({
-  cloudinary,
-  params: async (req, file) => {
-    const folder = req.uploadFolder || 'dokumen-pendukung';
-    const isImage = file.mimetype.startsWith('image/');
-    return {
-      folder: `embkm/${folder}`,
-      resource_type: isImage ? 'image' : 'raw',
-      allowed_formats: ['jpg', 'jpeg', 'png', 'pdf'],
-    };
-  },
-});
+const storage = multer.memoryStorage();
 
 const ALLOWED_MIMETYPES = [
   'application/pdf',
@@ -38,4 +27,26 @@ const upload = multer({
   },
 });
 
-module.exports = upload;
+const uploadToCloudinary = (req, res, next) => {
+  if (!req.file) return next();
+
+  const folder = req.uploadFolder || 'dokumen-pendukung';
+  const isImage = req.file.mimetype.startsWith('image/');
+
+  const stream = cloudinary.uploader.upload_stream(
+    {
+      folder: `embkm/${folder}`,
+      resource_type: isImage ? 'image' : 'raw',
+    },
+    (error, result) => {
+      if (error) return next(error);
+      req.file.path = result.secure_url;
+      req.file.filename = result.public_id;
+      next();
+    }
+  );
+
+  Readable.from(req.file.buffer).pipe(stream);
+};
+
+module.exports = { upload, uploadToCloudinary };
