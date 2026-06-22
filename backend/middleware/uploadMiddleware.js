@@ -33,20 +33,35 @@ const uploadToCloudinary = (req, res, next) => {
   const folder = req.uploadFolder || 'dokumen-pendukung';
   const isImage = req.file.mimetype.startsWith('image/');
 
+  console.log('Uploading to Cloudinary:', {
+    folder,
+    isImage,
+    mimetype: req.file.mimetype,
+    size: req.file.size,
+    bufferLength: req.file.buffer ? req.file.buffer.length : 'NO BUFFER'
+  });
+
   const stream = cloudinary.uploader.upload_stream(
     {
       folder: `embkm/${folder}`,
       resource_type: isImage ? 'image' : 'raw',
     },
     (error, result) => {
-      if (error) return next(error);
+      if (error) {
+        console.log('Cloudinary error message:', error.message);
+        console.log('Cloudinary error http_code:', error.http_code);
+        console.log('Cloudinary error full:', JSON.stringify(error));
+        return next(error);
+      }
+      console.log('Cloudinary upload success:', result.secure_url);
       req.file.path = result.secure_url;
       req.file.filename = result.public_id;
       next();
     }
   );
 
-  Readable.from(req.file.buffer).pipe(stream);
+  const bufferStream = require('stream').Readable.from(req.file.buffer);
+  bufferStream.pipe(stream);
 };
 
 module.exports = { upload, uploadToCloudinary };
