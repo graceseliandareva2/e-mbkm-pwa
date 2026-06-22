@@ -42,23 +42,21 @@ const uploadToCloudinary = (req, res, next) => {
   });
 
   const stream = cloudinary.uploader.upload_stream(
-    {
-      folder: `embkm/${folder}`,
-      resource_type: isImage ? 'image' : 'raw',
-    },
-    (error, result) => {
-      if (error) {
-        console.log('Cloudinary error message:', error.message);
-        console.log('Cloudinary error http_code:', error.http_code);
-        console.log('Cloudinary error full:', JSON.stringify(error));
-        return next(error);
-      }
-      console.log('Cloudinary upload success:', result.secure_url);
-      req.file.path = result.secure_url;
-      req.file.filename = result.public_id;
-      next();
+  {
+    folder: `embkm/${folder}`,
+    resource_type: isImage ? 'image' : 'raw',
+    upload_preset: 'embkm_upload',
+  },
+  (error, result) => {
+    if (error) {
+      console.log('Cloudinary error:', JSON.stringify(error));
+      return next(error);
     }
-  );
+    req.file.path = result.secure_url;
+    req.file.filename = result.public_id;
+    next();
+  }
+);
 
   const bufferStream = require('stream').Readable.from(req.file.buffer);
   bufferStream.pipe(stream);
