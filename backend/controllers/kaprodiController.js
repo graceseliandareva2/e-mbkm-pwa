@@ -812,9 +812,9 @@ const getDashboardStats = async (req, res) => {
     const [[{ total_mahasiswa }]] = await db.query(
       "SELECT COUNT(*) as total_mahasiswa FROM mahasiswa WHERE periode_id = ?", [periode_id]
     );
-    const [[{ total_dosen }]] = await db.query(
-      "SELECT COUNT(DISTINCT dosen_id) as total_dosen FROM bimbingan WHERE periode_id = ?", [periode_id]
-    );
+  const [[{ total_dosen }]] = await db.query(
+  "SELECT COUNT(*) as total_dosen FROM dosen"
+);
     const [[{ total_pengajuan }]] = await db.query(
       "SELECT COUNT(*) as total_pengajuan FROM pengajuan_capstone WHERE periode_id = ?", [periode_id]
     );
