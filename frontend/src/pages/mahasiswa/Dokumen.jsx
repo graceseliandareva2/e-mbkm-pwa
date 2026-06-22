@@ -6,7 +6,7 @@ import {
 import api from '../../utils/api'
 import toast from 'react-hot-toast'
 
-const BASE_URL = 'http://localhost:5000'
+const BASE_URL = ''
 
 const getStatusInfo = (status) => {
   switch (status) {
@@ -40,7 +40,9 @@ function StatusBadge({ status }) {
 
 function DetailModal({ doc, jenisLabel, onClose, onResubmit }) {
   const info         = getStatusInfo(doc.status)
-  const fileUrl      = `${BASE_URL}/${doc.path_file}`
+  const fileUrl      = doc.path_file?.startsWith('http')
+    ? doc.path_file
+    : `${BASE_URL}/${doc.path_file}`
   const feedbackText = doc.status === 'revisi_kaprodi'
     ? doc.feedback_kaprodi
     : doc.status === 'revisi_dospem'
