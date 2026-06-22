@@ -1,23 +1,18 @@
 const multer = require('multer');
-const path = require('path');
-const fs = require('fs');
-const { v4: uuidv4 } = require('uuid');
+const { CloudinaryStorage } = require('multer-storage-cloudinary');
+const cloudinary = require('../config/cloudinary');
 
-const storage = multer.diskStorage({
-  destination: (req, file, cb) => {
-    const folder = req.uploadFolder
-      ? `uploads/${req.uploadFolder}`
-      : 'uploads/dokumen-pendukung';
-
-    // Buat folder otomatis kalau belum ada
-    fs.mkdirSync(folder, { recursive: true });
-    cb(null, folder);
+const storage = new CloudinaryStorage({
+  cloudinary,
+  params: async (req, file) => {
+    const folder = req.uploadFolder || 'dokumen-pendukung';
+    const isImage = file.mimetype.startsWith('image/');
+    return {
+      folder: `embkm/${folder}`,
+      resource_type: isImage ? 'image' : 'raw',
+      allowed_formats: ['jpg', 'jpeg', 'png', 'pdf'],
+    };
   },
-  filename: (req, file, cb) => {
-    const ext = path.extname(file.originalname);
-    const uniqueName = `${uuidv4()}${ext}`;
-    cb(null, uniqueName);
-  }
 });
 
 const ALLOWED_MIMETYPES = [
@@ -39,8 +34,8 @@ const upload = multer({
   storage,
   fileFilter,
   limits: {
-    fileSize: parseInt(process.env.MAX_FILE_SIZE) || 20971520 // 20MB
-  }
+    fileSize: parseInt(process.env.MAX_FILE_SIZE) || 20971520,
+  },
 });
 
 module.exports = upload;
