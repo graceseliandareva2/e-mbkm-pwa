@@ -253,21 +253,18 @@ const tambahLogbook = async (req, res) => {
     } = req.body;
 
     if (!tanggal || !kegiatan || !deskripsi) {
-      if (req.file) fs.unlinkSync(req.file.path);
       return res
         .status(400)
         .json({ message: "Tanggal, kegiatan dan deskripsi wajib diisi." });
     }
 
     if (!jam || isNaN(jam) || Number(jam) <= 0) {
-      if (req.file) fs.unlinkSync(req.file.path);
       return res
         .status(400)
         .json({ message: "Durasi kegiatan harus lebih dari 0." });
     }
 
     if (Number(jam) > 1440) {
-      if (req.file) fs.unlinkSync(req.file.path);
       return res
         .status(400)
         .json({ message: "Durasi kegiatan maksimal 24 jam per hari." });
@@ -279,7 +276,6 @@ const tambahLogbook = async (req, res) => {
         "SELECT * FROM periode WHERE form_logbook_buka = 1 AND is_active = 1 ORDER BY created_at DESC LIMIT 1",
       );
       if (!periodeAktif.length) {
-        if (req.file) fs.unlinkSync(req.file.path);
         return res
           .status(400)
           .json({ message: "Form logbook sedang ditutup." });
@@ -291,16 +287,13 @@ const tambahLogbook = async (req, res) => {
         [periodeIdFinal],
       );
       if (!periode.length) {
-        if (req.file) fs.unlinkSync(req.file.path);
         return res
           .status(400)
           .json({ message: "Form logbook sedang ditutup." });
       }
     }
 
-    const buktiPath = req.file
-      ? `uploads/logbook-bukti/${req.file.filename}`
-      : null;
+   const buktiPath = req.file ? req.file.path : null;
 
     const newId = uuidv4();
 
@@ -327,7 +320,6 @@ const tambahLogbook = async (req, res) => {
     );
     res.status(201).json({ message: "Logbook berhasil ditambahkan." });
   } catch (error) {
-    if (req.file) fs.unlinkSync(req.file.path);
     console.error(error);
     res.status(500).json({ message: "Terjadi kesalahan server." });
   }
