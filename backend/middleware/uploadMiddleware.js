@@ -43,15 +43,16 @@ const uploadToSupabase = async (req, res, next) => {
   const filePath = `${folder}/${fileName}`;
   const bucket = process.env.SUPABASE_BUCKET || 'embkm-files';
 
-  console.log('Uploading to Supabase:', {
+  console.log('Uploading to Supabase:', JSON.stringify({
     bucket,
     filePath,
     mimetype: req.file.mimetype,
     size: req.file.size,
     bufferLength: req.file.buffer ? req.file.buffer.length : 'NO BUFFER',
-  });
+  }));
 
   try {
+    console.log('Calling supabase.storage.upload...');
     const { error } = await supabase.storage
       .from(bucket)
       .upload(filePath, req.file.buffer, {
@@ -59,18 +60,21 @@ const uploadToSupabase = async (req, res, next) => {
         upsert: false,
       });
 
+    console.log('Supabase upload selesai, error:', JSON.stringify(error));
+
     if (error) {
-      console.log('Supabase upload error:', JSON.stringify(error));
+      console.log('Supabase upload error detail:', JSON.stringify(error));
       return next(error);
     }
 
+    console.log('Supabase upload SUCCESS, getting public URL...');
     const { data } = supabase.storage.from(bucket).getPublicUrl(filePath);
+    console.log('Public URL:', data.publicUrl);
 
-    // Tetap pakai req.file.path dan req.file.filename
-    // supaya controller tidak perlu diubah sama sekali
     req.file.path = data.publicUrl;
     req.file.filename = filePath;
 
+    console.log('Middleware selesai, lanjut ke controller...');
     next();
   } catch (err) {
     console.log('Supabase upload exception:', err.message);
