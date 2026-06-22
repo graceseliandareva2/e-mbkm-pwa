@@ -392,20 +392,20 @@ export default function MahasiswaLogbook() {
                       <div>
                         <p className="text-xs font-semibold text-gray-400 uppercase tracking-wide mb-2">Bukti</p>
                         <div className="rounded-xl overflow-hidden border border-gray-200" style={{ height: '420px' }}>
-                          {/\.(jpg|jpeg|png)$/i.test(log.bukti_path) ? (
-                            <img
-                              src={`/uploads/${log.bukti_path.replace(/^.*uploads\//, '')}`}
-                              className="w-full h-full object-contain bg-gray-50"
-                              alt="Bukti kegiatan"
-                            />
-                          ) : (
-                            <iframe
-                              src={`/uploads/${log.bukti_path.replace(/^.*uploads\//, '')}#toolbar=1&navpanes=0`}
-                              className="w-full h-full"
-                              title="Bukti PDF"
-                              type="application/pdf"
-                            />
-                          )}
+                         {/\.(jpg|jpeg|png)$/i.test(log.bukti_path) ? (
+  <img
+    src={log.bukti_path.startsWith('http') ? log.bukti_path : `/uploads/${log.bukti_path.replace(/^.*uploads\//, '')}`}
+    className="w-full h-full object-contain bg-gray-50"
+    alt="Bukti kegiatan"
+  />
+) : (
+  <iframe
+    src={log.bukti_path.startsWith('http') ? `${log.bukti_path}#toolbar=1&navpanes=0` : `/uploads/${log.bukti_path.replace(/^.*uploads\//, '')}#toolbar=1&navpanes=0`}
+    className="w-full h-full"
+    title="Bukti PDF"
+    type="application/pdf"
+  />
+)}
                         </div>
                         <p className="text-xs text-gray-400 mt-2">{log.bukti_path.split('/').pop()}</p>
                       </div>
