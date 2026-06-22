@@ -1,7 +1,7 @@
 const express = require('express');
 const router = express.Router();
 const { verifyToken, authorizeRoles } = require('../middleware/authMiddleware');
-const { upload, uploadToCloudinary } = require('../middleware/uploadMiddleware');
+const { upload, uploadToSupabase } = require('../middleware/uploadMiddleware');
 const {
   getPengajuan, tambahPengajuan, updatePengajuan, hapusPengajuan,
   getLogbook, tambahLogbook, updateLogbook, hapusLogbook,
@@ -25,7 +25,7 @@ router.get('/logbook', auth, getLogbook);
 router.post('/logbook', auth, (req, res, next) => {
   req.uploadFolder = 'logbook-bukti';
   next();
-}, upload.single('bukti'), uploadToCloudinary, tambahLogbook);
+}, upload.single('bukti'), uploadToSupabase, tambahLogbook);
 router.put('/logbook/:id', auth, updateLogbook);
 router.delete('/logbook/:id', auth, hapusLogbook);
 
@@ -34,13 +34,13 @@ router.get('/dokumen', auth, getDokumen);
 router.post('/dokumen', auth, (req, res, next) => {
   req.uploadFolder = 'temp';
   next();
-}, upload.single('file'), uploadToCloudinary, uploadDokumen);
+}, upload.single('file'), uploadToSupabase, uploadDokumen);
 router.delete('/dokumen/:id', auth, require('../controllers/mahasiswaController').hapusDokumen);
 
 router.put('/dokumen/:id/resubmit', auth, (req, res, next) => {
   req.uploadFolder = 'temp';
   next();
-}, upload.single('file'), uploadToCloudinary, require('../controllers/mahasiswaController').resubmitDokumen);
+}, upload.single('file'), uploadToSupabase, require('../controllers/mahasiswaController').resubmitDokumen);
 
 // Feedback & penilaian
 router.get('/feedback', auth, getFeedback);
