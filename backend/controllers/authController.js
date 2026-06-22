@@ -1,8 +1,6 @@
 const db = require('../config/db');
 const bcrypt = require('bcryptjs');
 const jwt = require('jsonwebtoken');
-const fs = require('fs');
-const path = require('path');
 require('dotenv').config();
 
 const login = async (req, res) => {
@@ -102,16 +100,8 @@ const updateProfile = async (req, res) => {
   try {
     const { nama, email, program_studi, angkatan, periode_aktif } = req.body;
 
-    // Jika ada foto baru, hapus foto lama
-    if (req.file) {
-      const [users] = await db.query('SELECT foto FROM users WHERE id = ?', [req.user.id]);
-      if (users[0]?.foto) {
-        const oldPath = path.join(__dirname, '..', users[0].foto);
-        if (fs.existsSync(oldPath)) fs.unlinkSync(oldPath);
-      }
-    }
-
-    const fotoPath = req.file ? `uploads/foto-profil/${req.file.filename}` : undefined;
+    // Gunakan URL Supabase dari req.file.path (sudah diproses uploadToSupabase middleware)
+    const fotoPath = req.file ? req.file.path : undefined;
 
     let query = 'UPDATE users SET nama=?, email=?, program_studi=?, angkatan=?, periode_aktif=?';
     let params = [nama, email, program_studi, angkatan, periode_aktif];
