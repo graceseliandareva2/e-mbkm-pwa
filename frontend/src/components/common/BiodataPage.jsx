@@ -19,9 +19,7 @@ export default function BiodataPage() {
     angkatan: user?.angkatan || '',
   })
 
-const fotoUrl = preview || (user?.foto
-  ? (user.foto.startsWith('http') ? user.foto : `http://localhost:5000/${user.foto}`)
-  : null)
+const fotoUrl = preview || (user?.foto?.startsWith('http') ? user.foto : null)
 
   const getInitials = (nama) => {
     if (!nama) return '?'

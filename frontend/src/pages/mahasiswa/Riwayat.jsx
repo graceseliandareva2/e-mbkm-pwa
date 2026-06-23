@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react'
 import { History, BookOpen, FileText, CheckCircle, XCircle, Clock, AlertCircle, X, Eye } from 'lucide-react'
 import api from '../../utils/api'
 
-const BASE_URL = 'http://localhost:5000'
+const BASE_URL = ''
 
 const LOGBOOK_STATUS = {
   draft:        { label: 'Draft',        color: 'text-gray-500',   bg: 'bg-gray-100',  icon: Clock },

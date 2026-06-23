@@ -109,7 +109,7 @@ export default function ProfileDropdown() {
     return nama.split(' ').slice(0, 2).map(n => n[0]).join('').toUpperCase()
   }
 
-  const fotoUrl = user?.foto ? `http://localhost:5000/${user.foto}` : null
+  const fotoUrl = user?.foto?.startsWith('http') ? user.foto : null
 
   return (
     <div className="relative" ref={dropdownRef}>

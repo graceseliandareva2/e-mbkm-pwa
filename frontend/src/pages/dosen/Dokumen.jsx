@@ -5,7 +5,7 @@ import toast from 'react-hot-toast'
 import usePeriodeFilter from '../../hooks/usePeriodeFilter'
 import PeriodeDropdown from '../../components/common/PeriodeDropdown'
 
-const BASE_URL = 'http://localhost:5000'
+const BASE_URL = ''
 
 const STATUS_CONFIG = {
   diupload:          { label: 'Menunggu Review',   color: 'text-yellow-600', bg: 'bg-yellow-50', border: 'border-yellow-200', icon: Clock },

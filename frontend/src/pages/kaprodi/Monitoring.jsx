@@ -4,7 +4,7 @@ import api from '../../utils/api'
 import toast from 'react-hot-toast'
 import usePeriodeStore from '../../store/periodeStore'
 
-const BASE_URL = 'http://localhost:5000'
+const BASE_URL = ''
 const MIN_JAM = 48
 
 const STATUS_CONFIG = {
