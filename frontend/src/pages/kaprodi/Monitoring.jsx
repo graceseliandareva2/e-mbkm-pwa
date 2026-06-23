@@ -87,7 +87,7 @@ const LaporanModal = ({ row, onClose, onRefresh }) => {
           <button onClick={onClose} className="text-gray-400 hover:text-gray-600 text-xl font-bold ml-3 flex-shrink-0">✕</button>
         </div>
         <div className="flex-1 overflow-hidden">
-          <iframe src={`${BASE_URL}/${dok.path_file}`} className="w-full h-full" title={dok.nama_file} />
+          <iframe src={dok.path_file?.startsWith('http') ? dok.path_file : `${BASE_URL}/${dok.path_file}`} className="w-full h-full" title={dok.nama_file} />
         </div>
        {canAksi && (
   <div className="px-5 py-4 border-t border-gray-100 space-y-3 flex-shrink-0">
@@ -151,7 +151,9 @@ const LaporanModal = ({ row, onClose, onRefresh }) => {
 const PptCell = ({ doc }) => {
   const [preview, setPreview] = useState(false)
   if (!doc) return <span className="text-xs text-gray-300">Belum</span>
-  const fileUrl = `${BASE_URL}/${doc.path_file}`
+  const fileUrl = doc.path_file?.startsWith('http')
+    ? doc.path_file
+    : `${BASE_URL}/${doc.path_file}`
   return (
     <>
       <button onClick={() => setPreview(true)}

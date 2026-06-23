@@ -111,7 +111,7 @@ export default function DosenLogbook() {
       const mhsRes = await api.get('/dosen/mahasiswa-bimbingan', { params: { periode_id: periodeId } })
       const list   = mhsRes.data.data || []
       setMahasiswa(list)
-      setCache(CACHE_MHS, list)   // ← BARU: simpan cache mahasiswa
+      setCache(CACHE_MHS, list)   
     } catch {
       // Offline: tetap pakai state sebelumnya yang sudah di-load dari cache
     } finally {
@@ -273,13 +273,13 @@ export default function DosenLogbook() {
                     <div>
                       <p className="text-xs font-semibold text-gray-400 uppercase tracking-wide mb-1.5">Bukti Kegiatan</p>
                       <div className="rounded-xl overflow-hidden border border-gray-200" style={{ height: '420px' }}>
-                        {/\.(jpg|jpeg|png)$/i.test(log.bukti_path) ? (
-                          <img src={`/uploads/${log.bukti_path.replace(/^.*uploads\//, '')}`}
-                            className="w-full h-full object-contain bg-gray-50" alt="Bukti kegiatan" />
-                        ) : (
-                          <iframe src={`/uploads/${log.bukti_path.replace(/^.*uploads\//, '')}#toolbar=1&navpanes=0`}
-                            className="w-full h-full" title="Bukti PDF" type="application/pdf" />
-                        )}
+                       {/\.(jpg|jpeg|png)$/i.test(log.bukti_path) ? (
+  <img src={log.bukti_path.startsWith('http') ? log.bukti_path : `/uploads/${log.bukti_path.replace(/^.*uploads\//, '')}`}
+    className="w-full h-full object-contain bg-gray-50" alt="Bukti kegiatan" />
+) : (
+  <iframe src={log.bukti_path.startsWith('http') ? `${log.bukti_path}#toolbar=1&navpanes=0` : `/uploads/${log.bukti_path.replace(/^.*uploads\//, '')}#toolbar=1&navpanes=0`}
+    className="w-full h-full" title="Bukti PDF" type="application/pdf" />
+)}
                       </div>
                       <p className="text-xs text-gray-400 mt-2">{log.bukti_path.split('/').pop()}</p>
                     </div>

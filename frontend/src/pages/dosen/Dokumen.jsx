@@ -36,7 +36,9 @@ function DetailModal({ doc, onClose, onRefresh }) {
 
   const statusCfg  = STATUS_CONFIG[doc.status] || STATUS_CONFIG.diupload
   const StatusIcon = statusCfg.icon
-  const fileUrl    = `${BASE_URL}/${doc.path_file}`
+ const fileUrl = doc.path_file?.startsWith('http')
+  ? doc.path_file
+  : `${BASE_URL}/${doc.path_file}`
 
   const canAksi = doc.jenis === 'ppt'
     ? ['diupload', 'revisi_dospem'].includes(doc.status)
