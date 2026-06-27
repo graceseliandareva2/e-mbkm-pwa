@@ -2,6 +2,8 @@ import { useEffect, useState } from 'react'
 import { History, BookOpen, FileText, CheckCircle, XCircle, Clock, AlertCircle, X, Eye } from 'lucide-react'
 import api from '../../utils/api'
 
+const BASE_URL = ''
+
 const LOGBOOK_STATUS = {
   draft:        { label: 'Draft',        color: 'text-gray-500',   bg: 'bg-gray-100',  icon: Clock },
   disubmit:     { label: 'Menunggu',     color: 'text-yellow-600', bg: 'bg-yellow-50', icon: Clock },
@@ -30,11 +32,6 @@ const formatDurasi = (jam) => {
   if (m === 0) return `${j} jam`
   if (j === 0) return `${m} menit`
   return `${j} jam ${m} menit`
-}
-
-const isImageUrl = (url) => {
-  if (!url) return false
-  return /\.(jpg|jpeg|png)$/i.test(url) || url.includes('/image/')
 }
 
 function DetailRow({ label, value }) {
@@ -217,7 +214,7 @@ export default function MahasiswaRiwayat() {
                 </div>
                 <button
                   onClick={() => setSelectedDoc(item)}
-                  className="p-1.5 text-blue-600 bg-blue-50 hover:bg-blue-100 rounded-lg flex-shrink-0 mt-0.5"
+                 className="p-1.5 text-blue-600 bg-blue-50 hover:bg-blue-100 rounded-lg flex-shrink-0 mt-0.5"
                 >
                   <Eye className="w-4 h-4" />
                 </button>
@@ -243,31 +240,38 @@ export default function MahasiswaRiwayat() {
               {/* Kiri — Bukti Preview */}
               <div className="w-1/2 bg-gray-900 flex flex-col flex-shrink-0 rounded-bl-2xl overflow-hidden">
                 <div className="flex items-center justify-between px-4 py-2.5 bg-gray-800 flex-shrink-0">
-                  <p className="text-xs font-semibold text-gray-300">Bukti Kegiatan</p>
+                  <p className="text-xs font-semibold text-gray-300">
+                    {selectedLog.bukti_link ? 'Bukti Kegiatan (Link)' : 'Bukti Kegiatan (PDF)'}
+                  </p>
                   {selectedLog.bukti_path && (
                     <p className="text-xs text-gray-300 truncate max-w-[160px]">
                       {selectedLog.bukti_path.split('/').pop()}
                     </p>
                   )}
                 </div>
-                <div className="flex-1 flex items-center justify-center p-4 overflow-hidden">
-                  {selectedLog.bukti_path ? (
-                    isImageUrl(selectedLog.bukti_path) ? (
-                      <img
-                        src={selectedLog.bukti_path}
-                        alt="Bukti kegiatan"
-                        className="max-w-full max-h-full object-contain rounded-lg"
-                      />
-                    ) : (
-                      <iframe
-                        src={selectedLog.bukti_path}
-                        className="w-full h-full"
-                        title="Bukti PDF"
-                        style={{ minHeight: '360px' }}
-                      />
-                    )
+                <div className="flex-1 flex items-center justify-center p-6">
+                 // BARU:
+{selectedLog.bukti_path ? (
+  (() => {
+    const url = selectedLog.bukti_path
+    const isImage = /\.(jpg|jpeg|png)$/i.test(url) || url.includes('/image/')
+    return isImage ? (
+      <img
+        src={url}
+        alt="Bukti kegiatan"
+        className="max-w-full max-h-full object-contain rounded-lg"
+      />
+    ) : (
+      <iframe
+        src={url}
+        className="w-full h-full"
+        title="Bukti PDF"
+        style={{ minHeight: '360px' }}
+      />
+    )
+  })()
                   ) : selectedLog.bukti_link ? (
-                    
+                    <a
                       href={selectedLog.bukti_link}
                       target="_blank"
                       rel="noopener noreferrer"
@@ -370,31 +374,26 @@ export default function MahasiswaRiwayat() {
                 </p>
               </div>
             )}
-
-            <div className="flex-1 overflow-hidden bg-gray-50 rounded-b-2xl">
-              {selectedDoc.path_file ? (
-                isImageUrl(selectedDoc.path_file) ? (
-                  <img
-                    src={selectedDoc.path_file}
-                    alt={selectedDoc.nama_file}
-                    className="w-full h-full object-contain p-4"
-                  />
-                ) : (
-                  <iframe
-                    src={selectedDoc.path_file}
-                    className="w-full h-full"
-                    title={selectedDoc.nama_file}
-                  />
-                )
-              ) : (
-                <div className="flex items-center justify-center h-full">
-                  <div className="text-center">
-                    <FileText className="w-12 h-12 text-gray-300 mx-auto mb-2" />
-                    <p className="text-sm text-gray-500">File tidak tersedia</p>
-                  </div>
-                </div>
-              )}
-            </div>
+// BARU:
+<div className="flex-1 overflow-hidden bg-gray-50 rounded-b-2xl">
+  {(() => {
+    const url = selectedDoc.path_file
+    const isImage = /\.(jpg|jpeg|png)$/i.test(url) || url.includes('/image/')
+    return isImage ? (
+      <img
+        src={url}
+        alt={selectedDoc.nama_file}
+        className="w-full h-full object-contain p-4"
+      />
+    ) : (
+      <iframe
+        src={url}
+        className="w-full h-full"
+        title={selectedDoc.nama_file}
+      />
+    )
+  })()}
+</div>
           </div>
         </div>
       )}
