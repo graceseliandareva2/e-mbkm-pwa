@@ -249,6 +249,8 @@ const updateLogbook = async (req, res) => {
 
     const { tanggal, kegiatan, deskripsi, jam, hasil, kendala, rencana_selanjutnya } = req.body;
 
+    console.log('updateLogbook body:', { tanggal, kegiatan, deskripsi, jam, hasil, kendala, rencana_selanjutnya });
+
     if (!tanggal || !kegiatan || !deskripsi) {
       return res.status(400).json({ message: "Tanggal, kegiatan, dan deskripsi wajib diisi." });
     }
@@ -268,7 +270,7 @@ const updateLogbook = async (req, res) => {
     }
 
     if (req.file) {
-      buktiPath = req.file.path; // URL Cloudinary
+      buktiPath = req.file.path;
     }
 
     await db.query(
@@ -278,10 +280,10 @@ const updateLogbook = async (req, res) => {
     );
     res.json({ message: "Logbook berhasil diupdate." });
   } catch (error) {
+    console.error('updateLogbook error:', error);
     res.status(500).json({ message: "Terjadi kesalahan server." });
   }
 };
-
 const hapusLogbook = async (req, res) => {
   try {
     const [mhs] = await db.query("SELECT id FROM mahasiswa WHERE user_id = ?", [req.user.id]);

@@ -44,9 +44,9 @@ router.put('/dokumen/:id/resubmit', auth, (req, res, next) => {
   next();
 }, upload.single('file'), uploadToSupabase, resubmitDokumen);
 
-// Feedback & penilaian
+// Feedback & penilaian 
 router.get('/feedback', auth, getFeedback);
 router.get('/penilaian', auth, getPenilaian);
 router.get('/notifikasi', auth, getNotifikasi);
 
-module.exports = router;
+module.exports = router; 
