@@ -246,38 +246,40 @@ const updateLogbook = async (req, res) => {
     if (!["draft", "disubmit", "revisi"].includes(logbook[0].status)) {
       return res.status(400).json({ message: "Logbook yang sudah diverifikasi tidak bisa diedit." });
     }
+const { tanggal, kegiatan, deskripsi, jam, hasil, kendala, rencana_selanjutnya } = req.body;
 
-    const { tanggal, kegiatan, deskripsi, jam, hasil, kendala, rencana_selanjutnya } = req.body;
+console.log('updateLogbook body:', { tanggal, kegiatan, deskripsi, jam, hasil, kendala, rencana_selanjutnya });
 
-    console.log('updateLogbook body:', { tanggal, kegiatan, deskripsi, jam, hasil, kendala, rencana_selanjutnya });
+// FIX: konversi format tanggal ISO ke YYYY-MM-DD
+const tanggalFormatted = tanggal ? tanggal.split('T')[0] : null;
 
-    if (!tanggal || !kegiatan || !deskripsi) {
-      return res.status(400).json({ message: "Tanggal, kegiatan, dan deskripsi wajib diisi." });
-    }
+if (!tanggalFormatted || !kegiatan || !deskripsi) {
+  return res.status(400).json({ message: "Tanggal, kegiatan, dan deskripsi wajib diisi." });
+}
 
-    if (!jam || isNaN(jam) || Number(jam) <= 0) {
-      return res.status(400).json({ message: "Durasi kegiatan harus lebih dari 0." });
-    }
+if (!jam || isNaN(jam) || Number(jam) <= 0) {
+  return res.status(400).json({ message: "Durasi kegiatan harus lebih dari 0." });
+}
 
-    if (Number(jam) > 1440) {
-      return res.status(400).json({ message: "Durasi kegiatan maksimal 24 jam per hari." });
-    }
+if (Number(jam) > 1440) {
+  return res.status(400).json({ message: "Durasi kegiatan maksimal 24 jam per hari." });
+}
 
-    let buktiPath = logbook[0].bukti_path;
+let buktiPath = logbook[0].bukti_path;
 
-    if (req.body.hapus_bukti === "1") {
-      buktiPath = null;
-    }
+if (req.body.hapus_bukti === "1") {
+  buktiPath = null;
+}
 
-    if (req.file) {
-      buktiPath = req.file.path;
-    }
+if (req.file) {
+  buktiPath = req.file.path;
+}
 
-    await db.query(
-      `UPDATE logbook SET tanggal=?, kegiatan=?, deskripsi=?, jam=?, hasil=?, kendala=?,
-      rencana_selanjutnya=?, bukti_path=?, status='disubmit' WHERE id=?`,
-      [tanggal, kegiatan, deskripsi, jam, hasil || null, kendala || null, rencana_selanjutnya || null, buktiPath, id],
-    );
+await db.query(
+  `UPDATE logbook SET tanggal=?, kegiatan=?, deskripsi=?, jam=?, hasil=?, kendala=?,
+  rencana_selanjutnya=?, bukti_path=?, status='disubmit' WHERE id=?`,
+  [tanggalFormatted, kegiatan, deskripsi, jam, hasil || null, kendala || null, rencana_selanjutnya || null, buktiPath, id],
+);
     res.json({ message: "Logbook berhasil diupdate." });
   } catch (error) {
     console.error('updateLogbook error:', error);
