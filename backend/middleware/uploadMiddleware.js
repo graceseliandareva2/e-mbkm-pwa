@@ -1,13 +1,14 @@
 const multer = require('multer');
-const { createClient } = require('@supabase/supabase-js');
+const { v2: cloudinary } = require('cloudinary');
 const path = require('path');
 const { v4: uuidv4 } = require('uuid');
+const streamifier = require('streamifier');
 
-// Supabase client pakai service_role key (bypass RLS)
-const supabase = createClient(
-  process.env.SUPABASE_URL,
-  process.env.SUPABASE_SERVICE_ROLE_KEY
-);
+cloudinary.config({
+  cloud_name: process.env.CLOUDINARY_CLOUD_NAME,
+  api_key: process.env.CLOUDINARY_API_KEY,
+  api_secret: process.env.CLOUDINARY_API_SECRET,
+});
 
 const storage = multer.memoryStorage();
 
@@ -34,52 +35,38 @@ const upload = multer({
   },
 });
 
-const uploadToSupabase = async (req, res, next) => {
+const uploadToCloudinary = async (req, res, next) => {
   if (!req.file) return next();
 
   const folder = req.uploadFolder || 'dokumen-pendukung';
   const ext = path.extname(req.file.originalname).toLowerCase();
   const fileName = `${uuidv4()}${ext}`;
-  const filePath = `${folder}/${fileName}`;
-  const bucket = process.env.SUPABASE_BUCKET || 'embkm-files';
-
-  console.log('Uploading to Supabase:', JSON.stringify({
-    bucket,
-    filePath,
-    mimetype: req.file.mimetype,
-    size: req.file.size,
-    bufferLength: req.file.buffer ? req.file.buffer.length : 'NO BUFFER',
-  }));
+  const isPdf = req.file.mimetype === 'application/pdf';
 
   try {
-    console.log('Calling supabase.storage.upload...');
-    const { error } = await supabase.storage
-      .from(bucket)
-      .upload(filePath, req.file.buffer, {
-        contentType: req.file.mimetype,
-        upsert: false,
-      });
+    const result = await new Promise((resolve, reject) => {
+      const uploadStream = cloudinary.uploader.upload_stream(
+        {
+          folder: `embkm/${folder}`,
+          public_id: fileName,
+          resource_type: isPdf ? 'raw' : 'image',
+        },
+        (error, result) => {
+          if (error) return reject(error);
+          resolve(result);
+        }
+      );
+      streamifier.createReadStream(req.file.buffer).pipe(uploadStream);
+    });
 
-    console.log('Supabase upload selesai, error:', JSON.stringify(error));
+    req.file.path = result.secure_url;
+    req.file.filename = result.public_id;
 
-    if (error) {
-      console.log('Supabase upload error detail:', JSON.stringify(error));
-      return next(error);
-    }
-
-    console.log('Supabase upload SUCCESS, getting public URL...');
-    const { data } = supabase.storage.from(bucket).getPublicUrl(filePath);
-    console.log('Public URL:', data.publicUrl);
-
-    req.file.path = data.publicUrl;
-    req.file.filename = filePath;
-
-    console.log('Middleware selesai, lanjut ke controller...');
     next();
-  } catch (err) {
-    console.log('Supabase upload exception:', err.message);
+ } catch (err) {
+    console.error('Cloudinary upload error FULL:', JSON.stringify(err, null, 2));
     return next(err);
   }
 };
 
-module.exports = { upload, uploadToSupabase };
+module.exports = { upload, uploadToCloudinary };
