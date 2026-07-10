@@ -25,6 +25,7 @@ app.use('/api/mahasiswa', require('./routes/mahasiswaRoutes'));
 app.use('/api/dosen', require('./routes/dosenRoutes'));
 app.use('/api/kaprodi', require('./routes/kaprodiRoutes'));
 app.use('/api/staff', require('./routes/staffRoutes'));
+app.use('/api/push', require('./routes/pushRoutes'));
 
 // Health check
 app.get('/', (req, res) => {

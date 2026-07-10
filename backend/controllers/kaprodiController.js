@@ -3,6 +3,7 @@ const db = require("../config/db");
 const bcrypt = require("bcryptjs");
 const xlsx = require("xlsx");
 const fs = require("fs");
+const { sendPushToUser } = require("../utils/pushSender");
 
 // ========== PERIODE ==========
 
@@ -300,7 +301,6 @@ const tambahMahasiswa = async (req, res) => {
       return res.status(400).json({ message: "NIM sudah terdaftar di periode ini." });
     }
 
-    // Cek apakah user dengan email/username ini sudah ada
     const [existingUser] = await db.query(
       "SELECT id, nama, role FROM users WHERE username = ? OR email = ?",
       [email, email]
@@ -311,18 +311,12 @@ const tambahMahasiswa = async (req, res) => {
     if (existingUser.length > 0) {
       const found = existingUser[0];
 
-      // Jangan diam-diam reuse akun yang role-nya bukan mahasiswa
-      // (mis. staff/dosen_pembimbing/kaprodi). Kalau email sudah dipakai
-      // role lain, tolak dengan pesan jelas supaya tidak ada akun yang
-      // "nyangkut" dipakai dua identitas berbeda.
       if (found.role !== "mahasiswa") {
         return res.status(400).json({
           message: `Email/username ini sudah terdaftar sebagai akun ${found.role} (${found.nama}). Gunakan email lain untuk mahasiswa ini.`,
         });
       }
 
-      // Email sudah dipakai mahasiswa lain. Pastikan bukan untuk
-      // menambahkan mahasiswa berbeda atas akun yang sama.
       const [mhsLain] = await db.query(
         "SELECT nim, nama FROM mahasiswa WHERE user_id = ?",
         [found.id]
@@ -333,10 +327,8 @@ const tambahMahasiswa = async (req, res) => {
         });
       }
 
-      // Pakai user_id yang sudah ada (akun mahasiswa yang sama)
       userId = found.id;
     } else {
-      // Buat user baru
       const hashedPassword = await bcrypt.hash(nim, 8);
       userId = uuidv4();
       await db.query(
@@ -532,11 +524,6 @@ const assignDosen = async (req, res) => {
 const getDaftarMahasiswa = async (req, res) => {
   try {
     const { periode_id } = req.query;
-    // PENTING: jangan select u.email di sini. Kalau di-select, MySQL/mysql2
-    // akan menimpa kolom m.email (dari m.*) dengan u.email saat keduanya
-    // sama-sama bernama "email" di hasil JSON, sehingga frontend menampilkan
-    // email akun users (yang bisa saja akun lain seperti staff/dosen yang
-    // ter-reuse) alih-alih email asli mahasiswa.
     const query = `
       SELECT m.*, u.is_active,
         b.dosen_id, d.nama as nama_dosen,
@@ -635,6 +622,15 @@ const verifikasiPengajuan = async (req, res) => {
           status === "disetujui_kaprodi" ? "sukses" : "peringatan",
         ]
       );
+
+      // Push notification hanya untuk status disetujui_kaprodi
+      if (status === "disetujui_kaprodi") {
+        await sendPushToUser(pengajuan[0].user_id, {
+          title: "Pengajuan Disetujui",
+          body: pesan,
+          url: "/mahasiswa/pengajuan",
+        });
+      }
     }
 
     res.json({ message: "Status pengajuan berhasil diupdate." });

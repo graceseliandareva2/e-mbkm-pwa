@@ -8,7 +8,7 @@ import { useSyncOnline } from '../../utils/useSyncOnline'
 import { getCache, setCache } from '../../utils/offlineCache'   // ← BARU
 
 // ─────────────────────────── constants ───────────────────────────
-const CACHE_KEY = 'pengajuan'   // key di localStorage
+const CACHE_KEY = 'pengajuan'   
 
 const STATUS_CONFIG = {
   menunggu:          { label: 'Menunggu Review',  color: 'text-yellow-600', bg: 'bg-yellow-50',  border: 'border-yellow-200', icon: Clock },

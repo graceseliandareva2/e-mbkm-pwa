@@ -1,6 +1,7 @@
 const cron = require('node-cron');
 const db = require('../config/db');
 const { sendEmail } = require('../utils/mailer');
+const { sendPushToUser } = require('../utils/pushSender');
 
 const runAutoToggle = async () => {
   const conn = await db.getConnection();
@@ -61,7 +62,13 @@ const runAutoToggle = async () => {
     );
 
     // ── PERINGATAN DEADLINE LOGBOOK H-3 dan H-1 ───────────
-    await runDeadlineReminder(conn, todayStr);
+    await runDeadlineReminderLogbook(conn, todayStr);
+
+    // ── PERINGATAN DEADLINE PENGAJUAN H-3 dan H-1 ─────────
+    await runDeadlineReminderPengajuan(conn, todayStr);
+
+    // ── PERINGATAN DEADLINE DOKUMEN (PPT & LAPORAN) H-3 dan H-1 ─
+    await runDeadlineReminderDokumen(conn, todayStr);
 
     console.log(`[periodeCron] Auto-toggle selesai ${new Date().toISOString()}`);
   } catch (err) {
@@ -71,7 +78,8 @@ const runAutoToggle = async () => {
   }
 };
 
-const runDeadlineReminder = async (conn, todayStr) => {
+// Reminder deadline logbook (H-3 / H-1) — email (sudah ada) + push (baru)
+const runDeadlineReminderLogbook = async (conn, todayStr) => {
   try {
     const [periodeList] = await conn.query(
       `SELECT id, nama_periode, tanggal_selesai_logbook
@@ -91,62 +99,211 @@ const runDeadlineReminder = async (conn, todayStr) => {
       );
 
       const [mahasiswaList] = await conn.query(
-        `SELECT m.id, m.nama, m.email,
+        `SELECT m.id, m.user_id, m.nama, m.email,
            COALESCE(SUM(l.jam), 0) as total_menit
          FROM mahasiswa m
          LEFT JOIN logbook l ON l.mahasiswa_id = m.id
            AND l.periode_id = ? AND l.status = 'diverifikasi'
          WHERE m.periode_id = ?
-         GROUP BY m.id, m.nama, m.email
+         GROUP BY m.id, m.user_id, m.nama, m.email
          HAVING total_menit < 2880`,
         [periode.id, periode.id]
       );
 
       for (const mhs of mahasiswaList) {
-        if (!mhs.email) continue;
-
         const jamTerverifikasi = Math.floor(mhs.total_menit / 60);
         const menitTerverifikasi = mhs.total_menit % 60;
         const sisaJam = Math.floor((2880 - mhs.total_menit) / 60);
         const sisaMenit = (2880 - mhs.total_menit) % 60;
 
-        await sendEmail({
-          to: mhs.email,
-          subject: `⏰ Peringatan Deadline Logbook H-${selisih} — ${periode.nama_periode}`,
-          html: `
-            <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
-              <div style="background: #1e4db7; padding: 24px; border-radius: 12px 12px 0 0;">
-                <h2 style="color: white; margin: 0;">e-MBKM ITBSS</h2>
-              </div>
-              <div style="background: #f9fafb; padding: 24px; border-radius: 0 0 12px 12px; border: 1px solid #e5e7eb;">
-                <p>Halo <strong>${mhs.nama}</strong>,</p>
-                <p>Deadline pengisian logbook periode <strong>${periode.nama_periode}</strong> tinggal <span style="color: #dc2626; font-weight: bold;">${selisih} hari lagi</span> (${new Date(periode.tanggal_selesai_logbook).toLocaleDateString('id-ID', { day: 'numeric', month: 'long', year: 'numeric' })}).</p>
-                <div style="background: #eff6ff; border-left: 4px solid #1e4db7; padding: 12px 16px; border-radius: 4px; margin: 16px 0;">
-                  <p style="margin: 0; color: #1e3a8a;"><strong>Progress Logbook Kamu:</strong></p>
-                  <p style="margin: 8px 0 0; color: #1e40af;">
-                    Terverifikasi: ${jamTerverifikasi} jam ${menitTerverifikasi} menit / 48 jam<br>
-                    Kurang: ${sisaJam} jam ${sisaMenit} menit lagi
-                  </p>
+        if (mhs.email) {
+          await sendEmail({
+            to: mhs.email,
+            subject: `⏰ Peringatan Deadline Logbook H-${selisih} — ${periode.nama_periode}`,
+            html: `
+              <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
+                <div style="background: #1e4db7; padding: 24px; border-radius: 12px 12px 0 0;">
+                  <h2 style="color: white; margin: 0;">e-MBKM ITBSS</h2>
                 </div>
-                <p>Segera lengkapi logbook kamu sebelum deadline.</p>
-                <hr style="border: none; border-top: 1px solid #e5e7eb; margin: 20px 0;">
-                <p style="color: #6b7280; font-size: 12px; margin: 0;">Email ini dikirim otomatis oleh sistem e-MBKM ITBSS.</p>
+                <div style="background: #f9fafb; padding: 24px; border-radius: 0 0 12px 12px; border: 1px solid #e5e7eb;">
+                  <p>Halo <strong>${mhs.nama}</strong>,</p>
+                  <p>Deadline pengisian logbook periode <strong>${periode.nama_periode}</strong> tinggal <span style="color: #dc2626; font-weight: bold;">${selisih} hari lagi</span> (${new Date(periode.tanggal_selesai_logbook).toLocaleDateString('id-ID', { day: 'numeric', month: 'long', year: 'numeric' })}).</p>
+                  <div style="background: #eff6ff; border-left: 4px solid #1e4db7; padding: 12px 16px; border-radius: 4px; margin: 16px 0;">
+                    <p style="margin: 0; color: #1e3a8a;"><strong>Progress Logbook Kamu:</strong></p>
+                    <p style="margin: 8px 0 0; color: #1e40af;">
+                      Terverifikasi: ${jamTerverifikasi} jam ${menitTerverifikasi} menit / 48 jam<br>
+                      Kurang: ${sisaJam} jam ${sisaMenit} menit lagi
+                    </p>
+                  </div>
+                  <p>Segera lengkapi logbook kamu sebelum deadline.</p>
+                  <hr style="border: none; border-top: 1px solid #e5e7eb; margin: 20px 0;">
+                  <p style="color: #6b7280; font-size: 12px; margin: 0;">Email ini dikirim otomatis oleh sistem e-MBKM ITBSS.</p>
+                </div>
               </div>
-            </div>
-          `
+            `
+          });
+        }
+
+        await sendPushToUser(mhs.user_id, {
+          title: `Deadline Logbook H-${selisih}`,
+          body: `Deadline logbook periode ${periode.nama_periode} tinggal ${selisih} hari lagi. Kurang ${sisaJam} jam ${sisaMenit} menit.`,
+          url: '/mahasiswa/logbook',
         });
 
-        console.log(`[deadlineReminder] Email H-${selisih} terkirim ke ${mhs.email}`);
+        console.log(`[deadlineReminderLogbook] H-${selisih} dikirim ke ${mhs.nama}`);
       }
     }
   } catch (err) {
-    console.error('[deadlineReminder] Error:', err);
+    console.error('[deadlineReminderLogbook] Error:', err);
+  }
+};
+
+// Reminder deadline pengajuan (H-3 / H-1) — push only, hanya yang belum submit
+const runDeadlineReminderPengajuan = async (conn, todayStr) => {
+  try {
+    const [periodeList] = await conn.query(
+      `SELECT id, nama_periode, tanggal_selesai_pengajuan
+       FROM periode
+       WHERE tanggal_selesai_pengajuan IS NOT NULL
+         AND form_pengajuan_buka = 1
+         AND (
+           DATE_SUB(tanggal_selesai_pengajuan, INTERVAL 3 DAY) = ?
+           OR DATE_SUB(tanggal_selesai_pengajuan, INTERVAL 1 DAY) = ?
+         )`,
+      [todayStr, todayStr]
+    );
+
+    for (const periode of periodeList) {
+      const selisih = Math.round(
+        (new Date(periode.tanggal_selesai_pengajuan) - new Date(todayStr)) / (1000 * 60 * 60 * 24)
+      );
+
+      const [belumSubmit] = await conn.query(
+        `SELECT m.id, m.user_id, m.nama
+         FROM mahasiswa m
+         WHERE m.periode_id = ?
+           AND NOT EXISTS (
+             SELECT 1 FROM pengajuan_capstone pc
+             WHERE pc.mahasiswa_id = m.id AND pc.periode_id = m.periode_id
+           )`,
+        [periode.id]
+      );
+
+      for (const mhs of belumSubmit) {
+        await sendPushToUser(mhs.user_id, {
+          title: `Deadline Pengajuan H-${selisih}`,
+          body: `Deadline pengajuan capstone periode ${periode.nama_periode} tinggal ${selisih} hari lagi. Kamu belum mengajukan, segera ajukan!`,
+          url: '/mahasiswa/pengajuan',
+        });
+      }
+
+      console.log(`[deadlineReminderPengajuan] H-${selisih} dikirim ke ${belumSubmit.length} mahasiswa (periode ${periode.nama_periode})`);
+    }
+  } catch (err) {
+    console.error('[deadlineReminderPengajuan] Error:', err);
+  }
+};
+
+// Reminder deadline dokumen PPT & Laporan Akhir (H-3 / H-1) — push only, hanya yang belum upload
+const runDeadlineReminderDokumen = async (conn, todayStr) => {
+  const jenisConfig = [
+    { jenis: 'ppt', kolomDeadline: 'tanggal_selesai_ppt', label: 'PPT' },
+    { jenis: 'laporan_akhir', kolomDeadline: 'tanggal_selesai_laporan', label: 'Laporan Akhir' },
+  ];
+
+  for (const cfg of jenisConfig) {
+    try {
+      const [periodeList] = await conn.query(
+        `SELECT id, nama_periode, ${cfg.kolomDeadline} as deadline
+         FROM periode
+         WHERE ${cfg.kolomDeadline} IS NOT NULL
+           AND form_dokumen_buka = 1
+           AND (
+             DATE_SUB(${cfg.kolomDeadline}, INTERVAL 3 DAY) = ?
+             OR DATE_SUB(${cfg.kolomDeadline}, INTERVAL 1 DAY) = ?
+           )`,
+        [todayStr, todayStr]
+      );
+
+      for (const periode of periodeList) {
+        const selisih = Math.round(
+          (new Date(periode.deadline) - new Date(todayStr)) / (1000 * 60 * 60 * 24)
+        );
+
+        const [belumLengkap] = await conn.query(
+          `SELECT m.id, m.user_id, m.nama
+           FROM mahasiswa m
+           WHERE m.periode_id = ?
+             AND NOT EXISTS (
+               SELECT 1 FROM dokumen d
+               WHERE d.mahasiswa_id = m.id
+                 AND d.periode_id = m.periode_id
+                 AND d.jenis = ?
+             )`,
+          [periode.id, cfg.jenis]
+        );
+
+        for (const mhs of belumLengkap) {
+          await sendPushToUser(mhs.user_id, {
+            title: `Deadline ${cfg.label} H-${selisih}`,
+            body: `Deadline upload ${cfg.label} periode ${periode.nama_periode} tinggal ${selisih} hari lagi. Kamu belum upload, segera lengkapi!`,
+            url: '/mahasiswa/dokumen',
+          });
+        }
+
+        console.log(`[deadlineReminderDokumen:${cfg.jenis}] H-${selisih} dikirim ke ${belumLengkap.length} mahasiswa (periode ${periode.nama_periode})`);
+      }
+    } catch (err) {
+      console.error(`[deadlineReminderDokumen:${cfg.jenis}] Error:`, err);
+    }
+  }
+};
+
+// Reminder harian jam 17:00 — push only, mahasiswa yang belum isi logbook hari ini
+const runLogbookHarianReminder = async () => {
+  const conn = await db.getConnection();
+  try {
+    const today = new Date();
+    const todayStr = [
+      today.getFullYear(),
+      String(today.getMonth() + 1).padStart(2, '0'),
+      String(today.getDate()).padStart(2, '0')
+    ].join('-');
+
+    const [mahasiswaBelumIsi] = await conn.query(
+      `SELECT m.id, m.user_id, m.nama
+       FROM mahasiswa m
+       JOIN periode p ON m.periode_id = p.id
+       WHERE p.form_logbook_buka = 1
+         AND NOT EXISTS (
+           SELECT 1 FROM logbook l
+           WHERE l.mahasiswa_id = m.id
+             AND l.periode_id = p.id
+             AND l.tanggal = ?
+         )`,
+      [todayStr]
+    );
+
+    for (const mhs of mahasiswaBelumIsi) {
+      await sendPushToUser(mhs.user_id, {
+        title: 'Pengingat Logbook',
+        body: `Kamu belum mengisi logbook hari ini, ${mhs.nama}. Yuk isi sebelum lupa!`,
+        url: '/mahasiswa/logbook',
+      });
+    }
+
+    console.log(`[logbookHarianReminder] Reminder terkirim ke ${mahasiswaBelumIsi.length} mahasiswa (${todayStr})`);
+  } catch (err) {
+    console.error('[logbookHarianReminder] Error:', err);
+  } finally {
+    conn.release();
   }
 };
 
 const startPeriodeCron = () => {
   cron.schedule('1 0 * * *', runAutoToggle);
-  console.log('[periodeCron] Scheduler aktif (setiap hari jam 00:01)');
+  cron.schedule('0 17 * * *', runLogbookHarianReminder);
+  console.log('[periodeCron] Scheduler aktif (00:01 auto-toggle & deadline, 17:00 reminder harian logbook)');
 };
 
-module.exports = { startPeriodeCron, runAutoToggle };
+module.exports = { startPeriodeCron, runAutoToggle, runLogbookHarianReminder };

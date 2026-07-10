@@ -5,6 +5,7 @@ import toast from 'react-hot-toast'
 import { Eye, EyeOff, User, Lock } from 'lucide-react'
 import useAuthStore from '../../store/authStore'
 import api from '../../utils/api'
+import { subscribeToPush } from '../../utils/push'
 
 export default function LoginPage() {
   const [showPassword, setShowPassword] = useState(false)
@@ -27,6 +28,9 @@ toast.success(`Selamat datang, ${res.data.user.nama || res.data.user.username}!`
         staff_akademik: '/staff/dashboard',
       }
       navigate(redirectMap[res.data.user.role] || '/')
+       setTimeout(() => {
+      subscribeToPush()
+    }, 2500)
     } catch (err) {
       toast.error(err.response?.data?.message || 'Username atau password salah!')
     } finally {

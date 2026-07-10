@@ -302,8 +302,11 @@ export default function MahasiswaDokumen() {
       fetchAll()
     } catch { toast.error('Gagal menghapus dokumen') }
   }
+const isDisabled = pengajuan?.status !== 'disetujui_kaprodi'
 
-  const isDisabled = pengajuan?.status !== 'disetujui_kaprodi'
+  // Status yang dianggap "sudah selesai" → pindah ke halaman Riwayat
+  const VERIFIED_STATUSES = ['diverifikasi', 'disetujui_dospem', 'disetujui_kaprodi']
+  const activeDokumen = dokumen.filter(d => !VERIFIED_STATUSES.includes(d.status))
 
   if (loading) return (
     <div className="flex items-center justify-center h-64">
@@ -400,13 +403,14 @@ export default function MahasiswaDokumen() {
 
       {/* List dokumen */}
       <div className="space-y-3">
-        <h2 className="font-semibold text-gray-700">Dokumen Terupload ({dokumen.length})</h2>
-        {dokumen.length === 0 ? (
+       <h2 className="font-semibold text-gray-700">Dokumen Terupload ({activeDokumen.length})</h2>
+        {activeDokumen.length === 0 ? (
           <div className="bg-white rounded-2xl p-8 text-center border border-dashed border-gray-200">
             <FileText className="w-8 h-8 text-gray-300 mx-auto mb-2" />
-            <p className="text-gray-500 text-sm">Belum ada dokumen</p>
+            <p className="text-gray-500 text-sm">Belum ada dokumen menunggu review</p>
+            <p className="text-xs text-gray-400 mt-1">Dokumen yang sudah diverifikasi ada di halaman Riwayat</p>
           </div>
-        ) : dokumen.map(doc => {
+        ) : activeDokumen.map(doc => {
           const info       = getStatusInfo(doc.status)
           const jenisLabel = JENIS_OPTIONS.find(o => o.value === doc.jenis)?.label || doc.jenis
           const canDelete  = doc.status === 'diupload'

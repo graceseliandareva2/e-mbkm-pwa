@@ -25,8 +25,8 @@ const getDokumenStatusInfo = (status) => {
   }
 }
 
-const formatDurasi = (jam) => {
-  const totalMenit = Math.round(Number(jam) * 60)
+const formatDurasi = (menit) => {
+  const totalMenit = Math.round(Number(menit))
   const j = Math.floor(totalMenit / 60)
   const m = totalMenit % 60
   if (m === 0) return `${j} jam`
@@ -75,9 +75,15 @@ export default function MahasiswaRiwayat() {
     fetchAll()
   }, [])
 
+  // Hanya yang sudah final/diverifikasi yang masuk Riwayat
+  const DOKUMEN_VERIFIED_STATUSES = ['diverifikasi', 'disetujui_dospem', 'disetujui_kaprodi']
+
+  const verifiedLogbooks = logbooks.filter(l => l.status === 'diverifikasi')
+  const verifiedDokumens = dokumens.filter(d => DOKUMEN_VERIFIED_STATUSES.includes(d.status))
+
   const allItems = [
-    ...logbooks.map(l => ({ ...l, _type: 'logbook' })),
-    ...dokumens.map(d => ({ ...d, _type: 'dokumen' })),
+    ...verifiedLogbooks.map(l => ({ ...l, _type: 'logbook' })),
+    ...verifiedDokumens.map(d => ({ ...d, _type: 'dokumen' })),
   ].sort((a, b) => new Date(b.created_at) - new Date(a.created_at))
 
   const filtered = activeTab === 'semua'
@@ -99,10 +105,10 @@ export default function MahasiswaRiwayat() {
 
       {/* Tabs */}
       <div className="flex gap-2">
-        {[
+      {[
           { key: 'semua',   label: 'Semua',   count: allItems.length },
-          { key: 'logbook', label: 'Logbook', count: logbooks.length },
-          { key: 'dokumen', label: 'Dokumen', count: dokumens.length },
+          { key: 'logbook', label: 'Logbook', count: verifiedLogbooks.length },
+          { key: 'dokumen', label: 'Dokumen', count: verifiedDokumens.length },
         ].map(tab => (
           <button
             key={tab.key}

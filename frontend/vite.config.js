@@ -6,7 +6,14 @@ export default defineConfig({
   plugins: [
     react(),
     VitePWA({
+      strategies: "injectManifest",
+      srcDir: "src",
+      filename: "sw.js",
       registerType: "autoUpdate",
+      injectManifest: {
+        // File besar (misal chunk JS aplikasi) tetap boleh di-precache
+        maximumFileSizeToCacheInBytes: 5 * 1024 * 1024,
+      },
       manifest: {
         name: "e-MBKM ITBSS",
         short_name: "e-MBKM",
@@ -26,66 +33,18 @@ export default defineConfig({
           { src: "/icons/icon-512x512.png", sizes: "512x512", type: "image/png" },
         ],
       },
-      workbox: {
-        navigateFallbackDenylist: [/^\/uploads\//, /^\/api\//],
-        runtimeCaching: [
-          {
-            urlPattern: /^https?:\/\/.*\.(js|css|png|jpg|jpeg|svg|ico|woff2?)$/,
-            handler: "CacheFirst",
-            options: {
-              cacheName: "static-assets",
-              expiration: { maxEntries: 100, maxAgeSeconds: 60 * 60 * 24 * 30 },
-            },
-          },
-          // ── Caching data riwayat (GET /api/...) agar tetap bisa dibuka saat offline ──
-          // NetworkFirst: saat online selalu ambil data terbaru dari server (dan
-          // cache-nya di-update). Saat offline / request gagal, fallback ke data
-          // terakhir yang sempat di-cache. Workbox runtimeCaching secara default
-          // hanya menangkap method GET, jadi POST/PUT/DELETE (submit/ubah data)
-          // TIDAK terpengaruh oleh aturan ini — itu tetap ditangani manual lewat
-          // offlineQueue.js seperti sekarang.
-          {
-            urlPattern: /^https?:\/\/[^/]+\/api\/.*$/,
-            handler: "NetworkFirst",
-            options: {
-              cacheName: "api-data-cache",
-              networkTimeoutSeconds: 5, // kalau server tidak respon dalam 5 detik, anggap offline & pakai cache
-              expiration: {
-                maxEntries: 200,
-                maxAgeSeconds: 60 * 60 * 24 * 14, // cache data riwayat disimpan maksimal 14 hari
-              },
-              cacheableResponse: {
-                statuses: [0, 200], // hanya cache response sukses
-              },
-            },
-          },
-        ],
-        navigateFallback: null,
-      },
     }),
   ],
   server: {
     proxy: {
-      "/api": {
-        target: "http://localhost:5000",
-        changeOrigin: true,
-      },
-      "/uploads": {
-        target: "http://localhost:5000",
-        changeOrigin: true,
-      },
+      "/api": { target: "http://localhost:5000", changeOrigin: true },
+      "/uploads": { target: "http://localhost:5000", changeOrigin: true },
     },
   },
   preview: {
     proxy: {
-      "/api": {
-        target: "http://localhost:5000",
-        changeOrigin: true,
-      },
-      "/uploads": {
-        target: "http://localhost:5000",
-        changeOrigin: true,
-      },
+      "/api": { target: "http://localhost:5000", changeOrigin: true },
+      "/uploads": { target: "http://localhost:5000", changeOrigin: true },
     },
   },
 });

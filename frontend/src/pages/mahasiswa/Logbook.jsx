@@ -7,7 +7,6 @@ import { useSyncOnline } from '../../utils/useSyncOnline'
 
 const BASE_URL = ''
 
-// ✅ localStorage keys
 const LS_PENGAJUAN = 'cache_pengajuan'
 const LS_LOGBOOKS  = 'cache_logbooks'
 
@@ -222,6 +221,8 @@ export default function MahasiswaLogbook() {
   const progress = Math.min((totalMenitSemua / TARGET_MENIT) * 100, 100)
   const isDisabled = pengajuan?.status !== 'disetujui_kaprodi'
 
+  const activeLogbooks = logbooks.filter(l => l.status !== 'diverifikasi')
+
   const previewDurasi = () => {
     const totalMenit = (parseInt(form.jam) || 0) * 60 + (parseInt(form.menit) || 0)
     if (totalMenit <= 0) return null
@@ -298,13 +299,15 @@ export default function MahasiswaLogbook() {
 
       {/* List */}
       <div className="space-y-3">
-        {logbooks.length === 0 ? (
+       {activeLogbooks.length === 0 ? (
           <div className="bg-white rounded-2xl p-10 text-center border border-dashed border-gray-200">
             <BookOpen className="w-10 h-10 text-gray-300 mx-auto mb-2" />
             <p className="text-gray-500 font-medium">Belum ada logbook</p>
-            <p className="text-sm text-gray-400 mt-1">Klik tombol Tambah untuk mulai mencatat</p>
+            <p className="text-sm text-gray-400 mt-1">
+              Logbook yang sudah diverifikasi bisa dilihat di halaman Riwayat
+            </p>
           </div>
-        ) : logbooks.map((log) => {
+        ) : activeLogbooks.map((log) => {
           const statusCfg = STATUS_CONFIG[log.status] || STATUS_CONFIG.disubmit
           const isExpanded = expanded === log.id
           return (
