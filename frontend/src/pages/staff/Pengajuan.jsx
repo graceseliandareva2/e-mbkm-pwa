@@ -122,23 +122,23 @@ export default function StaffPengajuan() {
     }
   };
 
-  const exportAll = (format) => {
-    if (!selectedPeriode) return toast.error("Pilih periode terlebih dahulu");
-    const ext = format === "excel" ? "xlsx" : "pdf";
-    downloadWithAuth(
-      `${BASE_URL}/api/staff/pengajuan/export-${format}?periode_id=${selectedPeriode}`,
-      `pengajuan_mbkm.${ext}`,
-    );
-    setShowExportMenu(false);
-  };
+ const exportAll = (format) => {
+  if (!selectedPeriode) return toast.error("Pilih periode terlebih dahulu");
+  const ext = format === "excel" ? "xlsx" : "pdf";
+  downloadWithAuth(
+    `${BASE_URL}/staff/pengajuan/export-${format}?periode_id=${selectedPeriode}`,
+    `pengajuan_mbkm.${ext}`,
+  );
+  setShowExportMenu(false);
+};
 
-  const exportSingle = (mahasiswaId, format) => {
-    const ext = format === "excel" ? "xlsx" : "pdf";
-    downloadWithAuth(
-      `${BASE_URL}/api/staff/pengajuan/export-${format}?mahasiswa_id=${mahasiswaId}&periode_id=${selectedPeriode}`,
-      `detail_mahasiswa.${ext}`,
-    );
-  };
+const exportSingle = (mahasiswaId, format) => {
+  const ext = format === "excel" ? "xlsx" : "pdf";
+  downloadWithAuth(
+    `${BASE_URL}/staff/pengajuan/export-${format}?mahasiswa_id=${mahasiswaId}&periode_id=${selectedPeriode}`,
+    `detail_mahasiswa.${ext}`,
+  );
+};
 
   const filtered = pengajuan.filter(
     (p) =>
