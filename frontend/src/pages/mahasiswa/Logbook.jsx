@@ -39,7 +39,7 @@ export default function MahasiswaLogbook() {
   const [form, setForm] = useState({ tanggal: '', kegiatan: '', deskripsi: '', jam: '0', menit: '0', bukti: null })
   const [previewPdf, setPreviewPdf] = useState(null)
   const [editLog, setEditLog] = useState(null)
-  const [editForm, setEditForm] = useState({ kegiatan: '', deskripsi: '', jam: '', menit: '0', bukti: null, hapusBukti: false })
+  const [editForm, setEditForm] = useState({ kegiatan: '', deskripsi: '', jam: '0', menit: '0', bukti: null, hapusBukti: false })
   const [editSubmitting, setEditSubmitting] = useState(false)
   const [editDragging, setEditDragging] = useState(false)
   const [buktiType, setBuktiType] = useState('file')
