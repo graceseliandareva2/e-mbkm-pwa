@@ -91,7 +91,7 @@ export default function MahasiswaLogbook() {
   }, [])
 
   const resetForm = () => {
-    setForm({ tanggal: '', kegiatan: '', deskripsi: '', jam: '', menit: '0', bukti: null })
+    setForm({ tanggal: '', kegiatan: '', deskripsi: '', jam: '0', menit: '0', bukti: null })
     setBuktiType('file')
     setBuktiLink('')
   }
