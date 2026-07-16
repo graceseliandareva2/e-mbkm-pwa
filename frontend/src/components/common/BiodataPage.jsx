@@ -16,7 +16,6 @@ export default function BiodataPage() {
     nama: user?.nama || '',
     email: user?.email || '',
     program_studi: user?.program_studi || '',
-    angkatan: user?.angkatan || '',
   })
 
 const fotoUrl = preview || (user?.foto?.startsWith('http') ? user.foto : null)
@@ -45,7 +44,6 @@ const fotoUrl = preview || (user?.foto?.startsWith('http') ? user.foto : null)
       nama: user?.nama || '',
       email: user?.email || '',
       program_studi: user?.program_studi || '',
-      angkatan: user?.angkatan || '',
     })
   }
 
@@ -57,7 +55,6 @@ const fotoUrl = preview || (user?.foto?.startsWith('http') ? user.foto : null)
       formData.append('nama', form.nama)
       formData.append('email', form.email)
       formData.append('program_studi', form.program_studi)
-      formData.append('angkatan', form.angkatan)
       if (fotoFile) formData.append('foto', fotoFile)
 
       const res = await api.put('/auth/update-profile', formData, {
@@ -174,26 +171,11 @@ const fotoUrl = preview || (user?.foto?.startsWith('http') ? user.foto : null)
                 disabled
                 className={inputClass(false)} />
             </div>
-            <div>
-              <label className="text-xs font-medium text-gray-600 block mb-1.5">Role</label>
-              <input type="text" value={user?.role || '-'}
-                disabled
-                className={`${inputClass(false)} capitalize`} />
-            </div>
            {user?.role === 'mahasiswa' && (
               <div>
                 <label className="text-xs font-medium text-gray-600 block mb-1.5">Program Studi</label>
                 <input type="text" value={form.program_studi}
                   onChange={e => setForm({ ...form, program_studi: e.target.value })}
-                  disabled={!isEdit}
-                  className={inputClass(isEdit)} />
-              </div>
-            )}
-            {user?.role === 'mahasiswa' && (
-              <div>
-                <label className="text-xs font-medium text-gray-600 block mb-1.5">Angkatan</label>
-                <input type="text" value={form.angkatan}
-                  onChange={e => setForm({ ...form, angkatan: e.target.value })}
                   disabled={!isEdit}
                   className={inputClass(isEdit)} />
               </div>
