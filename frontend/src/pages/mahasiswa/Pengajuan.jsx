@@ -6,6 +6,7 @@ import toast from 'react-hot-toast'
 import { saveToQueue } from '../../utils/offlineQueue'
 import { useSyncOnline } from '../../utils/useSyncOnline'
 import { getCache, setCache } from '../../utils/offlineCache'   // ← BARU
+import useAuthStore from '../../store/authStore'                // ← BARU: ambil data akun mahasiswa yang login
 
 // ─────────────────────────── constants ───────────────────────────
 const CACHE_KEY = 'pengajuan'   
@@ -23,6 +24,22 @@ const inputClass =
   'focus:outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500 bg-white ' +
   'disabled:bg-gray-50 disabled:text-gray-500 disabled:cursor-not-allowed'
 
+const inputErrorClass =
+  'w-full border border-red-400 rounded-xl px-3.5 py-2.5 text-sm text-gray-800 ' +
+  'focus:outline-none focus:border-red-500 focus:ring-1 focus:ring-red-500 bg-white ' +
+  'disabled:bg-gray-50 disabled:text-gray-500 disabled:cursor-not-allowed'
+
+// ── Validasi URL ────────────────────────────────────────────────
+const isValidUrl = (str) => {
+  if (!str || !str.trim()) return false
+  try {
+    const url = new URL(str.trim())
+    return url.protocol === 'http:' || url.protocol === 'https:'
+  } catch {
+    return false
+  }
+}
+
 const Field = ({ label, children, required }) => (
   <div>
     <label className="block text-xs font-semibold text-gray-500 uppercase tracking-wide mb-1.5">
@@ -32,14 +49,6 @@ const Field = ({ label, children, required }) => (
   </div>
 )
 
-const EMPTY_FORM = {
-  email: '',
-  nim: '',
-  nama_lengkap: '',
-  dosen_pembimbing_akademik: '',
-  pelatihan: [{ nama: '', link: '', durasi_jam: '' }],
-}
-
 const getPelatihanArray = (pelatihan) => {
   try {
     if (!pelatihan) return []
@@ -47,34 +56,40 @@ const getPelatihanArray = (pelatihan) => {
   } catch { return [] }
 }
 
-const mapResponseToForm = (data) => ({
-  email: data.email || '',
-  nim: data.nim || '',
-  nama_lengkap: data.nama_lengkap || '',
-  dosen_pembimbing_akademik: data.dosen_pembimbing_akademik || '',
+// ⬇️ BARU: email, nim, nama_lengkap SELALU diambil dari data akun mahasiswa yang login (user),
+// tidak lagi dari data pengajuan/respon server, karena field ini sudah tidak bisa diubah manual.
+const mapResponseToForm = (data, user) => ({
+  email: user?.email || data?.email || '',
+  nim: user?.nim || data?.nim || '',
+  nama_lengkap: user?.nama || data?.nama_lengkap || '',
+  dosen_pembimbing_akademik: data?.dosen_pembimbing_akademik || '',
   pelatihan: (() => {
-    const pel = getPelatihanArray(data.pelatihan)
+    const pel = getPelatihanArray(data?.pelatihan)
     return pel.length ? pel : [{ nama: '', link: '', durasi_jam: '' }]
   })(),
 })
 
 // ─────────────────────────── component ───────────────────────────
 export default function MahasiswaPengajuan() {
+  const { user } = useAuthStore()   // ← BARU: data akun mahasiswa yang login (nama, email, nim, dll)
+
   const [pengajuan, setPengajuan]   = useState(null)
   const [loading, setLoading]       = useState(true)
   const [submitting, setSubmitting] = useState(false)
   const [showDetail, setShowDetail] = useState(false)
   const [isEdit, setIsEdit]         = useState(false)
-  const [form, setForm]             = useState(EMPTY_FORM)
+  const [form, setForm]             = useState(() => mapResponseToForm(null, user))
+  const [linkErrors, setLinkErrors] = useState({})   // ← BARU: { idx: true/false }
 
   // ── Load cache dulu sebelum fetch ──────────────────────────────
   useEffect(() => {
     const cached = getCache(CACHE_KEY)      // ← BARU
     if (cached?.id) {
       setPengajuan(cached)
-      setForm(mapResponseToForm(cached))
+      setForm(mapResponseToForm(cached, user))
       setLoading(false)   // tampilkan langsung dari cache, jangan spinner dulu
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
   // ── Fetch dari server ──────────────────────────────────────────
@@ -83,7 +98,7 @@ export default function MahasiswaPengajuan() {
       const res = await api.get('/mahasiswa/pengajuan')
       if (res.data?.id) {
         setPengajuan(res.data)
-        setForm(mapResponseToForm(res.data))
+        setForm(mapResponseToForm(res.data, user))
         setCache(CACHE_KEY, res.data)        // ← BARU: simpan ke cache
       }
     } catch {
@@ -91,7 +106,8 @@ export default function MahasiswaPengajuan() {
     } finally {
       setLoading(false)
     }
-  }, [])
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [user])
 
   useEffect(() => { fetchPengajuan() }, [fetchPengajuan])
 
@@ -106,10 +122,23 @@ export default function MahasiswaPengajuan() {
 
   const removePelatihan = (idx) => {
     setForm({ ...form, pelatihan: form.pelatihan.filter((_, i) => i !== idx) })
+    setLinkErrors(prev => {
+      const next = { ...prev }
+      delete next[idx]
+      return next
+    })
   }
 
   const updatePelatihan = (idx, field, value) => {
     setForm({ ...form, pelatihan: form.pelatihan.map((p, i) => i === idx ? { ...p, [field]: value } : p) })
+    if (field === 'link' && linkErrors[idx]) {
+      setLinkErrors(prev => ({ ...prev, [idx]: false }))
+    }
+  }
+
+  const handleLinkBlur = (idx, value) => {
+    const filled = value.trim().length > 0
+    setLinkErrors(prev => ({ ...prev, [idx]: filled && !isValidUrl(value) }))
   }
 
   // ── Validasi ──────────────────────────────────────────────────
@@ -126,6 +155,21 @@ export default function MahasiswaPengajuan() {
     const pelatihan1 = form.pelatihan[0]
     if (!pelatihan1?.nama?.trim() || !pelatihan1?.link?.trim() || !pelatihan1?.durasi_jam)
       return 'Pelatihan pertama (nama, link, dan durasi) wajib diisi'
+
+    // Validasi format link: setiap link yang diisi harus URL yang valid
+    const newLinkErrors = {}
+    let linkInvalid = false
+    form.pelatihan.forEach((p, idx) => {
+      if (p.link?.trim()) {
+        const valid = isValidUrl(p.link)
+        newLinkErrors[idx] = !valid
+        if (!valid) linkInvalid = true
+      }
+    })
+    setLinkErrors(newLinkErrors)
+    if (linkInvalid)
+      return 'Link pelatihan harus berupa URL yang valid (contoh: https://www.coursera.org/...)'
+
     return null
   }
 
@@ -182,17 +226,14 @@ export default function MahasiswaPengajuan() {
     <div className="space-y-4">
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
         <Field label="Email" required>
-          <input className={inputClass} type="email" value={form.email}
-            onChange={e => setForm({ ...form, email: e.target.value })} disabled={disabled} />
+          <input className={inputClass} type="email" value={form.email} disabled readOnly />
         </Field>
         <Field label="NIM" required>
-          <input className={inputClass} value={form.nim}
-            onChange={e => setForm({ ...form, nim: e.target.value })} disabled={disabled} />
+          <input className={inputClass} value={form.nim} disabled readOnly />
         </Field>
       </div>
       <Field label="Nama Lengkap" required>
-        <input className={inputClass} value={form.nama_lengkap}
-          onChange={e => setForm({ ...form, nama_lengkap: e.target.value })} disabled={disabled} />
+        <input className={inputClass} value={form.nama_lengkap} disabled readOnly />
       </Field>
       <Field label="Dosen Pembimbing Akademik" required>
         <input className={inputClass} value={form.dosen_pembimbing_akademik}
@@ -233,8 +274,18 @@ export default function MahasiswaPengajuan() {
             </Field>
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
               <Field label="Link Pelatihan" required={idx === 0}>
-                <input className={inputClass} value={p.link}
-                  onChange={e => updatePelatihan(idx, 'link', e.target.value)} disabled={disabled} />
+                <input
+                  className={linkErrors[idx] ? inputErrorClass : inputClass}
+                  type="url"
+                  placeholder="https://www.contoh.com/kursus"
+                  value={p.link}
+                  onChange={e => updatePelatihan(idx, 'link', e.target.value)}
+                  onBlur={e => handleLinkBlur(idx, e.target.value)}
+                  disabled={disabled}
+                />
+                {linkErrors[idx] && (
+                  <p className="text-xs text-red-500 mt-1">Link tidak valid. Gunakan URL lengkap, contoh: https://...</p>
+                )}
               </Field>
               <Field label="Durasi (jam)" required={idx === 0}>
                 <input className={inputClass} type="number" min="1" value={p.durasi_jam}
@@ -340,7 +391,7 @@ export default function MahasiswaPengajuan() {
               </button>
             )}
             {isEdit && (
-              <button onClick={() => { setIsEdit(false); setForm(mapResponseToForm(pengajuan)) }}
+              <button onClick={() => { setIsEdit(false); setForm(mapResponseToForm(pengajuan, user)); setLinkErrors({}) }}
                 className="text-sm font-semibold text-gray-500 hover:text-gray-700">
                 Batal
               </button>
