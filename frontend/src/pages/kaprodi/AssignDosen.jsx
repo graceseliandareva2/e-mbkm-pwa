@@ -101,9 +101,10 @@ export default function KaprodiAssignDosen() {
     try {
       const res = await api.get("/kaprodi/dosen-roster-mbkm", {
         params: { periode_id: periodeId },
+
       });
+         console.log("Roster MBKM:", res.data.data);
       setDosen(res.data.data || []);
-      console.log(res.data.data);
     } catch {
       toast.error("Gagal memuat roster dosen MBKM!");
       setDosen([]);
@@ -422,17 +423,22 @@ export default function KaprodiAssignDosen() {
                     bukan seluruh master dosen. Kalau roster kosong, tampil
                     pesan supaya kaprodi tahu perlu minta staff mengisi
                     roster dulu di halaman Pembimbing MBKM. */}
-                <select
-                  value={selectedDosen}
-                  onChange={(e) => setSelectedDosen(e.target.value)}
-                  disabled={dosenLoading}
-                  className="w-full px-3 py-2.5 border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 bg-gray-50 disabled:opacity-60"
-                >
-                  <option value="">
-                    {dosenLoading ? "Memuat roster dosen..." : "-- Pilih Dosen --"}
-                  </option>
-            
-                </select>
+              <select
+  value={selectedDosen}
+  onChange={(e) => setSelectedDosen(e.target.value)}
+  disabled={dosenLoading}
+  className="w-full px-3 py-2.5 border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 bg-gray-50 disabled:opacity-60"
+>
+  <option value="">
+    {dosenLoading ? "Memuat roster dosen..." : "-- Pilih Dosen --"}
+  </option>
+
+  {dosen.map((d) => (
+    <option key={d.id} value={d.id}>
+      {d.nama}
+    </option>
+  ))}
+</select>
                 {!dosenLoading && dosen.length === 0 && (
                   <p className="text-xs text-amber-600 mt-1.5">
                     Belum ada dosen di roster MBKM untuk periode ini. Minta staff akademik menambahkannya lewat halaman Pembimbing MBKM.
