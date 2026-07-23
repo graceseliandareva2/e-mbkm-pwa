@@ -103,6 +103,7 @@ export default function KaprodiAssignDosen() {
         params: { periode_id: periodeId },
       });
       setDosen(res.data.data || []);
+      console.log(res.data.data);
     } catch {
       toast.error("Gagal memuat roster dosen MBKM!");
       setDosen([]);
@@ -430,11 +431,7 @@ export default function KaprodiAssignDosen() {
                   <option value="">
                     {dosenLoading ? "Memuat roster dosen..." : "-- Pilih Dosen --"}
                   </option>
-                  {dosen.map((d) => (
-                    <option key={d.dosen_id} value={d.dosen_id}>
-                      {d.nama} ({d.id_dosen})
-                    </option>
-                  ))}
+            
                 </select>
                 {!dosenLoading && dosen.length === 0 && (
                   <p className="text-xs text-amber-600 mt-1.5">
