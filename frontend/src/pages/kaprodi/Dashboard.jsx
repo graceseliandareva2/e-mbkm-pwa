@@ -3,7 +3,7 @@ import { useNavigate } from 'react-router-dom'
 import { Users, UserCheck, FileCheck, FileText, Clock, CheckCircle, XCircle } from 'lucide-react'
 import api from '../../utils/api'
 import { formatTanggal } from '../../utils/helpers'
-import usePeriodeStore from '../../store/periodeStore'
+import usePeriodeFilter from '../../hooks/usePeriodeFilter'
 
 export default function KaprodiDashboard() {
   const [stats, setStats] = useState({
@@ -16,26 +16,25 @@ export default function KaprodiDashboard() {
     pengajuan_ditolak: 0,
   })
   const [pengajuan, setPengajuan] = useState([])
-  const [periode, setPeriode] = useState([])
   const [loading, setLoading] = useState(true)
   const navigate = useNavigate()
-  const { selectedPeriodeKaprodi } = usePeriodeStore()
+
+  const { periodeId: selectedPeriodeId, periodeList: periode } = usePeriodeFilter('kaprodi')
+
 // eslint-disable-next-line react-hooks/exhaustive-deps
-  useEffect(() => { fetchData() }, [selectedPeriodeKaprodi])
+  useEffect(() => { fetchData() }, [selectedPeriodeId])
 
   const fetchData = async () => {
   try {
-    const periodeParam = selectedPeriodeKaprodi ? { periode_id: selectedPeriodeKaprodi.id } : {}
+    const periodeParam = selectedPeriodeId ? { periode_id: selectedPeriodeId } : {}
 
-    const [statsRes, pengajuanRes, periodeRes] = await Promise.all([
+    const [statsRes, pengajuanRes] = await Promise.all([
       api.get('/kaprodi/dashboard-stats', { params: periodeParam }),
       api.get('/kaprodi/verifikasi-pengajuan', { params: periodeParam }),
-      api.get('/kaprodi/periode'),
     ])
 
     const statsData = statsRes.data.data || {}
     const pngj = pengajuanRes.data.data || []
-    const prd = periodeRes.data.data || []
 
     setStats({
       total_mahasiswa: statsData.total_mahasiswa ?? 0,
@@ -48,7 +47,6 @@ export default function KaprodiDashboard() {
     })
 
     setPengajuan(pngj.slice(0, 5))
-    setPeriode(prd)
   } catch (err) {
     console.error(err)
   } finally {
@@ -56,15 +54,6 @@ export default function KaprodiDashboard() {
   }
 }
 
-  const getStatusBadge = (status) => {
-    const map = {
-      diajukan: { cls: 'bg-yellow-100 text-yellow-800', label: 'Diajukan' },
-      disetujui_kaprodi: { cls: 'bg-green-100 text-green-800', label: 'Disetujui' },
-      ditolak: { cls: 'bg-red-100 text-red-800', label: 'Ditolak' },
-      revisi: { cls: 'bg-orange-100 text-orange-800', label: 'Revisi' },
-    }
-    return map[status] || { cls: 'bg-gray-100 text-gray-800', label: status }
-  }
 
   if (loading) return (
     <div className="flex items-center justify-center h-64">
@@ -182,15 +171,19 @@ export default function KaprodiDashboard() {
                     </td>
                   </tr>
                 ) : pengajuan.map((p, i) => {
-                  const { cls, label } = getStatusBadge(p.status)
                   return (
                     <tr key={p.id} className="hover:bg-gray-50 transition-colors">
                       <td className="px-6 py-4 text-sm text-gray-600">{i + 1}</td>
                       <td className="px-6 py-4 text-sm font-medium text-gray-800">{p.nama_mahasiswa}</td>
                       <td className="px-6 py-4 text-sm text-gray-600">{p.nim}</td>
-                      <td className="px-6 py-4">
-                        <span className={`px-2.5 py-1 rounded-full text-xs font-medium ${cls}`}>{label}</span>
-                      </td>
+                     <td className="px-6 py-4">
+  <button
+    onClick={() => navigate('/kaprodi/verifikasi')}
+    className="px-2.5 py-1 rounded-full text-xs font-medium bg-blue-100 text-blue-700 hover:bg-blue-200 transition-colors"
+  >
+    Detail
+  </button>
+</td>
                     </tr>
                   )
                 })}

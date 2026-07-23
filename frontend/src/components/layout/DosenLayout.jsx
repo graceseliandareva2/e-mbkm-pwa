@@ -7,6 +7,7 @@ import {
 import useAuthStore from '../../store/authStore'
 import toast from 'react-hot-toast'
 import ProfileDropdown from '../common/ProfileDropdown'
+import PeriodeSelector from '../common/PeriodeSelector'
 
 const navItems = [
   { to: '/dosen/dashboard',  icon: LayoutDashboard, label: 'Dashboard' },
@@ -97,10 +98,7 @@ export default function DosenLayout() {
             Anda Masuk Sebagai <span className="font-bold text-blue-700">Dosen Pembimbing</span>
           </p>
           <div className="flex-1" />
-          <button className="relative p-2 text-gray-400 hover:text-gray-600 hover:bg-gray-100 rounded-xl">
-            <Bell className="w-5 h-5" />
-            <span className="absolute top-1.5 right-1.5 w-2 h-2 bg-red-500 rounded-full" />
-          </button>
+          <PeriodeSelector />
           <div className="pl-2 border-l border-gray-200">
             <ProfileDropdown />
           </div>

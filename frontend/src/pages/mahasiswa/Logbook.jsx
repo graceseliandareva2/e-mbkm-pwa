@@ -1,14 +1,19 @@
 import { useEffect, useState, useRef } from 'react'
-import { Plus, BookOpen, Clock, Trash2, MessageSquare, CheckCircle, Lock, Upload, X, FileText, Eye, Pencil } from 'lucide-react'
+import { Plus, BookOpen, Trash2, MessageSquare, CheckCircle, Lock, Upload, X, FileText, Eye, Pencil, ExternalLink } from 'lucide-react'
 import api from '../../utils/api'
 import toast from 'react-hot-toast'
 import { saveToQueue } from '../../utils/offlineQueue'
 import { useSyncOnline } from '../../utils/useSyncOnline'
-
+import BuktiPreview, {
+  FileBuktiPreview,
+  LinkBukti
+} from '../../components/common/BuktiPreview'
 const BASE_URL = ''
 
 const LS_PENGAJUAN = 'cache_pengajuan'
 const LS_LOGBOOKS  = 'cache_logbooks'
+// ✅ Cache baru khusus daftar pelatihan (dipakai untuk dropdown/tab, tetap offline-first)
+const LS_PELATIHAN = 'cache_pelatihan'
 
 const STATUS_CONFIG = {
   draft:        { label: 'Draft',        color: 'text-gray-500',   bg: 'bg-gray-50',    border: 'border-gray-200' },
@@ -28,18 +33,33 @@ const formatDurasi = (menit) => {
   return `${j} jam ${m} menit`
 }
 
+// Backend menyimpan jam_mulai & jam_selesai (kolom TIME) dan menurunkan
+// durasi_menit dari situ -- bukan input durasi manual. Fungsi ini cuma
+// dipakai untuk preview di form, nilai final durasi tetap dihitung server.
+const hitungDurasiMenit = (mulai, selesai) => {
+  if (!mulai || !selesai) return null
+  const [h1, m1] = mulai.split(':').map(Number)
+  const [h2, m2] = selesai.split(':').map(Number)
+  const total = (h2 * 60 + m2) - (h1 * 60 + m1)
+  return total > 0 ? total : null
+}
+
 export default function MahasiswaLogbook() {
   const [logbooks, setLogbooks] = useState([])
   const [pengajuan, setPengajuan] = useState(null)
+  // ✅ Daftar pelatihan (maks 3) dalam pengajuan yang aktif
+  const [pelatihanList, setPelatihanList] = useState([])
+  // ✅ Pelatihan yang sedang dipilih mahasiswa untuk difilter/ditambahkan logbook-nya
+  const [selectedPelatihanId, setSelectedPelatihanId] = useState(null)
   const [loading, setLoading] = useState(true)
   const [modalOpen, setModalOpen] = useState(false)
   const [expanded, setExpanded] = useState(null)
   const [submitting, setSubmitting] = useState(false)
   const [dragging, setDragging] = useState(false)
-  const [form, setForm] = useState({ tanggal: '', kegiatan: '', deskripsi: '', jam: '0', menit: '0', bukti: null })
+  const [form, setForm] = useState({ tanggal: '', kegiatan: '', deskripsi: '', jam_mulai: '', jam_selesai: '', bukti: null })
   const [previewPdf, setPreviewPdf] = useState(null)
   const [editLog, setEditLog] = useState(null)
-  const [editForm, setEditForm] = useState({ kegiatan: '', deskripsi: '', jam: '0', menit: '0', bukti: null, hapusBukti: false })
+  const [editForm, setEditForm] = useState({ kegiatan: '', deskripsi: '', jam_mulai: '', jam_selesai: '', bukti: null, hapusBukti: false })
   const [editSubmitting, setEditSubmitting] = useState(false)
   const [editDragging, setEditDragging] = useState(false)
   const [buktiType, setBuktiType] = useState('file')
@@ -54,16 +74,23 @@ export default function MahasiswaLogbook() {
     try {
       const cachedPengajuan = localStorage.getItem(LS_PENGAJUAN)
       const cachedLogbooks  = localStorage.getItem(LS_LOGBOOKS)
+      const cachedPelatihan = localStorage.getItem(LS_PELATIHAN)
       if (cachedPengajuan) setPengajuan(JSON.parse(cachedPengajuan))
       if (cachedLogbooks)  setLogbooks(JSON.parse(cachedLogbooks))
+      if (cachedPelatihan) {
+        const list = JSON.parse(cachedPelatihan)
+        setPelatihanList(list)
+        if (list.length > 0) setSelectedPelatihanId(prev => prev ?? list[0].id)
+      }
     } catch { /* ignore parse error */ }
   }, [])
 
   const fetchAll = async () => {
     try {
-      const [logbookRes, pengajuanRes] = await Promise.allSettled([
+      const [logbookRes, pengajuanRes, pelatihanRes] = await Promise.allSettled([
         api.get('/mahasiswa/logbook'),
         api.get('/mahasiswa/pengajuan'),
+        api.get('/mahasiswa/pelatihan'),
       ])
 
       if (logbookRes.status === 'fulfilled') {
@@ -80,6 +107,25 @@ export default function MahasiswaLogbook() {
         // ✅ Simpan ke cache
         try { localStorage.setItem(LS_PENGAJUAN, JSON.stringify(p)) } catch { /* ignore */ }
       }
+
+      // ✅ Daftar pelatihan untuk dropdown/tab. Kalau endpoint gagal (mis. offline),
+      // fallback ke pelatihan_list yang sudah menempel di response pengajuan.
+      let pelatihanData = null
+      if (pelatihanRes.status === 'fulfilled') {
+        pelatihanData = pelatihanRes.value.data?.data ?? pelatihanRes.value.data
+      } else if (pengajuanRes.status === 'fulfilled' && pengajuanRes.value.data?.pelatihan_list) {
+        pelatihanData = pengajuanRes.value.data.pelatihan_list
+      }
+      if (Array.isArray(pelatihanData)) {
+        setPelatihanList(pelatihanData)
+        try { localStorage.setItem(LS_PELATIHAN, JSON.stringify(pelatihanData)) } catch { /* ignore */ }
+        // Kalau pelatihan yang lagi dipilih sudah tidak ada di daftar (mis. diedit
+        // mahasiswa dari halaman pengajuan), fallback ke pelatihan pertama.
+        setSelectedPelatihanId(prev => {
+          if (prev && pelatihanData.some(p => p.id === prev)) return prev
+          return pelatihanData.length > 0 ? pelatihanData[0].id : null
+        })
+      }
     } catch { setLogbooks([]) }
     finally { setLoading(false) }
   }
@@ -91,7 +137,7 @@ export default function MahasiswaLogbook() {
   }, [])
 
   const resetForm = () => {
-    setForm({ tanggal: '', kegiatan: '', deskripsi: '', jam: '0', menit: '0', bukti: null })
+    setForm({ tanggal: '', kegiatan: '', deskripsi: '', jam_mulai: '', jam_selesai: '', bukti: null })
     setBuktiType('file')
     setBuktiLink('')
   }
@@ -114,10 +160,19 @@ export default function MahasiswaLogbook() {
 
   const handleSubmit = async (e) => {
     e.preventDefault()
-    // FIX 1: tambah validasi deskripsi
-    if (!form.tanggal || !form.kegiatan || !form.deskripsi?.trim()) return toast.error('Tanggal, kegiatan, dan deskripsi wajib diisi!')
-    const totalMenit = (parseInt(form.jam) || 0) * 60 + (parseInt(form.menit) || 0)
-    if (totalMenit <= 0) return toast.error('Durasi harus lebih dari 0!')
+    // Backend (tambahLogbook) mewajibkan: tanggal, jam_mulai, jam_selesai, kegiatan, deskripsi
+    if (!form.tanggal || !form.kegiatan || !form.deskripsi?.trim() || !form.jam_mulai || !form.jam_selesai) {
+      return toast.error('Tanggal, jam mulai/selesai, kegiatan, dan deskripsi wajib diisi!')
+    }
+    if (!hitungDurasiMenit(form.jam_mulai, form.jam_selesai)) {
+      return toast.error('Jam selesai harus setelah jam mulai!')
+    }
+    // ✅ Kalau mahasiswa punya lebih dari 1 pelatihan, pelatihan wajib dipilih dulu
+    // (tab/dropdown selalu tampil di halaman ini kalau pelatihanList.length > 1,
+    // jadi ini seharusnya jarang kena, tapi tetap dijaga di sisi form).
+    if (pelatihanList.length > 1 && !selectedPelatihanId) {
+      return toast.error('Pilih pelatihan terlebih dahulu!')
+    }
 
     if (!navigator.onLine) {
       if (form.bukti) {
@@ -132,9 +187,11 @@ export default function MahasiswaLogbook() {
             tanggal: form.tanggal,
             kegiatan: form.kegiatan,
             deskripsi: form.deskripsi,
-            jam: totalMenit,
-            periode_id: pengajuan.periode_id,
-            pengajuan_id: pengajuan.id,
+            jam_mulai: form.jam_mulai,
+            jam_selesai: form.jam_selesai,
+            // ✅ pelatihan_id ikut disimpan di antrean offline, supaya saat
+            // disinkronkan nanti backend tetap tahu logbook ini milik pelatihan mana.
+            pelatihan_id: selectedPelatihanId || undefined,
           }
         })
         toast.success('Offline! Logbook tersimpan lokal, akan otomatis terkirim saat online.')
@@ -152,9 +209,10 @@ export default function MahasiswaLogbook() {
       formData.append('tanggal', form.tanggal)
       formData.append('kegiatan', form.kegiatan)
       formData.append('deskripsi', form.deskripsi)
-      formData.append('jam', totalMenit)
-      formData.append('periode_id', pengajuan.periode_id)
-      formData.append('pengajuan_id', pengajuan.id)
+      formData.append('jam_mulai', form.jam_mulai)
+      formData.append('jam_selesai', form.jam_selesai)
+      // ✅ Sertakan pelatihan_id yang sedang dipilih (kosong/aman kalau cuma 1 pelatihan)
+      if (selectedPelatihanId) formData.append('pelatihan_id', selectedPelatihanId)
       if (buktiType === 'file' && form.bukti) formData.append('bukti', form.bukti)
       if (buktiType === 'link' && buktiLink) formData.append('bukti_link', buktiLink)
       await api.post('/mahasiswa/logbook', formData, { headers: { 'Content-Type': 'multipart/form-data' } })
@@ -169,10 +227,12 @@ export default function MahasiswaLogbook() {
 
   const handleEditSubmit = async (e) => {
     e.preventDefault()
-    // FIX 4: tambah validasi deskripsi di edit
-    if (!editForm.kegiatan || !editForm.deskripsi?.trim()) return toast.error('Judul kegiatan dan deskripsi wajib diisi!')
-    const totalMenit = (parseInt(editForm.jam) || 0) * 60 + (parseInt(editForm.menit) || 0)
-    if (totalMenit <= 0) return toast.error('Durasi harus lebih dari 0!')
+    if (!editForm.kegiatan || !editForm.deskripsi?.trim() || !editForm.jam_mulai || !editForm.jam_selesai) {
+      return toast.error('Jam mulai/selesai, judul kegiatan, dan deskripsi wajib diisi!')
+    }
+    if (!hitungDurasiMenit(editForm.jam_mulai, editForm.jam_selesai)) {
+      return toast.error('Jam selesai harus setelah jam mulai!')
+    }
     setEditSubmitting(true)
     try {
       if (editForm.bukti || editForm.hapusBukti || (editBuktiType === 'link' && editBuktiLink)) {
@@ -180,10 +240,10 @@ export default function MahasiswaLogbook() {
         formData.append('tanggal', editLog.tanggal)
         formData.append('kegiatan', editForm.kegiatan)
         formData.append('deskripsi', editForm.deskripsi)
-        formData.append('jam', String(totalMenit))
+        formData.append('jam_mulai', editForm.jam_mulai)
+        formData.append('jam_selesai', editForm.jam_selesai)
         formData.append('hasil', editLog.hasil || '')
         formData.append('kendala', editLog.kendala || '')
-        formData.append('rencana_selanjutnya', editLog.rencana_selanjutnya || '')
         if (editForm.hapusBukti) formData.append('hapus_bukti', '1')
         if (editForm.bukti) formData.append('bukti', editForm.bukti)
         if (editBuktiType === 'link' && editBuktiLink) formData.append('bukti_link', editBuktiLink)
@@ -193,10 +253,10 @@ export default function MahasiswaLogbook() {
           tanggal: editLog.tanggal,
           kegiatan: editForm.kegiatan,
           deskripsi: editForm.deskripsi,
-          jam: String(totalMenit),
+          jam_mulai: editForm.jam_mulai,
+          jam_selesai: editForm.jam_selesai,
           hasil: editLog.hasil || null,
           kendala: editLog.kendala || null,
-          rencana_selanjutnya: editLog.rencana_selanjutnya || null,
         })
       }
       toast.success('Logbook berhasil diperbarui!')
@@ -216,16 +276,19 @@ export default function MahasiswaLogbook() {
     } catch { toast.error('Gagal menghapus logbook') }
   }
 
-  const totalMenitSemua = logbooks.reduce((sum, l) => sum + Number(l.jam || 0), 0)
-  const TARGET_MENIT = 48 * 60
-  const progress = Math.min((totalMenitSemua / TARGET_MENIT) * 100, 100)
+  // ✅ Logbook yang ditampilkan: kalau mahasiswa punya >1 pelatihan dan sudah
+  // memilih salah satu, filter cuma logbook milik pelatihan itu. Logbook lama
+  // yang belum punya pelatihan_id (data sebelum migrasi) tetap muncul di semua
+  // tab supaya tidak ada data yang "hilang" dari tampilan.
+  const logbooksByPelatihan = logbooks
+
   const isDisabled = pengajuan?.status !== 'disetujui_kaprodi'
 
-  const activeLogbooks = logbooks.filter(l => l.status !== 'diverifikasi')
+  const activeLogbooks = logbooksByPelatihan.filter(l => l.status !== 'diverifikasi')
 
   const previewDurasi = () => {
-    const totalMenit = (parseInt(form.jam) || 0) * 60 + (parseInt(form.menit) || 0)
-    if (totalMenit <= 0) return null
+    const totalMenit = hitungDurasiMenit(form.jam_mulai, form.jam_selesai)
+    if (!totalMenit) return null
     return formatDurasi(totalMenit)
   }
 
@@ -280,23 +343,6 @@ export default function MahasiswaLogbook() {
         </div>
       )}
 
-      {/* Progress */}
-      <div className="bg-white rounded-2xl p-5 shadow-sm border border-gray-100">
-        <div className="flex items-center justify-between mb-3">
-          <div className="flex items-center gap-2">
-            <Clock className="w-4 h-4 text-blue-600" />
-            <span className="font-semibold text-gray-800">Total Jam</span>
-          </div>
-          <span className="font-bold text-blue-600">{formatDurasi(totalMenitSemua)} / 48 jam</span>
-        </div>
-        <div className="bg-gray-100 rounded-full h-3">
-          <div className="bg-blue-500 h-3 rounded-full transition-all duration-500" style={{ width: `${progress}%` }} />
-        </div>
-        <p className="text-xs text-gray-400 mt-2">
-          {totalMenitSemua >= TARGET_MENIT ? '✅ Target terpenuhi!' : `Kurang ${formatDurasi(TARGET_MENIT - totalMenitSemua)} lagi`}
-        </p>
-      </div>
-
       {/* List */}
       <div className="space-y-3">
        {activeLogbooks.length === 0 ? (
@@ -309,8 +355,11 @@ export default function MahasiswaLogbook() {
           </div>
         ) : activeLogbooks.map((log) => {
           const statusCfg = STATUS_CONFIG[log.status] || STATUS_CONFIG.disubmit
-          const isExpanded = expanded === log.id
-          return (
+const isExpanded = expanded === log.id
+const isFileUpload = !!log.cloudinary_public_id
+const isLinkOnly = !isFileUpload && !!log.bukti_link
+
+return (
             <div key={log.id} className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden">
               <div className="flex items-center justify-between p-4 cursor-pointer hover:bg-gray-50"
                 onClick={() => setExpanded(isExpanded ? null : log.id)}>
@@ -324,10 +373,16 @@ export default function MahasiswaLogbook() {
                       <span className={`text-xs font-medium px-2 py-0.5 rounded-full border flex-shrink-0 ${statusCfg.color} ${statusCfg.bg} ${statusCfg.border}`}>
                         {statusCfg.label}
                       </span>
+                      {/* ✅ Badge nama pelatihan -- cuma tampil kalau mahasiswa punya >1 pelatihan */}
+                      {pelatihanList.length > 1 && log.nama_pelatihan && (
+                        <span className="text-xs font-medium px-2 py-0.5 rounded-full border flex-shrink-0 text-blue-600 bg-blue-50 border-blue-200">
+                          {log.nama_pelatihan}
+                        </span>
+                      )}
                     </div>
                     <p className="text-xs text-gray-400 mt-0.5">
                       {new Date(log.tanggal).toLocaleDateString('id-ID', { day: 'numeric', month: 'long', year: 'numeric' })}
-                      {' · '}{formatDurasi(log.jam)}
+                      {' · '}{log.jam_mulai?.slice(0, 5)}–{log.jam_selesai?.slice(0, 5)} ({formatDurasi(log.durasi_menit)})
                     </p>
                   </div>
                 </div>
@@ -341,18 +396,17 @@ export default function MahasiswaLogbook() {
                   {log.status === 'revisi' && (
                     <button onClick={e => {
                       e.stopPropagation()
-                      const totalMenit = Math.round(Number(log.jam))
                       setEditLog(log)
                       setEditForm({
                         kegiatan: log.kegiatan,
                         deskripsi: log.deskripsi || '',
-                        jam: String(Math.floor(totalMenit / 60)),
-                        menit: String(totalMenit % 60),
+                        jam_mulai: log.jam_mulai ? log.jam_mulai.slice(0, 5) : '',
+                        jam_selesai: log.jam_selesai ? log.jam_selesai.slice(0, 5) : '',
                         bukti: null,
                         hapusBukti: false,
                       })
-                      setEditBuktiType(log.bukti_link ? 'link' : 'file')
-                      setEditBuktiLink(log.bukti_link || '')
+             setEditBuktiType(log.cloudinary_public_id ? 'file' : (log.bukti_link ? 'link' : 'file'))
+                      setEditBuktiLink(log.cloudinary_public_id ? '' : (log.bukti_link || ''))
                     }} className="p-1.5 text-blue-600 bg-blue-50 rounded-lg">
                       <Pencil className="w-4 h-4" />
                     </button>
@@ -385,47 +439,25 @@ export default function MahasiswaLogbook() {
                         <p className="text-sm text-gray-700">{log.kendala}</p>
                       </div>
                     )}
-                    {log.rencana_selanjutnya && (
-                      <div>
-                        <p className="text-xs font-semibold text-gray-400 uppercase tracking-wide mb-0.5">Rencana Selanjutnya</p>
-                        <p className="text-sm text-gray-700">{log.rencana_selanjutnya}</p>
-                      </div>
-                    )}
-                    {log.bukti_path && (
-                      <div>
-                        <p className="text-xs font-semibold text-gray-400 uppercase tracking-wide mb-2">Bukti</p>
-                        <div className="rounded-xl overflow-hidden border border-gray-200" style={{ height: '420px' }}>
-                         {/\.(jpg|jpeg|png)$/i.test(log.bukti_path) ? (
-  <img
-    src={log.bukti_path.startsWith('http') ? log.bukti_path : `/uploads/${log.bukti_path.replace(/^.*uploads\//, '')}`}
-    className="w-full h-full object-contain bg-gray-50"
-    alt="Bukti kegiatan"
+                {log.bukti_link && (
+  <div>
+    <p className="text-xs font-semibold text-gray-400 uppercase tracking-wide mb-2">
+  Bukti
+</p>
+
+<div
+  className={`rounded-xl overflow-hidden border border-gray-200 ${
+    isLinkOnly ? '' : 'h-[420px]'
+  }`}
+>
+  <BuktiPreview
+    path={isFileUpload ? log.bukti_link : null}
+    link={isFileUpload ? null : log.bukti_link}
+    filename={log.kegiatan}
   />
-) : (
-  <iframe
-    src={log.bukti_path.startsWith('http') ? `${log.bukti_path}#toolbar=1&navpanes=0` : `/uploads/${log.bukti_path.replace(/^.*uploads\//, '')}#toolbar=1&navpanes=0`}
-    className="w-full h-full"
-    title="Bukti PDF"
-    type="application/pdf"
-  />
-)}
-                        </div>
-                        <p className="text-xs text-gray-400 mt-2">{log.bukti_path.split('/').pop()}</p>
-                      </div>
-                    )}
-                    {log.bukti_link && (
-                      <div>
-                        <p className="text-xs font-semibold text-gray-400 uppercase tracking-wide mb-2">Bukti (Link)</p>
-                        <a
-                          href={log.bukti_link}
-                          target="_blank"
-                          rel="noopener noreferrer"
-                          className="inline-flex items-center gap-2 text-sm text-blue-600 hover:underline bg-blue-50 border border-blue-100 rounded-xl px-3.5 py-2.5"
-                        >
-                          🔗 <span className="truncate max-w-xs">{log.bukti_link}</span>
-                        </a>
-                      </div>
-                    )}
+</div>
+  </div>
+)}    
                     {log.feedback_dosen && (
                       <div>
                         <div className="flex items-center gap-2 mb-2">
@@ -472,6 +504,24 @@ export default function MahasiswaLogbook() {
                   ⚠️ Offline — data tersimpan lokal, file bukti tidak bisa dilampirkan.
                 </div>
               )}
+
+              {/* ✅ Dropdown pelatihan -- cuma tampil kalau mahasiswa punya lebih dari 1 pelatihan */}
+              {pelatihanList.length > 1 && (
+  <div>
+    <label className="block text-xs font-semibold text-gray-500 uppercase tracking-wide mb-1.5">Pelatihan *</label>
+    <select
+      value={selectedPelatihanId || ''}
+      onChange={e => setSelectedPelatihanId(e.target.value)}
+      required
+      className="w-full border border-gray-200 rounded-xl px-3.5 py-2.5 text-sm focus:outline-none focus:border-blue-500"
+    >
+      {pelatihanList.map(p => (
+        <option key={p.id} value={p.id}>{p.nama}</option>
+      ))}
+    </select>
+  </div>
+)}
+
               <div>
                 <label className="block text-xs font-semibold text-gray-500 uppercase tracking-wide mb-1.5">Tanggal *</label>
                 <input type="date" value={form.tanggal}
@@ -485,7 +535,6 @@ export default function MahasiswaLogbook() {
                   placeholder="Contoh: Implementasi fitur login"
                   className="w-full border border-gray-200 rounded-xl px-3.5 py-2.5 text-sm focus:outline-none focus:border-blue-500" />
               </div>
-              {/* FIX 1: gunakan form & setForm, bukan editForm & setEditForm */}
               <div>
                 <label className="block text-xs font-semibold text-gray-500 uppercase tracking-wide mb-1.5">
                   Deskripsi Kegiatan *
@@ -497,24 +546,15 @@ export default function MahasiswaLogbook() {
                   className="w-full border border-gray-200 rounded-xl px-3.5 py-2.5 text-sm focus:outline-none focus:border-blue-500 resize-none" />
               </div>
               <div>
-                <label className="block text-xs font-semibold text-gray-500 uppercase tracking-wide mb-1.5">Durasi *</label>
-                <div className="flex gap-2">
-                  <div className="flex-1 relative">
-                   {/* FIX: value langsung ikuti state form.jam (tidak dipaksa '0' saat kosong) agar bisa benar-benar dihapus */}
-                   <input type="number" min="0" max="23" step="1" value={form.jam}
-  onChange={e => setForm({ ...form, jam: e.target.value })}
-  onFocus={e => e.target.select()}
-  className="w-full border border-gray-200 rounded-xl px-3.5 py-2.5 text-sm focus:outline-none focus:border-blue-500 pr-12" />
-                    <span className="absolute right-3.5 top-1/2 -translate-y-1/2 text-sm text-gray-400 pointer-events-none">jam</span>
-                  </div>
-                  <div className="flex-1 relative">
-  <input type="number" min="0" max="59" step="1" value={form.menit}
-    onChange={e => setForm({ ...form, menit: e.target.value })}
-    onFocus={e => e.target.select()}
-    placeholder="0"
-    className="w-full border border-gray-200 rounded-xl px-3.5 py-2.5 text-sm focus:outline-none focus:border-blue-500 pr-16" />
-  <span className="absolute right-3.5 top-1/2 -translate-y-1/2 text-sm text-gray-400 pointer-events-none">menit</span>
-</div>
+                <label className="block text-xs font-semibold text-gray-500 uppercase tracking-wide mb-1.5">Jam Mulai &amp; Selesai *</label>
+                <div className="flex gap-2 items-center">
+                  <input type="time" value={form.jam_mulai}
+                    onChange={e => setForm({ ...form, jam_mulai: e.target.value })}
+                    className="flex-1 border border-gray-200 rounded-xl px-3.5 py-2.5 text-sm focus:outline-none focus:border-blue-500" />
+                  <span className="text-gray-400 text-sm flex-shrink-0">s/d</span>
+                  <input type="time" value={form.jam_selesai}
+                    onChange={e => setForm({ ...form, jam_selesai: e.target.value })}
+                    className="flex-1 border border-gray-200 rounded-xl px-3.5 py-2.5 text-sm focus:outline-none focus:border-blue-500" />
                 </div>
                 {previewDurasi() && <p className="text-xs text-blue-500 font-medium mt-1.5">Durasi: {previewDurasi()}</p>}
               </div>
@@ -525,16 +565,32 @@ export default function MahasiswaLogbook() {
                     Bukti Kegiatan <span className="text-gray-400 normal-case font-normal">(opsional)</span>
                   </label>
                   <div className="flex gap-2 mb-3">
-                    <button type="button" onClick={() => setBuktiType('file')}
-                      className={`flex-1 py-2 rounded-xl text-xs font-semibold border transition-all
-                        ${buktiType === 'file' ? 'bg-blue-600 text-white border-blue-600' : 'bg-white text-gray-500 border-gray-200 hover:border-blue-400'}`}>
-                      📎 Upload File
-                    </button>
-                    <button type="button" onClick={() => setBuktiType('link')}
-                      className={`flex-1 py-2 rounded-xl text-xs font-semibold border transition-all
-                        ${buktiType === 'link' ? 'bg-blue-600 text-white border-blue-600' : 'bg-white text-gray-500 border-gray-200 hover:border-blue-400'}`}>
-                      🔗 Link URL
-                    </button>
+                  <button
+  type="button"
+  onClick={() => setBuktiType('file')}
+  className={`flex-1 flex items-center justify-center gap-2 py-2 rounded-xl text-xs font-semibold border transition-all
+    ${
+      buktiType === 'file'
+        ? 'bg-blue-600 text-white border-blue-600'
+        : 'bg-white text-gray-500 border-gray-200 hover:border-blue-400'
+    }`}
+>
+  <Upload className="w-4 h-4" />
+  <span>Upload File</span>
+</button>
+                    <button
+  type="button"
+  onClick={() => setBuktiType('link')}
+  className={`flex-1 flex items-center justify-center gap-2 py-2 rounded-xl text-xs font-semibold border transition-all
+    ${
+      buktiType === 'link'
+        ? 'bg-blue-600 text-white border-blue-600'
+        : 'bg-white text-gray-500 border-gray-200 hover:border-blue-400'
+    }`}
+>
+  <ExternalLink className="w-4 h-4" />
+  <span>Link URL</span>
+</button>
                   </div>
                   {buktiType === 'file' ? (
                     <div
@@ -547,7 +603,7 @@ export default function MahasiswaLogbook() {
                       <input ref={fileRef} type="file" accept=".pdf,.jpg,.jpeg,.png" onChange={e => handleFileChange(e.target.files[0])} className="hidden" />
                       {form.bukti ? (
                         <div>
-                          <p className="text-xl mb-1">✅</p>
+                         <CheckCircle className="w-6 h-6 text-green-600 mx-auto mb-1" />
                           <p className="font-semibold text-green-700 text-sm">{form.bukti.name}</p>
                           <p className="text-xs text-gray-400 mt-1">{(form.bukti.size / 1024 / 1024).toFixed(2)} MB</p>
                           <button type="button" onClick={e => { e.stopPropagation(); setForm(f => ({ ...f, bukti: null })) }}
@@ -598,7 +654,6 @@ export default function MahasiswaLogbook() {
                   onChange={e => setEditForm({ ...editForm, kegiatan: e.target.value })}
                   className="w-full border border-gray-200 rounded-xl px-3.5 py-2.5 text-sm focus:outline-none focus:border-blue-500" />
               </div>
-              {/* FIX 3: label deskripsi jadi wajib + tambah required */}
               <div>
                 <label className="block text-xs font-semibold text-gray-500 uppercase tracking-wide mb-1.5">
                   Deskripsi *
@@ -610,24 +665,21 @@ export default function MahasiswaLogbook() {
                   className="w-full border border-gray-200 rounded-xl px-3.5 py-2.5 text-sm focus:outline-none focus:border-blue-500 resize-none" />
               </div>
               <div>
-                <label className="block text-xs font-semibold text-gray-500 uppercase tracking-wide mb-1.5">Durasi *</label>
-                <div className="flex gap-2">
-                  <div className="flex-1 relative">
-                    {/* FIX: value langsung ikuti state editForm.jam (tidak dipaksa '0' saat kosong) agar bisa benar-benar dihapus */}
-                    <input type="number" min="0" max="23" value={editForm.jam}
-  onChange={e => setEditForm({ ...editForm, jam: e.target.value })}
-  onFocus={e => e.target.select()}
-  className="w-full border border-gray-200 rounded-xl px-3.5 py-2.5 text-sm focus:outline-none focus:border-blue-500 pr-12" />
-                    <span className="absolute right-3.5 top-1/2 -translate-y-1/2 text-sm text-gray-400 pointer-events-none">jam</span>
-                  </div>
-                  <div className="flex-1 relative">
-                    <input type="number" min="0" max="59" value={editForm.menit}
-                      onChange={e => setEditForm({ ...editForm, menit: e.target.value })}
-                       onFocus={e => e.target.select()}
-                      className="w-full border border-gray-200 rounded-xl px-3.5 py-2.5 text-sm focus:outline-none focus:border-blue-500 pr-16" />
-                    <span className="absolute right-3.5 top-1/2 -translate-y-1/2 text-sm text-gray-400 pointer-events-none">menit</span>
-                  </div>
+                <label className="block text-xs font-semibold text-gray-500 uppercase tracking-wide mb-1.5">Jam Mulai &amp; Selesai *</label>
+                <div className="flex gap-2 items-center">
+                  <input type="time" value={editForm.jam_mulai}
+                    onChange={e => setEditForm({ ...editForm, jam_mulai: e.target.value })}
+                    className="flex-1 border border-gray-200 rounded-xl px-3.5 py-2.5 text-sm focus:outline-none focus:border-blue-500" />
+                  <span className="text-gray-400 text-sm flex-shrink-0">s/d</span>
+                  <input type="time" value={editForm.jam_selesai}
+                    onChange={e => setEditForm({ ...editForm, jam_selesai: e.target.value })}
+                    className="flex-1 border border-gray-200 rounded-xl px-3.5 py-2.5 text-sm focus:outline-none focus:border-blue-500" />
                 </div>
+                {hitungDurasiMenit(editForm.jam_mulai, editForm.jam_selesai) && (
+                  <p className="text-xs text-blue-500 font-medium mt-1.5">
+                    Durasi: {formatDurasi(hitungDurasiMenit(editForm.jam_mulai, editForm.jam_selesai))}
+                  </p>
+                )}
               </div>
 
               <div>
@@ -649,11 +701,11 @@ export default function MahasiswaLogbook() {
 
                 {editBuktiType === 'file' ? (
                   <>
-                    {editLog.bukti_path && !editForm.hapusBukti && !editForm.bukti ? (
+                    {editLog.cloudinary_public_id && !editForm.hapusBukti && !editForm.bukti ? (
                       <div className="flex items-center justify-between bg-blue-50 border border-blue-100 rounded-xl px-3.5 py-2.5">
                         <div className="flex items-center gap-2">
                           <FileText className="w-4 h-4 text-blue-600" />
-                          <p className="text-sm text-blue-700 truncate max-w-[200px]">{editLog.bukti_path.split('/').pop()}</p>
+                          <p className="text-sm text-blue-700 truncate max-w-[200px]">{editLog.bukti_link.split('/').pop()}</p>
                         </div>
                         <div className="flex items-center gap-2">
                           <button type="button" onClick={() => editFileRef.current.click()}

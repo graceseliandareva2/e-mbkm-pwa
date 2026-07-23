@@ -7,6 +7,7 @@ import {
 import useAuthStore from '../../store/authStore'
 import toast from 'react-hot-toast'
 import ProfileDropdown from '../common/ProfileDropdown'
+import PeriodeSelector from '../common/PeriodeSelector'
 
 const navItems = [
   { to: '/kaprodi/dashboard',  icon: LayoutDashboard, label: 'Dashboard' },
@@ -98,7 +99,7 @@ export default function KaprodiLayout() {
                   : 'text-white/80 hover:bg-white/15 hover:text-white'}`}
             >
               <Users className="w-4 h-4 flex-shrink-0" />
-              <span className="flex-1 text-left">Kelola Mahasiswa</span>
+              <span className="flex-1 text-left">Mahasiswa</span>
               <ChevronDown className={`w-3.5 h-3.5 transition-transform duration-200 ${mahasiswaOpen ? 'rotate-180' : ''}`} />
             </button>
 
@@ -161,10 +162,7 @@ export default function KaprodiLayout() {
             Anda Masuk Sebagai <span className="font-bold text-blue-700">Kaprodi</span>
           </p>
           <div className="flex-1" />
-          <button className="relative p-2 text-gray-400 hover:text-gray-600 hover:bg-gray-100 rounded-xl">
-            <Bell className="w-5 h-5" />
-            <span className="absolute top-1.5 right-1.5 w-2 h-2 bg-red-500 rounded-full" />
-          </button>
+          <PeriodeSelector />
           <div className="pl-2 border-l border-gray-200">
             <ProfileDropdown />
           </div>

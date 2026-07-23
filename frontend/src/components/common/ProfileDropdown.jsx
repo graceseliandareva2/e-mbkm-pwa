@@ -25,8 +25,7 @@ export default function ProfileDropdown() {
   const dropdownRef = useRef(null)
 
   const isDosen = user?.role === 'dosen_pembimbing'
-  const isKaprodi = user?.role === 'kaprodi'
-  const showPeriodePicker = isDosen || isKaprodi
+  const showPeriodePicker = false
 
   // periode yg sedang aktif di store (sesuai role)
   const activePeriode = isDosen ? selectedPeriode : selectedPeriodeKaprodi

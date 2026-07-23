@@ -1,28 +1,66 @@
 import { useEffect, useState, useRef } from 'react'
 import {
   Upload, FileText, Trash2, Eye, CheckCircle, Clock,
-  XCircle, Lock, RotateCcw, Send, Download, X
+  XCircle, Lock, RotateCcw, Send, X
 } from 'lucide-react'
 import api from '../../utils/api'
 import toast from 'react-hot-toast'
+import { useSyncOnline } from '../../utils/useSyncOnline'
+import { FileBuktiPreview } from '../../components/common/BuktiPreview'
 
-const BASE_URL = ''
+// ─── Cache keys (offline-first, sama seperti Logbook.jsx) ─────────────────────
+const LS_DOKUMEN   = 'cache_dokumen'
+const LS_PENGAJUAN = 'cache_pengajuan_dokumen'
+
+// ─── Konstanta ────────────────────────────────────────────────────────────────
+
+const JENIS_OPTIONS = [
+  { value: 'laporan_akhir', label: 'Laporan Akhir' },
+  { value: 'ppt',           label: 'PPT' },
+]
+
+// ✅ Hanya PDF yang diterima untuk upload dokumen
+const ALLOWED_TYPES = ['application/pdf']
+
+// ─── Status helpers ─────────────────────────────────────────────────────────
 
 const getStatusInfo = (status) => {
   switch (status) {
-    
     case 'revisi_kaprodi':
     case 'revisi_dospem':
       return { label: 'Revisi', color: 'text-red-600', bg: 'bg-red-50', border: 'border-red-200', icon: XCircle, canResubmit: true }
     case 'diverifikasi':
       return { label: 'Diverifikasi', color: 'text-green-600', bg: 'bg-green-50', border: 'border-green-200', icon: CheckCircle, canResubmit: false }
     case 'disetujui_dospem':
-      return { label: 'Diverifikasi', color: 'text-green-600', bg: 'bg-green-50', border: 'border-green-200', icon: CheckCircle, canResubmit: false }
+      // untuk laporan_akhir ini BUKAN status final -- masih menunggu
+      // verifikasi Kaprodi (urutan baru: dospem dulu, baru kaprodi).
+      return { label: 'Menunggu Verifikasi Kaprodi', color: 'text-blue-600', bg: 'bg-blue-50', border: 'border-blue-200', icon: Clock, canResubmit: false }
     case 'disetujui_kaprodi':
       return { label: 'Disetujui Kaprodi', color: 'text-purple-600', bg: 'bg-purple-50', border: 'border-purple-200', icon: CheckCircle, canResubmit: false }
     default:
       return { label: 'Menunggu Review', color: 'text-yellow-600', bg: 'bg-yellow-50', border: 'border-yellow-200', icon: Clock, canResubmit: false }
   }
+}
+
+// Helper tunggal untuk teks feedback -- dipakai di list, DetailModal, dan
+// ResubmitModal supaya tidak ada logic bercabang yang duplikat.
+const getFeedbackText = (doc) => {
+  if (!doc) return null
+  if (doc.jenis === 'laporan_akhir') {
+    if (doc.status === 'revisi_kaprodi') return doc.feedback_kaprodi
+    if (doc.status === 'revisi_dospem') return doc.feedback_dospem
+    return null
+  }
+  return doc.status === 'revisi_dospem' ? doc.feedback : null
+}
+
+// Helper tunggal untuk URL file dokumen -- backend sekarang pakai Cloudinary,
+// jadi field yang benar adalah `cloudinary_url`. Fallback ke `path_file`
+// dipertahankan buat jaga-jaga kalau masih ada dokumen lama dari sebelum
+// migrasi Cloudinary yang belum punya cloudinary_url.
+const getFileUrl = (doc) => {
+  if (!doc) return null
+  return doc.cloudinary_url || doc.path_file || null
 }
 
 function StatusBadge({ status }) {
@@ -37,17 +75,15 @@ function StatusBadge({ status }) {
 }
 
 // ─── DetailModal ──────────────────────────────────────────────────────────────
+// Dokumen mahasiswa selalu berupa file upload (PDF) -- tidak pernah link
+// manual seperti di Logbook -- jadi preview cukup pakai FileBuktiPreview
+// dari BuktiPreview.jsx (sama persis dengan yang dipakai Logbook.jsx).
 
 function DetailModal({ doc, jenisLabel, onClose, onResubmit }) {
-  const info         = getStatusInfo(doc.status)
-  const fileUrl      = doc.path_file?.startsWith('http')
-    ? doc.path_file
-    : `${BASE_URL}/${doc.path_file}`
-  const feedbackText = doc.status === 'revisi_kaprodi'
-    ? doc.feedback_kaprodi
-    : doc.status === 'revisi_dospem'
-    ? doc.feedback_dospem
-    : null
+  if (!doc) return null
+
+  const info = getStatusInfo(doc.status)
+  const feedbackText = getFeedbackText(doc)
 
   return (
     <div className="fixed inset-0 bg-black/60 z-50 flex items-center justify-center p-4">
@@ -90,13 +126,10 @@ function DetailModal({ doc, jenisLabel, onClose, onResubmit }) {
           </div>
         )}
 
-        {/* Preview area — PDF only, tidak perlu handle docx lagi */}
+        {/* Preview area -- selalu PDF (upload dokumen wajib PDF), pakai FileBuktiPreview
+            yang sama dengan Logbook.jsx supaya konsisten dan sadar Cloudinary. */}
         <div className="flex-1 overflow-hidden bg-gray-50 flex flex-col rounded-b-2xl">
-          <iframe
-            src={fileUrl}
-            className="w-full h-full"
-            title={doc.nama_file}
-          />
+          <FileBuktiPreview path={getFileUrl(doc)} filename={doc.nama_file} />
         </div>
       </div>
     </div>
@@ -111,9 +144,9 @@ function ResubmitModal({ doc, onClose, onSuccess }) {
   const [dragging, setDragging]     = useState(false)
   const fileRef = useRef(null)
 
-  const feedbackText = doc.status === 'revisi_kaprodi'
-    ? doc.feedback_kaprodi
-    : doc.feedback_dospem
+  if (!doc) return null
+
+  const feedbackText = getFeedbackText(doc)
 
   // ✅ Validasi hanya PDF
   const validateFile = (f) => {
@@ -126,6 +159,9 @@ function ResubmitModal({ doc, onClose, onSuccess }) {
 
   const handleSubmit = async () => {
     if (!file) return toast.error('Pilih file terlebih dahulu!')
+    if (!navigator.onLine) {
+      return toast.error('Submit ulang memerlukan koneksi internet karena mengirim file.')
+    }
     setSubmitting(true)
     try {
       const formData = new FormData()
@@ -152,6 +188,12 @@ function ResubmitModal({ doc, onClose, onSuccess }) {
         </div>
 
         <div className="p-5 space-y-4">
+          {!navigator.onLine && (
+            <div className="bg-yellow-50 border border-yellow-200 rounded-xl px-3.5 py-2.5 text-xs text-yellow-700 font-medium">
+              ⚠️ Kamu sedang offline. Submit ulang memerlukan koneksi internet.
+            </div>
+          )}
+
           <div className={`rounded-xl p-3.5 border ${feedbackText ? 'bg-red-50 border-red-100' : 'bg-gray-50 border-gray-100'}`}>
             <p className={`text-xs font-semibold mb-1 ${feedbackText ? 'text-red-600' : 'text-gray-500'}`}>
               Catatan Revisi:
@@ -174,7 +216,7 @@ function ResubmitModal({ doc, onClose, onSuccess }) {
               ${dragging ? 'border-blue-500 bg-blue-50' : file ? 'border-green-400 bg-green-50' : 'border-gray-200 hover:border-blue-400 hover:bg-gray-50'}`}
           >
             {/* ✅ accept hanya .pdf */}
-            <input ref={fileRef} type="file" accept=".pdf,.jpg,.jpeg.,png" className="hidden"
+            <input ref={fileRef} type="file" accept=".pdf" className="hidden"
               onChange={e => { const f = e.target.files[0]; if (f && validateFile(f)) setFile(f) }} />
             {file ? (
               <div>
@@ -188,7 +230,6 @@ function ResubmitModal({ doc, onClose, onSuccess }) {
               <div>
                 <Upload className="w-7 h-7 text-gray-400 mx-auto mb-2" />
                 <p className="text-sm font-medium text-gray-600">Drag & drop atau klik pilih file</p>
-                {/* ✅ Teks hint hanya PDF */}
                 <p className="text-xs text-gray-400 mt-1">PDF</p>
               </div>
             )}
@@ -212,23 +253,6 @@ function ResubmitModal({ doc, onClose, onSuccess }) {
   )
 }
 
-// ─── Konstanta ────────────────────────────────────────────────────────────────
-
-const JENIS_OPTIONS = [
-  { value: 'laporan_akhir', label: 'Laporan Akhir' },
-  { value: 'ppt',           label: 'PPT' },
-]
-
-// ✅ Hanya PDF
-const ALLOWED_TYPES = [
-  'application/pdf',
-  'application/msword',
-  'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
-  'image/jpeg',
-  'image/jpg',
-  'image/png',
-]
-
 // ─── Main Component ───────────────────────────────────────────────────────────
 
 export default function MahasiswaDokumen() {
@@ -242,7 +266,16 @@ export default function MahasiswaDokumen() {
   const [form, setForm]               = useState({ jenis: '', file: null })
   const fileRef = useRef(null)
 
-  useEffect(() => { fetchAll() }, [])
+  // ✅ Load dari cache localStorage saat pertama mount (sebelum fetch), sama
+  // seperti pola offline-first di Logbook.jsx.
+  useEffect(() => {
+    try {
+      const cachedDokumen   = localStorage.getItem(LS_DOKUMEN)
+      const cachedPengajuan = localStorage.getItem(LS_PENGAJUAN)
+      if (cachedDokumen) setDokumen(JSON.parse(cachedDokumen))
+      if (cachedPengajuan) setPengajuan(JSON.parse(cachedPengajuan))
+    } catch { /* ignore parse error */ }
+  }, [])
 
   const fetchAll = async () => {
     try {
@@ -252,15 +285,23 @@ export default function MahasiswaDokumen() {
       ])
       if (dokumenRes.status === 'fulfilled') {
         const data = dokumenRes.value.data?.data ?? dokumenRes.value.data
-        console.log('DATA DOKUMEN:', data) 
-        setDokumen(Array.isArray(data) ? data : [])
+        const list = Array.isArray(data) ? data : []
+        setDokumen(list)
+        try { localStorage.setItem(LS_DOKUMEN, JSON.stringify(list)) } catch { /* ignore */ }
       }
       if (pengajuanRes.status === 'fulfilled' && pengajuanRes.value.data?.id) {
-        setPengajuan(pengajuanRes.value.data)
+        const p = pengajuanRes.value.data
+        setPengajuan(p)
+        try { localStorage.setItem(LS_PENGAJUAN, JSON.stringify(p)) } catch { /* ignore */ }
       }
     } catch { setDokumen([]) }
     finally { setLoading(false) }
   }
+
+  // Auto-sync ketika koneksi kembali online (sama seperti Logbook.jsx)
+  useSyncOnline(fetchAll)
+
+  useEffect(() => { fetchAll() }, [])
 
   // ✅ Validasi hanya PDF
   const validateFile = (file) => {
@@ -277,6 +318,12 @@ export default function MahasiswaDokumen() {
     if (!form.jenis) return toast.error('Pilih jenis dokumen terlebih dahulu!')
     if (!form.file)  return toast.error('File wajib dipilih!')
     if (!pengajuan?.periode_id) return toast.error('Data pengajuan tidak ditemukan!')
+
+    // Upload dokumen selalu berupa file (wajib PDF), jadi tidak bisa
+    // diantrekan secara offline seperti logbook tanpa lampiran.
+    if (!navigator.onLine) {
+      return toast.error('Upload dokumen memerlukan koneksi internet.')
+    }
 
     setUploading(true)
     try {
@@ -295,6 +342,7 @@ export default function MahasiswaDokumen() {
   }
 
   const handleDelete = async (id) => {
+    if (!navigator.onLine) return toast.error('Hapus dokumen memerlukan koneksi internet.')
     if (!confirm('Hapus dokumen ini?')) return
     try {
       await api.delete(`/mahasiswa/dokumen/${id}`)
@@ -302,10 +350,16 @@ export default function MahasiswaDokumen() {
       fetchAll()
     } catch { toast.error('Gagal menghapus dokumen') }
   }
-const isDisabled = pengajuan?.status !== 'disetujui_kaprodi'
 
-  // Status yang dianggap "sudah selesai" → pindah ke halaman Riwayat
-  const VERIFIED_STATUSES = ['diverifikasi', 'disetujui_dospem', 'disetujui_kaprodi']
+  const isDisabled = pengajuan?.status !== 'disetujui_kaprodi'
+
+  // Status yang dianggap "sudah selesai" → pindah ke halaman Riwayat.
+  // Hanya 'diverifikasi' yang benar-benar final sekarang. 'disetujui_dospem'
+  // untuk laporan_akhir BUKAN final -- masih menunggu verifikasi Kaprodi
+  // (urutan baru: dospem dulu, baru kaprodi). Dan 'disetujui_kaprodi' sudah
+  // tidak pernah tersimpan mentah lagi, karena approval Kaprodi otomatis
+  // jadi status 'diverifikasi'.
+  const VERIFIED_STATUSES = ['diverifikasi']
   const activeDokumen = dokumen.filter(d => !VERIFIED_STATUSES.includes(d.status))
 
   if (loading) return (
@@ -328,6 +382,11 @@ const isDisabled = pengajuan?.status !== 'disetujui_kaprodi'
         <p className="text-sm text-gray-400 mt-1 max-w-xs mx-auto">
           Upload dokumen dapat dilakukan setelah pengajuan Capstone Project kamu disetujui oleh Kaprodi.
         </p>
+        {!navigator.onLine && (
+          <p className="text-xs text-yellow-600 mt-3 bg-yellow-50 border border-yellow-100 rounded-xl px-3 py-2">
+            Kamu sedang offline. Data pengajuan tidak ditemukan di cache lokal.
+          </p>
+        )}
       </div>
     </div>
   )
@@ -338,6 +397,13 @@ const isDisabled = pengajuan?.status !== 'disetujui_kaprodi'
         <h1 className="text-xl font-bold text-gray-800">Upload Dokumen</h1>
         <p className="text-sm text-gray-500 mt-0.5">Upload laporan dan dokumen pendukung Capstone Project</p>
       </div>
+
+      {/* Banner offline — sama seperti Logbook.jsx */}
+      {!navigator.onLine && (
+        <div className="bg-yellow-50 border border-yellow-200 rounded-xl px-4 py-3 text-sm text-yellow-700 font-medium">
+          ⚠️ Kamu sedang offline. Menampilkan data tersimpan terakhir. Upload/hapus dokumen memerlukan koneksi internet.
+        </div>
+      )}
 
       {/* Form upload */}
       <form onSubmit={handleUpload} className="bg-white rounded-2xl shadow-sm border border-gray-100 p-5 space-y-4">
@@ -367,8 +433,8 @@ const isDisabled = pengajuan?.status !== 'disetujui_kaprodi'
           className={`border-2 border-dashed rounded-xl p-8 text-center cursor-pointer transition-all
             ${dragging ? 'border-blue-500 bg-blue-50' : form.file ? 'border-green-400 bg-green-50' : 'border-gray-200 hover:border-blue-400 hover:bg-gray-50'}`}
         >
-         
-          <input ref={fileRef} type="file" accept=".pdf,.jpg,.jpeg.,png"
+          {/* ✅ accept hanya .pdf */}
+          <input ref={fileRef} type="file" accept=".pdf"
             onChange={e => { const f = e.target.files[0]; if (f && validateFile(f)) setForm(prev => ({ ...prev, file: f })) }}
             className="hidden" />
           {form.file ? (
@@ -385,7 +451,6 @@ const isDisabled = pengajuan?.status !== 'disetujui_kaprodi'
               <p className="font-medium text-gray-600 text-sm">
                 {dragging ? 'Lepaskan file di sini' : 'Drag & drop atau klik untuk pilih file'}
               </p>
-              {/* ✅ Teks hint hanya PDF */}
               <p className="text-xs text-gray-400 mt-1">PDF</p>
             </div>
           )}
@@ -403,7 +468,7 @@ const isDisabled = pengajuan?.status !== 'disetujui_kaprodi'
 
       {/* List dokumen */}
       <div className="space-y-3">
-       <h2 className="font-semibold text-gray-700">Dokumen Terupload ({activeDokumen.length})</h2>
+        <h2 className="font-semibold text-gray-700">Dokumen Terupload ({activeDokumen.length})</h2>
         {activeDokumen.length === 0 ? (
           <div className="bg-white rounded-2xl p-8 text-center border border-dashed border-gray-200">
             <FileText className="w-8 h-8 text-gray-300 mx-auto mb-2" />
@@ -414,11 +479,7 @@ const isDisabled = pengajuan?.status !== 'disetujui_kaprodi'
           const info       = getStatusInfo(doc.status)
           const jenisLabel = JENIS_OPTIONS.find(o => o.value === doc.jenis)?.label || doc.jenis
           const canDelete  = doc.status === 'diupload'
-          const feedbackText = doc.status === 'revisi_kaprodi'
-            ? doc.feedback_kaprodi
-            : doc.status === 'revisi_dospem'
-            ? doc.feedback_dospem
-            : null
+          const feedbackText = getFeedbackText(doc)
 
           return (
             <div key={doc.id} className="bg-white rounded-xl shadow-sm border border-gray-100 overflow-hidden">

@@ -1,7 +1,6 @@
 import { useEffect, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { Clock, CheckCircle, XCircle, AlertCircle, BookOpen, CalendarClock, ArrowRight, GraduationCap, FileText } from 'lucide-react'
-import useAuthStore from '../../store/authStore'
 import api from '../../utils/api'
 
 const STATUS_CONFIG = {
@@ -24,7 +23,6 @@ const formatDurasi = (menit) => {
 }
 
 export default function MahasiswaDashboard() {
-  const { user } = useAuthStore()
   const navigate = useNavigate()
   const [pengajuan, setPengajuan]       = useState(null)
   const [logbookStats, setLogbookStats] = useState({ count: 0, totalMenit: 0 })
@@ -44,8 +42,9 @@ export default function MahasiswaDashboard() {
       setPengajuan(pRes.data)
 
       const logbooks = Array.isArray(lRes.data?.data) ? lRes.data.data : []
-      // l.jam sekarang berisi total MENIT (integer), bukan jam desimal lagi
-      const totalMenit = logbooks.reduce((sum, l) => sum + (Number(l.jam) || 0), 0)
+      // durasi_menit = kolom turunan dari jam_mulai/jam_selesai (dihitung backend).
+      // Kolom `jam` lama sudah tidak dipakai lagi (nunggu di-DROP).
+      const totalMenit = logbooks.reduce((sum, l) => sum + (Number(l.durasi_menit) || 0), 0)
       setLogbookStats({ count: logbooks.length, totalMenit })
 
       const periodeList = periodeRes.data?.data || []
@@ -69,22 +68,22 @@ export default function MahasiswaDashboard() {
   const todayMidnight = new Date(now.getFullYear(), now.getMonth(), now.getDate())
 
   const deadlines = periode ? [
-    periode.tanggal_selesai_pengajuan && {
+    {
       label: 'Pengajuan',
-      date: formatDeadline(periode.tanggal_selesai_pengajuan),
-      raw: new Date(periode.tanggal_selesai_pengajuan),
+      mulai: periode.tanggal_mulai_pengajuan ? new Date(periode.tanggal_mulai_pengajuan) : null,
+      selesai: periode.tanggal_selesai_pengajuan ? new Date(periode.tanggal_selesai_pengajuan) : null,
     },
-    periode.tanggal_selesai_logbook && {
+    {
       label: 'Logbook',
-      date: formatDeadline(periode.tanggal_selesai_logbook),
-      raw: new Date(periode.tanggal_selesai_logbook),
+      mulai: periode.tanggal_mulai_logbook ? new Date(periode.tanggal_mulai_logbook) : null,
+      selesai: periode.tanggal_selesai_logbook ? new Date(periode.tanggal_selesai_logbook) : null,
     },
-    periode.tanggal_selesai_laporan && {
-      label: 'Laporan akhir',
-      date: formatDeadline(periode.tanggal_selesai_laporan),
-      raw: new Date(periode.tanggal_selesai_laporan),
+    {
+      label: 'Laporan Akhir',
+      mulai: null, // periode tidak punya tanggal_mulai_laporan tersendiri
+      selesai: periode.tanggal_selesai_laporan ? new Date(periode.tanggal_selesai_laporan) : null,
     },
-  ].filter(Boolean) : []
+  ].filter(d => d.selesai) : []
 
   const TARGET_MENIT = 48 * 60
   const logbookPct = Math.min((logbookStats.totalMenit / TARGET_MENIT) * 100, 100)
@@ -101,19 +100,91 @@ export default function MahasiswaDashboard() {
   return (
     <div className="space-y-4">
 
-      {/* ── Welcome ── */}
-      <div className="relative overflow-hidden bg-gradient-to-br from-blue-700 via-blue-600 to-blue-500 rounded-2xl p-6 text-white">
-        <div className="absolute -top-6 -right-6 w-32 h-32 rounded-full bg-white/5" />
-        <div className="absolute -bottom-8 -right-2 w-48 h-48 rounded-full bg-white/5" />
-        <div className="relative">
-          <p className="text-blue-100 text-xs font-medium tracking-wide uppercase mb-1">Selamat datang</p>
-          <h1 className="text-2xl font-bold mb-1">{user?.nama || user?.username} 👋</h1>
-          <p className="text-blue-100 text-sm">{user?.nim} — {user?.program_studi || 'Sistem Teknologi dan Informasi'}</p>
-        </div>
-      </div>
+      {/* ── Periode Aktif: gradient biru, full width, item disusun menyamping ── */}
+      {deadlines.length > 0 ? (
+        <div className="relative overflow-hidden bg-gradient-to-br from-blue-700 via-blue-600 to-blue-500 rounded-2xl shadow-sm text-white">
+          <div className="absolute -top-6 -right-6 w-32 h-32 rounded-full bg-white/5" />
+          <div className="absolute -bottom-8 -right-2 w-48 h-48 rounded-full bg-white/5" />
 
-      {/* ── Row: 3 kolom sejajar (Logbook + Status + Deadline) atau 2 kolom jika belum disetujui ── */}
-      <div className={`grid grid-cols-1 gap-4 ${pengajuan?.status === 'disetujui_kaprodi' ? 'sm:grid-cols-3' : 'sm:grid-cols-2'}`}>
+          <div className="relative flex items-center justify-between px-5 pt-4 pb-3 border-b border-white/10">
+            <div className="flex items-center gap-2">
+              <CalendarClock className="w-3.5 h-3.5 text-blue-100" />
+              <p className="text-xs font-semibold text-blue-100 uppercase tracking-wide">Periode Aktif</p>
+            </div>
+            {periode && (
+              <span className="text-xs font-bold text-white">
+                {periode.nama_periode} {periode.jenis && <span className="text-blue-100 font-semibold">· {periode.jenis}</span>}
+              </span>
+            )}
+          </div>
+
+          <div className="relative px-5 py-4 flex flex-col sm:flex-row divide-y sm:divide-y-0 sm:divide-x divide-white/10">
+            {deadlines.map((d, i) => {
+              const mulaiMidnight   = d.mulai ? new Date(d.mulai.getFullYear(), d.mulai.getMonth(), d.mulai.getDate()) : null
+              const selesaiMidnight = new Date(d.selesai.getFullYear(), d.selesai.getMonth(), d.selesai.getDate())
+
+              const belumMulai = mulaiMidnight && todayMidnight < mulaiMidnight
+              const isLewat    = todayMidnight > selesaiMidnight
+              const sisa       = Math.ceil((selesaiMidnight - todayMidnight) / (1000 * 60 * 60 * 24))
+              const isUrgent   = !belumMulai && !isLewat && sisa <= 7
+
+              let badge
+              if (belumMulai) {
+                badge = (
+                  <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full border text-xs font-medium text-gray-500 bg-gray-50 border-gray-200">
+                    <span className="w-1.5 h-1.5 rounded-full bg-gray-400" /> Belum mulai
+                  </span>
+                )
+              } else if (isLewat) {
+                badge = (
+                  <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full border text-xs font-medium text-red-700 bg-red-50 border-red-200">
+                    <span className="w-1.5 h-1.5 rounded-full bg-red-500" /> Lewat
+                  </span>
+                )
+              } else if (sisa === 0) {
+                badge = (
+                  <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full border text-xs font-medium text-yellow-700 bg-yellow-50 border-yellow-200">
+                    <span className="w-1.5 h-1.5 rounded-full bg-yellow-400" /> Hari ini
+                  </span>
+                )
+              } else if (isUrgent) {
+                badge = (
+                  <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full border text-xs font-medium text-yellow-700 bg-yellow-50 border-yellow-200">
+                    <span className="w-1.5 h-1.5 rounded-full bg-yellow-400" /> {sisa} hari lagi
+                  </span>
+                )
+              } else {
+                badge = (
+                  <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full border text-xs font-medium text-green-700 bg-green-50 border-green-200">
+                    <span className="w-1.5 h-1.5 rounded-full bg-green-500" /> Berjalan
+                  </span>
+                )
+              }
+
+              return (
+                <div key={i} className="flex-1 py-2.5 sm:py-0 sm:px-5 first:sm:pl-0 last:sm:pr-0">
+                  <div className="flex items-center justify-between sm:flex-col sm:items-start sm:gap-1.5">
+                    <p className="text-sm text-white font-medium">{d.label}</p>
+                    {badge}
+                  </div>
+                  <p className="text-xs text-blue-100 mt-0.5">
+                    {d.mulai ? `${formatDeadline(d.mulai)} — ` : ''}{formatDeadline(d.selesai)}
+                  </p>
+                </div>
+              )
+            })}
+          </div>
+        </div>
+      ) : (
+        <div className="bg-white rounded-2xl border border-gray-100 shadow-sm flex flex-col items-center justify-center px-5 py-8 text-center gap-1">
+          <CalendarClock className="w-6 h-6 text-gray-200 mb-1" />
+          <p className="text-sm font-medium text-gray-400">Tidak ada periode aktif</p>
+          <p className="text-xs text-gray-300">Hubungi kaprodi untuk informasi lebih lanjut</p>
+        </div>
+      )}
+
+      {/* ── Status Pengajuan + Progres Logbook: sejajar 2 kolom di bawah Periode Aktif ── */}
+      <div className={`grid grid-cols-1 gap-4 ${pengajuan?.status === 'disetujui_kaprodi' ? 'sm:grid-cols-2' : ''}`}>
 
         {/* Status Pengajuan */}
         <div
@@ -170,7 +241,7 @@ export default function MahasiswaDashboard() {
           </div>
         </div>
 
-        {/* ── Progres Logbook (hanya muncul kalau disetujui) ── */}
+        {/* Progres Logbook (hanya muncul kalau disetujui) */}
         {pengajuan?.status === 'disetujui_kaprodi' && (
           <div className="bg-white rounded-2xl border border-gray-100 shadow-sm flex flex-col">
             <div className="flex items-center gap-2 px-5 pt-4 pb-3 border-b border-gray-50">
@@ -229,49 +300,6 @@ export default function MahasiswaDashboard() {
                 </button>
               </div>
             </div>
-          </div>
-        )}
-
-        {/* Deadline Periode Aktif */}
-        {deadlines.length > 0 ? (
-          <div className="bg-white rounded-2xl border border-gray-100 shadow-sm flex flex-col">
-            <div className="flex items-center gap-2 px-5 pt-4 pb-3 border-b border-gray-50">
-              <CalendarClock className="w-3.5 h-3.5 text-gray-400" />
-              <p className="text-xs font-semibold text-gray-400 uppercase tracking-wide">Deadline Periode Aktif</p>
-            </div>
-            <div className="px-5 py-2 flex flex-col justify-center flex-1">
-              {deadlines.map((d, i) => {
-                const deadlineMidnight = new Date(d.raw.getFullYear(), d.raw.getMonth(), d.raw.getDate())
-                const isLewat  = deadlineMidnight < todayMidnight
-                const sisa     = Math.ceil((deadlineMidnight - todayMidnight) / (1000 * 60 * 60 * 24))
-                const isUrgent = !isLewat && sisa <= 7
-                return (
-                  <div
-                    key={i}
-                    className={`flex items-center justify-between py-2.5 ${i < deadlines.length - 1 ? 'border-b border-gray-50' : ''}`}
-                  >
-                    <p className="text-sm text-gray-700">{d.label}</p>
-                    <div className="text-right">
-                      {isLewat ? (
-                        <span className="text-xs font-semibold text-red-500 bg-red-50 border border-red-100 px-2 py-0.5 rounded-full">Lewat</span>
-                      ) : sisa === 0 ? (
-                        <span className="text-xs font-semibold text-orange-500 bg-orange-50 border border-orange-200 px-2 py-0.5 rounded-full">Hari ini</span>
-                      ) : isUrgent ? (
-                        <span className="text-xs font-semibold text-orange-500 bg-orange-50 border border-orange-200 px-2 py-0.5 rounded-full">{sisa} hari lagi</span>
-                      ) : (
-                        <span className="text-xs text-gray-400">{d.date}</span>
-                      )}
-                    </div>
-                  </div>
-                )
-              })}
-            </div>
-          </div>
-        ) : (
-          <div className="bg-white rounded-2xl border border-gray-100 shadow-sm flex flex-col items-center justify-center px-5 py-8 text-center gap-1">
-            <CalendarClock className="w-6 h-6 text-gray-200 mb-1" />
-            <p className="text-sm font-medium text-gray-400">Tidak ada periode aktif</p>
-            <p className="text-xs text-gray-300">Hubungi kaprodi untuk informasi lebih lanjut</p>
           </div>
         )}
       </div>

@@ -11,7 +11,7 @@ import {
 } from "lucide-react";
 import api from "../../utils/api";
 import toast from "react-hot-toast";
-import usePeriodeStore from "../../store/periodeStore";
+import usePeriodeFilter from "../../hooks/usePeriodeFilter";
 
 function JudulCapstone({ pelatihan = [] }) {
   const [expanded, setExpanded] = useState(false);
@@ -62,9 +62,13 @@ function JudulCapstone({ pelatihan = [] }) {
 
 export default function KaprodiAssignDosen() {
   const [pengajuanList, setPengajuanList] = useState([]);
+  // PERUBAHAN: dosen sekarang berisi roster MBKM periode terpilih (bukan
+  // seluruh master dosen), diambil dari GET /kaprodi/dosen-roster-mbkm.
+  // Setiap baris punya bentuk { roster_id, dosen_id, id_dosen, nama, ... }
+  // -- yang dipakai buat assign adalah `dosen_id` (id master dosen), karena
+  // itu yang divalidasi & disimpan backend ke bimbingan.dosen_id.
   const [dosen, setDosen] = useState([]);
-  const [periode, setPeriode] = useState([]);
-  const [selectedPeriode, setSelectedPeriode] = useState("");
+  const [dosenLoading, setDosenLoading] = useState(false);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState("");
   const [currentPage, setCurrentPage] = useState(1);
@@ -74,47 +78,38 @@ export default function KaprodiAssignDosen() {
   const [selectedDosen, setSelectedDosen] = useState("");
   const [assigning, setAssigning] = useState(false);
 
-  const { selectedPeriodeKaprodi } = usePeriodeStore();
+  const {
+    periodeId: selectedPeriode,
+    periodeList: periode,
+    setLocalPeriode,
+  } = usePeriodeFilter('kaprodi');
 
   useEffect(() => {
-  fetchAll();
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-}, []);
+    if (selectedPeriode) {
+      fetchPengajuan();
+      fetchDosenRoster(selectedPeriode);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [selectedPeriode]);
 
-useEffect(() => {
-  if (selectedPeriode) fetchPengajuan();
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-}, [selectedPeriode]);
-
-
-useEffect(() => {
-  if (selectedPeriodeKaprodi && periode.some((p) => p.id === selectedPeriodeKaprodi.id)) {
-    setSelectedPeriode(selectedPeriodeKaprodi.id);
-  }
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-}, [selectedPeriodeKaprodi]);
-
-const fetchAll = async () => {
-  try {
-    const [dosenRes, periodeRes] = await Promise.all([
-      api.get("/kaprodi/dosen"),
-      api.get("/kaprodi/periode"),
-    ]);
-    setDosen(dosenRes.data.data || []);
-    const periodeData = periodeRes.data.data || [];
-    setPeriode(periodeData);
-
-    // prioritas: periode dari ProfileDropdown (kalau sudah dipilih) → periode aktif → periode terbaru
-    const dariProfile =
-      selectedPeriodeKaprodi &&
-      periodeData.find((p) => p.id === selectedPeriodeKaprodi.id);
-    const aktif = periodeData.find((p) => p.is_active);
-    const defaultId = dariProfile?.id ?? aktif?.id ?? periodeData[0]?.id ?? "";
-    if (defaultId) setSelectedPeriode(defaultId);
-  } catch {
-    toast.error("Gagal memuat data!");
-  }
-};
+  // PERUBAHAN: dulu dosen di-fetch sekali dari /kaprodi/dosen (master list)
+  // di fetchAll(). Sekarang di-fetch ulang tiap ganti periode dari roster
+  // MBKM periode itu -- supaya dropdown assign cuma nampilin dosen yang
+  // memang tersedia di periode yang sedang dikerjakan kaprodi.
+  const fetchDosenRoster = async (periodeId) => {
+    setDosenLoading(true);
+    try {
+      const res = await api.get("/kaprodi/dosen-roster-mbkm", {
+        params: { periode_id: periodeId },
+      });
+      setDosen(res.data.data || []);
+    } catch {
+      toast.error("Gagal memuat roster dosen MBKM!");
+      setDosen([]);
+    } finally {
+      setDosenLoading(false);
+    }
+  };
 
   const fetchPengajuan = async () => {
     setLoading(true);
@@ -131,9 +126,6 @@ const fetchAll = async () => {
   };
 
   const handleAssign = async () => {
-    console.log('showAssign:', showAssign)
-  console.log('selectedDosen:', selectedDosen)
-  console.log('selectedPeriode:', selectedPeriode)
     if (!selectedDosen || !showAssign) {
       toast.error("Pilih dosen terlebih dahulu!");
       return;
@@ -199,7 +191,7 @@ const fetchAll = async () => {
         <select
           value={selectedPeriode}
           onChange={(e) => {
-            setSelectedPeriode(e.target.value);
+            setLocalPeriode(periode.find(p => String(p.id) === String(e.target.value)));
             setCurrentPage(1);
           }}
           className="px-3 py-2 border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 bg-gray-50"
@@ -424,18 +416,31 @@ const fetchAll = async () => {
                 <label className="text-xs font-semibold text-gray-600 block mb-1.5">
                   Pilih Dosen Pembimbing <span className="text-red-500">*</span>
                 </label>
+                {/* PERUBAHAN: dropdown ini sekarang cuma menampilkan dosen
+                    yang ada di roster_dosen_mbkm untuk periode terpilih --
+                    bukan seluruh master dosen. Kalau roster kosong, tampil
+                    pesan supaya kaprodi tahu perlu minta staff mengisi
+                    roster dulu di halaman Pembimbing MBKM. */}
                 <select
                   value={selectedDosen}
                   onChange={(e) => setSelectedDosen(e.target.value)}
-                  className="w-full px-3 py-2.5 border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 bg-gray-50"
+                  disabled={dosenLoading}
+                  className="w-full px-3 py-2.5 border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 bg-gray-50 disabled:opacity-60"
                 >
-                  <option value="">-- Pilih Dosen --</option>
+                  <option value="">
+                    {dosenLoading ? "Memuat roster dosen..." : "-- Pilih Dosen --"}
+                  </option>
                   {dosen.map((d) => (
-                    <option key={d.id} value={d.id}>
-                      {d.nama} ({d.nidn})
+                    <option key={d.dosen_id} value={d.dosen_id}>
+                      {d.nama} ({d.id_dosen})
                     </option>
                   ))}
                 </select>
+                {!dosenLoading && dosen.length === 0 && (
+                  <p className="text-xs text-amber-600 mt-1.5">
+                    Belum ada dosen di roster MBKM untuk periode ini. Minta staff akademik menambahkannya lewat halaman Pembimbing MBKM.
+                  </p>
+                )}
               </div>
               <div className="flex gap-3 pt-2">
                 <button

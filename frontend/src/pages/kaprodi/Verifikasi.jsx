@@ -1,14 +1,12 @@
 import { useEffect, useState } from 'react'
-import { Search, CheckCircle, XCircle, FileText, X } from 'lucide-react'
+import { Search, CheckCircle, XCircle, FileText, X, ChevronDown } from 'lucide-react'
 import api from '../../utils/api'
 import toast from 'react-hot-toast'
 import { formatTanggal } from '../../utils/helpers'
-import usePeriodeStore from '../../store/periodeStore'
+import usePeriodeFilter from '../../hooks/usePeriodeFilter'
 
 export default function KaprodiVerifikasi() {
   const [pengajuan, setPengajuan] = useState([])
-  const [periode, setPeriode] = useState([])
-  const [selectedPeriode, setSelectedPeriode] = useState('')
   const [search, setSearch] = useState('')
   const [filterStatus, setFilterStatus] = useState('')
   const [loading, setLoading] = useState(true)
@@ -16,52 +14,31 @@ export default function KaprodiVerifikasi() {
   const [catatan, setCatatan] = useState('')
   const [processing, setProcessing] = useState(false)
 
+  // state untuk expand daftar pelatihan per baris (inline, bukan dropdown mengambang)
+  const [openPelatihan, setOpenPelatihan] = useState(null)
 
-  const { selectedPeriodeKaprodi } = usePeriodeStore()
-// eslint-disable-next-line react-hooks/exhaustive-deps
-  useEffect(() => { fetchPeriodeList() }, [])
+  const {
+    periodeId: selectedPeriode,
+    periodeList: periode,
+    setLocalPeriode,
+  } = usePeriodeFilter('kaprodi')
+
   // eslint-disable-next-line react-hooks/exhaustive-deps
   useEffect(() => { if (selectedPeriode) fetchPengajuan() }, [selectedPeriode])
 
-  // ⬇️ TAMBAH: dengarkan perubahan periode dari ProfileDropdown secara real-time
-  useEffect(() => {
-    if (selectedPeriodeKaprodi && periode.length > 0) {
-      const exists = periode.find(p => p.id === selectedPeriodeKaprodi.id)
-      if (exists) setSelectedPeriode(String(exists.id))
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [selectedPeriodeKaprodi])
-
-  const fetchPeriodeList = async () => {
-    try {
-      const periodeRes = await api.get('/kaprodi/periode')
-      const periodeData = periodeRes.data.data || []
-      setPeriode(periodeData)
-
-      const dariProfile = selectedPeriodeKaprodi && periodeData.find(p => p.id === selectedPeriodeKaprodi.id)
-      const aktif = periodeData.find(p => p.is_active)
-      const defaultPeriode = dariProfile || aktif || periodeData[0]
-      if (defaultPeriode) setSelectedPeriode(String(defaultPeriode.id))
-      else setLoading(false)
-    } catch {
-      toast.error('Gagal memuat data periode!')
-      setLoading(false)
-    }
+ const fetchPengajuan = async () => {
+  setLoading(true)
+  try {
+    const res = await api.get('/kaprodi/verifikasi-pengajuan', {
+      params: { periode_id: selectedPeriode }
+    })
+    setPengajuan(res.data.data || [])
+  } catch {
+    toast.error('Gagal memuat data pengajuan!')
+  } finally {
+    setLoading(false)
   }
-
-  const fetchPengajuan = async () => {
-    setLoading(true)
-    try {
-      const res = await api.get('/kaprodi/verifikasi-pengajuan', {
-        params: { periode_id: selectedPeriode }
-      })
-      setPengajuan(res.data.data || [])
-    } catch {
-      toast.error('Gagal memuat data pengajuan!')
-    } finally {
-      setLoading(false)
-    }
-  }
+}
 
   const fetchAll = async () => {
     fetchPengajuan()
@@ -142,12 +119,14 @@ export default function KaprodiVerifikasi() {
           <option value="disetujui_kaprodi">Disetujui</option>
           <option value="ditolak">Ditolak</option>
         </select>
-        <select value={selectedPeriode} onChange={e => setSelectedPeriode(e.target.value)}
-          className="px-3 py-2 border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 bg-gray-50">
-          {periode.map(p => (
-            <option key={p.id} value={String(p.id)}>{p.nama_periode}</option>
-          ))}
-        </select>
+       <select
+  value={selectedPeriode ?? ''}
+  onChange={e => setLocalPeriode(periode.find(p => String(p.id) === String(e.target.value)))}
+  className="px-3 py-2 border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 bg-gray-50">
+  {periode.map(p => (
+    <option key={p.id} value={String(p.id)}>{p.nama_periode}</option>
+  ))}
+</select>
       </div>
 
       <div className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden">
@@ -161,7 +140,7 @@ export default function KaprodiVerifikasi() {
               <tr className="bg-gray-50">
                 <th className="text-left px-6 py-3 text-xs font-semibold text-gray-500 uppercase">No</th>
                 <th className="text-left px-6 py-3 text-xs font-semibold text-gray-500 uppercase">Mahasiswa</th>
-                <th className="text-left px-6 py-3 text-xs font-semibold text-gray-500 uppercase">Pelatihan Utama</th>
+                <th className="text-left px-6 py-3 text-xs font-semibold text-gray-500 uppercase">Pelatihan</th>
                 <th className="text-left px-6 py-3 text-xs font-semibold text-gray-500 uppercase">Tanggal</th>
                 <th className="text-left px-6 py-3 text-xs font-semibold text-gray-500 uppercase">Status</th>
                 <th className="text-left px-6 py-3 text-xs font-semibold text-gray-500 uppercase">Aksi</th>
@@ -179,22 +158,56 @@ export default function KaprodiVerifikasi() {
                 </td></tr>
               ) : filtered.map((p, i) => {
                 const { cls, label } = getStatusBadge(p.status)
-                const pelatihanUtama = getPelatihanArray(p.pelatihan)[0]?.nama || '-'
+                const pelatihanList = getPelatihanArray(p.pelatihan)
+                const pelatihanUtama = pelatihanList[0]?.nama || '-'
+                const sisaCount = pelatihanList.length - 1
+                const isOpen = openPelatihan === p.id
+
                 return (
                   <tr key={p.id} className="hover:bg-gray-50 transition-colors">
-                    <td className="px-6 py-4 text-sm text-gray-500">{i + 1}</td>
-                    <td className="px-6 py-4">
+                    <td className="px-6 py-4 text-sm text-gray-500 align-top">{i + 1}</td>
+                    <td className="px-6 py-4 align-top">
                       <p className="text-sm font-medium text-gray-800">{p.nama_mahasiswa}</p>
                       <p className="text-xs text-gray-400">{p.nim}</p>
                     </td>
-                    <td className="px-6 py-4 text-sm text-gray-700 max-w-xs">
-                      <p className="truncate">{pelatihanUtama}</p>
+                    <td className="px-6 py-4 text-sm text-gray-700 max-w-xs align-top">
+                      {pelatihanList.length === 0 ? (
+                        <p className="truncate">-</p>
+                      ) : pelatihanList.length === 1 ? (
+                        <p className="truncate">{pelatihanUtama}</p>
+                      ) : (
+                        <div>
+                          <button
+                            onClick={() => setOpenPelatihan(isOpen ? null : p.id)}
+                            className="flex items-center gap-1.5 hover:text-blue-600 transition-colors"
+                          >
+                            <span className="truncate max-w-[160px]">{pelatihanUtama}</span>
+                            <span className="shrink-0 text-[10px] font-semibold bg-blue-50 text-blue-600 px-1.5 py-0.5 rounded-full">
+                              +{sisaCount}
+                            </span>
+                            <ChevronDown className={`w-3.5 h-3.5 shrink-0 text-gray-400 transition-transform ${isOpen ? 'rotate-180' : ''}`} />
+                          </button>
+
+                          {isOpen && (
+                            <div className="mt-2 border border-gray-100 rounded-lg divide-y divide-gray-100 bg-gray-50/50">
+                              {pelatihanList.map((pel, idx) => (
+                                <div key={idx} className="px-2.5 py-1.5">
+                                  <p className="text-[10px] font-semibold text-gray-400">
+                                    Pelatihan {idx + 1}{idx === 0 ? ' (Utama)' : ''}
+                                  </p>
+                                  <p className="text-sm text-gray-700 truncate">{pel.nama || '-'}</p>
+                                </div>
+                              ))}
+                            </div>
+                          )}
+                        </div>
+                      )}
                     </td>
-                    <td className="px-6 py-4 text-xs text-gray-500">{formatTanggal(p.created_at)}</td>
-                    <td className="px-6 py-4">
+                    <td className="px-6 py-4 text-xs text-gray-500 align-top">{formatTanggal(p.created_at)}</td>
+                    <td className="px-6 py-4 align-top">
                       <span className={`px-2.5 py-1 rounded-full text-xs font-medium ${cls}`}>{label}</span>
                     </td>
-                    <td className="px-6 py-4">
+                    <td className="px-6 py-4 align-top">
                       <div className="flex items-center gap-2">
                         <button onClick={() => { setShowDetail(p); setCatatan('') }}
                           className="text-xs bg-blue-50 text-blue-700 hover:bg-blue-100 px-3 py-1.5 rounded-lg font-medium transition-colors">

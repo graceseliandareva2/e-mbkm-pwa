@@ -1,7 +1,8 @@
 import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { FileText, Clock, BookOpen, Upload } from "lucide-react";
+import { FileText, Clock, BookOpen, Upload, Users, UserCheck } from "lucide-react";
 import api from "../../utils/api";
+import usePeriodeFilter from "../../hooks/usePeriodeFilter";
 
 const formatWaktu = (date) => {
   if (!date) return "Baru saja";
@@ -30,18 +31,25 @@ const getStatusBadge = (status) => {
 };
 
 export default function StaffDashboard() {
-  const [stats, setStats]       = useState({ total_pengajuan: 0 });
+  const [stats, setStats] = useState({
+    total_pengajuan: 0,
+    total_mahasiswa: 0,
+    total_dosen: 0,
+  });
   const [aktivitas, setAktivitas] = useState([]);
   const [loading, setLoading]   = useState(true);
   const navigate = useNavigate();
 
-  useEffect(() => { fetchData(); }, []);
+ const { periodeId } = usePeriodeFilter('staff_akademik');
+
+  useEffect(() => { fetchData(); }, [periodeId]);
 
   const fetchData = async () => {
     try {
+      const params = periodeId ? { periode_id: periodeId } : {};
       const [statsRes, aktivitasRes] = await Promise.all([
-        api.get("/staff/dashboard-stats"),
-        api.get("/staff/aktivitas-terbaru"),
+        api.get("/staff/dashboard-stats", { params }),
+        api.get("/staff/aktivitas-terbaru", { params }),
       ]);
       setStats(statsRes.data.data || {});
       setAktivitas(aktivitasRes.data.data || []);
@@ -66,16 +74,40 @@ export default function StaffDashboard() {
         <p className="text-sm text-gray-500">Selamat datang kembali</p>
       </div>
 
-      {/* Stat Card — hanya Total Pengajuan */}
-      <div
-        onClick={() => navigate("/staff/pengajuan")}
-        className="bg-blue-500 rounded-2xl p-5 text-white shadow-md cursor-pointer hover:bg-blue-600 active:scale-95 transition-all w-full sm:w-72"
-      >
-        <div className="flex items-center justify-between mb-3">
-          <p className="text-sm font-medium opacity-90">Total Pengajuan</p>
-          <FileText className="w-5 h-5 opacity-70" />
+      {/* Stat Cards — Total Pengajuan, Total Mahasiswa, Total Dosen */}
+      <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 sm:max-w-3xl">
+        <div
+          onClick={() => navigate("/staff/pengajuan")}
+          className="bg-blue-500 rounded-2xl p-5 text-white shadow-md cursor-pointer hover:bg-blue-600 active:scale-95 transition-all"
+        >
+          <div className="flex items-center justify-between mb-3">
+            <p className="text-sm font-medium opacity-90">Total Pengajuan</p>
+            <FileText className="w-5 h-5 opacity-70" />
+          </div>
+          <p className="text-4xl font-bold">{stats.total_pengajuan}</p>
         </div>
-        <p className="text-4xl font-bold">{stats.total_pengajuan}</p>
+
+        <div
+          onClick={() => navigate("/staff/mahasiswa")}
+          className="bg-emerald-500 rounded-2xl p-5 text-white shadow-md cursor-pointer hover:bg-emerald-600 active:scale-95 transition-all"
+        >
+          <div className="flex items-center justify-between mb-3">
+            <p className="text-sm font-medium opacity-90">Total Mahasiswa</p>
+            <Users className="w-5 h-5 opacity-70" />
+          </div>
+          <p className="text-4xl font-bold">{stats.total_mahasiswa}</p>
+        </div>
+
+        <div
+          onClick={() => navigate("/staff/dosen")}
+          className="bg-orange-500 rounded-2xl p-5 text-white shadow-md cursor-pointer hover:bg-orange-600 active:scale-95 transition-all"
+        >
+          <div className="flex items-center justify-between mb-3">
+            <p className="text-sm font-medium opacity-90">Total Dosen</p>
+            <UserCheck className="w-5 h-5 opacity-70" />
+          </div>
+          <p className="text-4xl font-bold">{stats.total_dosen}</p>
+        </div>
       </div>
 
       {/* Aktivitas Terbaru */}

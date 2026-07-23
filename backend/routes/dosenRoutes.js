@@ -6,6 +6,7 @@ const {
   getMahasiswaBimbingan, getAktivitasTerbaru, getLogbookMahasiswa, verifikasiLogbook,
   getDokumenMahasiswa, verifikasiDokumen, berikanPenilaian, berikanFeedback,
   eksporPenilaianPDF, eksporSemuaPenilaianPDF, getMahasiswaSiapDinilai,
+  finalisasiNilai,
 } = require('../controllers/dosenController');
 const auth = [verifyToken, authorizeRoles('dosen_pembimbing')];
 
@@ -25,6 +26,7 @@ router.patch('/logbook/:id/verifikasi', auth, verifikasiLogbook);
 router.get('/dokumen', auth, getDokumenMahasiswa);
 router.patch('/dokumen/:id/verifikasi', auth, verifikasiDokumen);
 router.post('/penilaian', auth, berikanPenilaian);
+router.post('/penilaian/finalisasi', auth, finalisasiNilai);
 router.post('/feedback', auth, berikanFeedback);
 router.get('/penilaian/ekspor', auth, eksporPenilaianPDF);
 router.get('/penilaian/ekspor-semua', auth, eksporSemuaPenilaianPDF);

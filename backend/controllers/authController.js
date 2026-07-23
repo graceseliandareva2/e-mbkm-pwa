@@ -1,7 +1,34 @@
 const db = require('../config/db');
 const bcrypt = require('bcryptjs');
 const jwt = require('jsonwebtoken');
+const cloudinaryService = require('../utils/cloudinaryService');
 require('dotenv').config();
+
+// PERUBAHAN: tabel `users` di capstone_db_staging cuma punya
+// (id, username, password, foto, role, is_active, created_at, updated_at).
+// nama/email/program_studi TIDAK ada lagi di `users` -- semua data itu
+// sekarang tinggal di tabel per-role (mahasiswa/dosen/kaprodi/staff_akademik).
+// Helper ini menyatukan lookup profil berdasarkan role, dipakai oleh
+// login/getProfile/updateProfile biar tidak duplikasi query 4x.
+async function getProfileByRole(role, userId) {
+  if (role === 'mahasiswa') {
+    const [rows] = await db.query('SELECT * FROM mahasiswa WHERE user_id = ?', [userId]);
+    return rows[0] || {};
+  }
+  if (role === 'dosen_pembimbing') {
+    const [rows] = await db.query('SELECT * FROM dosen WHERE user_id = ?', [userId]);
+    return rows[0] || {};
+  }
+  if (role === 'kaprodi') {
+    const [rows] = await db.query('SELECT * FROM kaprodi WHERE user_id = ?', [userId]);
+    return rows[0] || {};
+  }
+  if (role === 'staff_akademik') {
+    const [rows] = await db.query('SELECT * FROM staff_akademik WHERE user_id = ?', [userId]);
+    return rows[0] || {};
+  }
+  return {};
+}
 
 const login = async (req, res) => {
   try {
@@ -23,29 +50,25 @@ const login = async (req, res) => {
       process.env.JWT_SECRET,
       { expiresIn: process.env.JWT_EXPIRES_IN }
     );
-    let profileData = {};
-    if (user.role === 'mahasiswa') {
-      const [mhs] = await db.query('SELECT * FROM mahasiswa WHERE user_id = ?', [user.id]);
-      profileData = mhs[0] || {};
-    } else if (user.role === 'dosen_pembimbing') {
-      const [dsn] = await db.query('SELECT * FROM dosen WHERE user_id = ?', [user.id]);
-      profileData = dsn[0] || {};
-    }
+
+    const profileData = await getProfileByRole(user.role, user.id);
+
     res.json({
       message: 'Login berhasil.',
       token,
       user: {
         id: user.id,
-        nama: user.nama,
+        nama: profileData.nama,
         username: user.username,
-        email: user.email,
+        email: profileData.email,
         role: user.role,
         foto: user.foto,
-        program_studi: user.program_studi || profileData.program_studi,
-        angkatan: user.angkatan || profileData.angkatan,
-        periode_aktif: user.periode_aktif,
-        ...profileData
-      }
+        program_studi: profileData.program_studi,
+        // NB: spread di bawah ini mempertahankan perilaku lama -- field dari
+        // profileData (termasuk `id` milik tabel mahasiswa/dosen/dst, BUKAN
+        // id dari users) akan menimpa field di atas kalau namanya sama.
+        ...profileData,
+      },
     });
   } catch (error) {
     console.error('Login error:', error);
@@ -56,21 +79,17 @@ const login = async (req, res) => {
 const getProfile = async (req, res) => {
   try {
     const [users] = await db.query(
-      'SELECT id, nama, username, email, role, foto, program_studi, angkatan, periode_aktif, created_at FROM users WHERE id = ?',
+      'SELECT id, username, role, foto, is_active, created_at FROM users WHERE id = ?',
       [req.user.id]
     );
     if (users.length === 0) return res.status(404).json({ message: 'User tidak ditemukan.' });
     const user = users[0];
-    let profileData = {};
-    if (user.role === 'mahasiswa') {
-      const [mhs] = await db.query('SELECT * FROM mahasiswa WHERE user_id = ?', [user.id]);
-      profileData = mhs[0] || {};
-    } else if (user.role === 'dosen_pembimbing') {
-      const [dsn] = await db.query('SELECT * FROM dosen WHERE user_id = ?', [user.id]);
-      profileData = dsn[0] || {};
-    }
+
+    const profileData = await getProfileByRole(user.role, user.id);
+
     res.json({ user: { ...user, ...profileData } });
   } catch (error) {
+    console.error('getProfile error:', error);
     res.status(500).json({ message: 'Terjadi kesalahan server.' });
   }
 };
@@ -98,44 +117,49 @@ const gantiPassword = async (req, res) => {
 
 const updateProfile = async (req, res) => {
   try {
-    const { nama, email, program_studi, angkatan, periode_aktif } = req.body;
+    const { nama, email, program_studi } = req.body;
 
-    // Gunakan URL Supabase dari req.file.path (sudah diproses uploadToSupabase middleware)
-    const fotoPath = req.file ? req.file.path : undefined;
+    // PERUBAHAN: foto profil sekarang lewat cloudinaryService (Cloudinary),
+    // bukan Drive lagi. public_id deterministik dari req.user.id, jadi upload
+    // baru otomatis overwrite foto lama -- gak perlu lookup/simpan file id
+    // lama kayak versi Drive dulu.
+    if (req.file) {
+      const uploaded = await cloudinaryService.uploadOrReplaceFotoProfil(req.user.id, req.file.buffer);
 
-    let query = 'UPDATE users SET nama=?, email=?, program_studi=?, angkatan=?, periode_aktif=?';
-    let params = [nama, email, program_studi, angkatan, periode_aktif];
-
-    if (fotoPath) {
-      query += ', foto=?';
-      params.push(fotoPath);
+      await db.query('UPDATE users SET foto = ? WHERE id = ?', [uploaded.url, req.user.id]);
     }
 
-    query += ' WHERE id=?';
-    params.push(req.user.id);
-
-    await db.query(query, params);
-
-    // Update tabel mahasiswa/dosen juga
+    // nama/email/program_studi sekarang live di tabel per-role.
     if (req.user.role === 'mahasiswa') {
       await db.query(
-        'UPDATE mahasiswa SET nama=?, email=?, program_studi=?, angkatan=? WHERE user_id=?',
-        [nama, email, program_studi, angkatan, req.user.id]
+        'UPDATE mahasiswa SET nama=?, email=?, program_studi=? WHERE user_id=?',
+        [nama, email, program_studi, req.user.id]
       );
     } else if (req.user.role === 'dosen_pembimbing') {
       await db.query(
-        'UPDATE dosen SET nama=?, email=? WHERE user_id=?',
+        'UPDATE dosen SET nama=?, email=?, program_studi=? WHERE user_id=?',
+        [nama, email, program_studi, req.user.id]
+      );
+    } else if (req.user.role === 'kaprodi') {
+      await db.query(
+        'UPDATE kaprodi SET nama=?, email=?, program_studi=? WHERE user_id=?',
+        [nama, email, program_studi, req.user.id]
+      );
+    } else if (req.user.role === 'staff_akademik') {
+      // staff_akademik tidak punya kolom program_studi di skema.
+      await db.query(
+        'UPDATE staff_akademik SET nama=?, email=? WHERE user_id=?',
         [nama, email, req.user.id]
       );
     }
 
-    // Ambil data terbaru
-    const [updated] = await db.query(
-      'SELECT id, nama, username, email, role, foto, program_studi, angkatan, periode_aktif FROM users WHERE id=?',
+    const [updatedUser] = await db.query(
+      'SELECT id, username, role, foto FROM users WHERE id=?',
       [req.user.id]
     );
+    const profileData = await getProfileByRole(req.user.role, req.user.id);
 
-    res.json({ message: 'Profil berhasil diupdate.', user: updated[0] });
+    res.json({ message: 'Profil berhasil diupdate.', user: { ...updatedUser[0], ...profileData } });
   } catch (error) {
     console.error(error);
     res.status(500).json({ message: 'Terjadi kesalahan server.' });

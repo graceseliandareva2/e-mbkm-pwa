@@ -10,6 +10,8 @@ import {
   Clock,
   Search,
   X,
+  Lock,
+  ShieldAlert,
 } from "lucide-react";
 import api from "../../utils/api";
 import toast from "react-hot-toast";
@@ -82,7 +84,52 @@ const getGrade = (nilai) => {
 };
 
 const inputClass =
-  "w-full border border-gray-200 rounded-xl px-3 py-2 text-sm text-gray-800 focus:outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500 text-center font-semibold";
+  "w-full border border-gray-200 rounded-xl px-3 py-2 text-sm text-gray-800 focus:outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500 text-center font-semibold disabled:bg-gray-100 disabled:text-gray-400 disabled:cursor-not-allowed";
+
+// ─── Modal konfirmasi kedua sebelum nilai dikunci permanen ─────────────────
+// Ini sengaja dibuat modal terpisah (bukan window.confirm) supaya dosen
+// benar-benar sadar konsekuensinya: setelah dikunci, nilai tidak bisa
+// diedit lagi dan langsung tampil ke dashboard Kaprodi & Staff.
+function KonfirmasiKuncModal({ nilaiAkhir, grade, onCancel, onConfirm, locking }) {
+  return (
+    <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4">
+      <div className="bg-white rounded-2xl w-full max-w-sm shadow-2xl">
+        <div className="p-5 space-y-4">
+          <div className="w-12 h-12 bg-orange-50 rounded-2xl flex items-center justify-center">
+            <ShieldAlert className="w-6 h-6 text-orange-500" />
+          </div>
+          <div>
+            <h3 className="font-bold text-gray-800">Kunci Nilai Permanen?</h3>
+            <p className="text-sm text-gray-500 mt-1.5 leading-relaxed">
+              Nilai akhir <span className="font-semibold text-gray-700">{nilaiAkhir.toFixed(1)} ({grade})</span> akan
+              dikunci dan <span className="font-semibold text-red-600">tidak bisa diubah lagi</span>. Kaprodi dan
+              Staff akan langsung bisa melihat nilai ini di dashboard mereka.
+            </p>
+          </div>
+          <div className="flex gap-2 pt-1">
+            <button
+              type="button"
+              onClick={onCancel}
+              disabled={locking}
+              className="flex-1 py-2.5 rounded-xl border border-gray-200 text-sm font-semibold text-gray-600 hover:bg-gray-50 disabled:opacity-50"
+            >
+              Batal
+            </button>
+            <button
+              type="button"
+              onClick={onConfirm}
+              disabled={locking}
+              className="flex-1 py-2.5 rounded-xl bg-orange-500 text-white text-sm font-semibold hover:bg-orange-600 disabled:opacity-50 flex items-center justify-center gap-2"
+            >
+              {locking && <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />}
+              {locking ? "Mengunci..." : "Ya, Kunci Nilai"}
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
 
 export default function DosenPenilaian() {
   const [view, setView] = useState("list");
@@ -101,46 +148,32 @@ export default function DosenPenilaian() {
     catatan: "",
   });
 
-  const [periode, setPeriode] = useState([]);
-  const [selectedPeriode, setSelectedPeriode] = useState("");
+  // ── State untuk fitur kunci nilai (finalisasi) ──
+  const [hasPenilaian, setHasPenilaian] = useState(false); // sudah pernah disimpan sebelumnya?
+  const [finalizedAt, setFinalizedAt] = useState(null);    // null = belum dikunci
+  const [showLockConfirm, setShowLockConfirm] = useState(false);
+  const [locking, setLocking] = useState(false);
+  const isLocked = !!finalizedAt;
 
-  const { periodeId: periodeIdFromStore } = usePeriodeFilter('dosen_pembimbing')
+  const {
+    periodeId: selectedPeriode,
+    periodeList: periode,
+    loading: loadingPeriode,
+    setLocalPeriode,
+  } = usePeriodeFilter('dosen_pembimbing')
 
+  // Kalau ternyata tidak ada periode, hentikan loading & kosongkan list
   useEffect(() => {
-    const fetchPeriode = async () => {
-      try {
-        const res = await api.get('/dosen/periode')
-        const list = res.data.data || res.data || []
-        setPeriode(list)
-        if (list.length === 0) {
-          setMahasiswaList([])
-          setLoading(false)
-        }
-      } catch (err) {
-        console.error(err)
-        setPeriode([])
-        setMahasiswaList([])
-        setLoading(false)
-      }
+    if (loadingPeriode) return
+    if (periode.length === 0) {
+      setMahasiswaList([])
+      setLoading(false)
     }
-    fetchPeriode()
-  }, [])
-
-  useEffect(() => {
-    if (periodeIdFromStore) {
-      setSelectedPeriode(String(periodeIdFromStore))
-      return
-    }
-    if (periode.length > 0) {
-      const aktif = periode.find(p => p.is_active == 1)
-      const fallbackId = aktif?.id ?? periode[0]?.id ?? null
-      if (fallbackId) setSelectedPeriode(String(fallbackId))
-    }
-  }, [periodeIdFromStore, periode])
+  }, [periode, loadingPeriode])
 
   useEffect(() => {
     if (selectedPeriode) fetchList(selectedPeriode)
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+
   }, [selectedPeriode])
 
   const fetchList = async (periodeId) => {
@@ -158,19 +191,21 @@ export default function DosenPenilaian() {
 
   const refetchList = () => fetchList(selectedPeriode)
 
- const handlePilihMhs = (mhs) => {
-  setSelectedMhs(mhs);
-  setSaved(false);
-  setNilai({
-    nilai_kesesuaian: mhs.nilai_kesesuaian ?? "",
-    nilai_proyek:     mhs.nilai_proyek     ?? "",
-    nilai_evaluasi:   mhs.nilai_evaluasi   ?? "",
-    nilai_laporan:    mhs.nilai_laporan    ?? "",
-    nilai_presentasi: mhs.nilai_presentasi ?? "",
-    catatan:          mhs.catatan          ?? "",
-  });
-  setView("form");
-};
+  const handlePilihMhs = (mhs) => {
+    setSelectedMhs(mhs);
+    setSaved(false);
+    setHasPenilaian(!!mhs.penilaian_id);
+    setFinalizedAt(mhs.finalized_at ?? null);
+    setNilai({
+      nilai_kesesuaian: mhs.nilai_kesesuaian ?? "",
+      nilai_proyek:     mhs.nilai_proyek     ?? "",
+      nilai_evaluasi:   mhs.nilai_evaluasi   ?? "",
+      nilai_laporan:    mhs.nilai_laporan    ?? "",
+      nilai_presentasi: mhs.nilai_presentasi ?? "",
+      catatan:          mhs.catatan          ?? "",
+    });
+    setView("form");
+  };
 
   const handleBack = () => {
     setView("list");
@@ -189,6 +224,7 @@ export default function DosenPenilaian() {
 
   const handleSubmit = async (e) => {
     e.preventDefault();
+    if (isLocked) return; // safety net -- form seharusnya sudah disabled
     if (!allFilled) return toast.error("Semua nilai rubrik wajib diisi!");
     for (const r of RUBRIK) {
       const v = parseFloat(nilai[r.field]);
@@ -197,9 +233,14 @@ export default function DosenPenilaian() {
     }
     setSubmitting(true);
     try {
+      // FIX: backend (berikanPenilaian di dosenController.js) mewajibkan
+      // pengajuan_id di body dan tidak pernah membaca mahasiswa_id/periode_id.
+      // Sebelumnya di sini yang dikirim mahasiswa_id & periode_id, jadi
+      // pengajuan_id selalu kosong -> backend selalu balas 400 "pengajuan_id
+      // wajib diisi". Datanya sudah ada di selectedMhs.pengajuan_id (dikirim
+      // oleh endpoint /dosen/mahasiswa-siap-dinilai), tinggal dipakai.
       await api.post("/dosen/penilaian", {
-        mahasiswa_id: selectedMhs.id,
-        periode_id: selectedMhs.periode_id,
+        pengajuan_id: selectedMhs.pengajuan_id,
         ...Object.fromEntries(
           RUBRIK.map((r) => [r.field, parseFloat(nilai[r.field])]),
         ),
@@ -208,11 +249,38 @@ export default function DosenPenilaian() {
       });
       toast.success("Penilaian berhasil disimpan!");
       setSaved(true);
+      setHasPenilaian(true);
       refetchList();
     } catch (err) {
       toast.error(err.response?.data?.message || "Gagal menyimpan penilaian.");
     } finally {
       setSubmitting(false);
+    }
+  };
+
+  // ── Kunci nilai (finalisasi) -- ini adalah konfirmasi KEDUA setelah
+  // dosen klik tombol "Kunci Nilai". Setelah berhasil, backend menolak
+  // semua perubahan lebih lanjut (lihat berikanPenilaian di
+  // dosenController.js: 403 kalau finalized_at sudah terisi), dan nilai
+  // otomatis mulai muncul di dashboard Kaprodi/Staff (query mereka sudah
+  // difilter WHERE pn.finalized_at IS NOT NULL).
+  const handleLock = async () => {
+    setLocking(true);
+    try {
+      // NOTE: sesuaikan path ini kalau route asli finalisasiNilai di
+      // dosenRoutes.js berbeda -- ini asumsi mengikuti pola nama fungsi
+      // finalisasiNilai & konvensi POST /dosen/penilaian yang sudah ada.
+      await api.post("/dosen/penilaian/finalisasi", {
+        pengajuan_id: selectedMhs.pengajuan_id,
+      });
+      toast.success("Nilai berhasil dikunci dan tidak bisa diubah lagi.");
+      setFinalizedAt(new Date().toISOString());
+      setShowLockConfirm(false);
+      refetchList();
+    } catch (err) {
+      toast.error(err.response?.data?.message || "Gagal mengunci nilai.");
+    } finally {
+      setLocking(false);
     }
   };
 
@@ -304,7 +372,7 @@ export default function DosenPenilaian() {
           </div>
           <PeriodeDropdown
             value={selectedPeriode}
-            onChange={setSelectedPeriode}
+            onChange={(id) => setLocalPeriode(periode.find(p => String(p.id) === String(id)))}
             options={periode}
           />
         </div>
@@ -329,55 +397,62 @@ export default function DosenPenilaian() {
           </div>
         ) : (
           <div className="space-y-3">
-            {filteredList.map((mhs) => (
-              <div
-                key={mhs.id}
-                className="bg-white rounded-2xl shadow-sm border border-gray-100 p-4 flex items-center justify-between gap-4 hover:border-blue-200 transition"
-              >
-                <div className="flex items-center gap-3 min-w-0">
-                  <div className="w-10 h-10 rounded-xl bg-blue-100 text-blue-700 font-bold text-sm flex items-center justify-center flex-shrink-0">
-                    {mhs.nama?.charAt(0)}
-                  </div>
-                  <div className="min-w-0">
-                    <p className="font-semibold text-gray-800 text-sm truncate">
-                      {mhs.nama}
-                    </p>
-                    <p className="text-xs text-gray-400">
-                      {mhs.nim} · {mhs.nama_periode}
-                    </p>
-                    {mhs.judul && (
-                      <p className="text-xs text-gray-500 truncate mt-0.5">
-                        {mhs.judul}
+            {filteredList.map((mhs) => {
+              const mhsLocked = !!mhs.finalized_at;
+              return (
+                <div
+                  key={mhs.id}
+                  className="bg-white rounded-2xl shadow-sm border border-gray-100 p-4 flex items-center justify-between gap-4 hover:border-blue-200 transition"
+                >
+                  <div className="flex items-center gap-3 min-w-0">
+                    <div className="w-10 h-10 rounded-xl bg-blue-100 text-blue-700 font-bold text-sm flex items-center justify-center flex-shrink-0">
+                      {mhs.nama?.charAt(0)}
+                    </div>
+                    <div className="min-w-0">
+                      <p className="font-semibold text-gray-800 text-sm truncate">
+                        {mhs.nama}
                       </p>
+                      <p className="text-xs text-gray-400">
+                        {mhs.nim} · {mhs.nama_periode}
+                      </p>
+                      {mhs.judul && (
+                        <p className="text-xs text-gray-500 truncate mt-0.5">
+                          {mhs.judul}
+                        </p>
+                      )}
+                    </div>
+                  </div>
+
+                  <div className="flex items-center gap-2 flex-shrink-0">
+                    <div className="flex items-center gap-1 text-xs text-green-600 bg-green-50 px-2 py-1 rounded-lg">
+                      <Clock className="w-3 h-3" />
+                      {formatDurasi(mhs.total_jam_logbook)}
+                    </div>
+
+                    {mhsLocked ? (
+                      <span className="flex items-center gap-1 text-xs text-violet-600 bg-violet-50 px-2 py-1 rounded-lg font-semibold">
+                        <Lock className="w-3 h-3" /> Terkunci ({mhs.grade})
+                      </span>
+                    ) : mhs.penilaian_id ? (
+                      <span className="flex items-center gap-1 text-xs text-green-600 bg-green-50 px-2 py-1 rounded-lg font-semibold">
+                        <CheckSquare className="w-3 h-3" /> Sudah Dinilai ({mhs.grade})
+                      </span>
+                    ) : (
+                      <span className="text-xs text-orange-500 bg-orange-50 px-2 py-1 rounded-lg font-semibold">
+                        Belum Dinilai
+                      </span>
                     )}
+
+                    <button
+                      onClick={() => handlePilihMhs(mhs)}
+                      className="px-4 py-2 bg-blue-600 text-white text-xs font-semibold rounded-xl hover:bg-blue-700 transition"
+                    >
+                      {mhsLocked ? "Lihat Nilai" : mhs.penilaian_id ? "Edit Nilai" : "Beri Nilai"}
+                    </button>
                   </div>
                 </div>
-
-                <div className="flex items-center gap-2 flex-shrink-0">
-                  <div className="flex items-center gap-1 text-xs text-green-600 bg-green-50 px-2 py-1 rounded-lg">
-                    <Clock className="w-3 h-3" />
-                    {formatDurasi(mhs.total_jam_logbook)}
-                  </div>
-
-                  {mhs.penilaian_id ? (
-                    <span className="flex items-center gap-1 text-xs text-green-600 bg-green-50 px-2 py-1 rounded-lg font-semibold">
-                      <CheckSquare className="w-3 h-3" /> Sudah Dinilai ({mhs.grade})
-                    </span>
-                  ) : (
-                    <span className="text-xs text-orange-500 bg-orange-50 px-2 py-1 rounded-lg font-semibold">
-                      Belum Dinilai
-                    </span>
-                  )}
-
-                  <button
-                    onClick={() => handlePilihMhs(mhs)}
-                    className="px-4 py-2 bg-blue-600 text-white text-xs font-semibold rounded-xl hover:bg-blue-700 transition"
-                  >
-                    {mhs.penilaian_id ? "Edit Nilai" : "Beri Nilai"}
-                  </button>
-                </div>
-              </div>
-            ))}
+              );
+            })}
           </div>
         )}
       </div>
@@ -402,7 +477,7 @@ export default function DosenPenilaian() {
             </p>
           </div>
         </div>
-        {saved && (
+        {(saved || hasPenilaian) && (
           <button
             onClick={handleEksporSatu}
             className="flex items-center gap-2 px-4 py-2 rounded-xl border border-blue-200 text-blue-600 text-sm font-semibold hover:bg-blue-50 transition"
@@ -411,6 +486,21 @@ export default function DosenPenilaian() {
           </button>
         )}
       </div>
+
+      {/* Banner nilai terkunci */}
+      {isLocked && (
+        <div className="flex items-center gap-3 bg-violet-50 border border-violet-100 rounded-2xl px-4 py-3.5">
+          <div className="w-9 h-9 bg-violet-100 rounded-xl flex items-center justify-center flex-shrink-0">
+            <Lock className="w-4 h-4 text-violet-600" />
+          </div>
+          <div>
+            <p className="text-sm font-semibold text-violet-700">Nilai Sudah Dikunci</p>
+            <p className="text-xs text-violet-500 mt-0.5">
+              Nilai ini sudah difinalisasi dan tidak bisa diubah lagi. Kaprodi dan Staff sudah bisa melihatnya di dashboard mereka.
+            </p>
+          </div>
+        </div>
+      )}
 
       {/* Info mahasiswa */}
       <div className="bg-blue-50 rounded-2xl p-4 border border-blue-100">
@@ -466,6 +556,7 @@ export default function DosenPenilaian() {
                       max="100"
                       step="0.5"
                       value={nilai[r.field]}
+                      disabled={isLocked}
                       onChange={(e) => {
                         setNilai({ ...nilai, [r.field]: e.target.value });
                         setSaved(false);
@@ -520,33 +611,59 @@ export default function DosenPenilaian() {
           </label>
           <textarea
             value={nilai.catatan}
+            disabled={isLocked}
             onChange={(e) => setNilai({ ...nilai, catatan: e.target.value })}
             rows={3}
-            className="w-full border border-gray-200 rounded-xl px-3.5 py-2.5 text-sm focus:outline-none focus:border-blue-500 resize-none"
+            className="w-full border border-gray-200 rounded-xl px-3.5 py-2.5 text-sm focus:outline-none focus:border-blue-500 resize-none disabled:bg-gray-100 disabled:text-gray-400 disabled:cursor-not-allowed"
           />
         </div>
 
-        <button
-          type="submit"
-          disabled={submitting || !allFilled}
-          className="w-full py-3 rounded-xl bg-blue-600 text-white text-sm font-semibold hover:bg-blue-700 disabled:opacity-50 flex items-center justify-center gap-2"
-        >
-          {submitting ? (
-            <>
-              <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
-              Menyimpan...
-            </>
-          ) : saved ? (
-            <>
-              <CheckCircle className="w-4 h-4" /> Penilaian Tersimpan
-            </>
-          ) : (
-            <>
-              <Save className="w-4 h-4" /> Simpan Penilaian
-            </>
-          )}
-        </button>
+        {!isLocked && (
+          <button
+            type="submit"
+            disabled={submitting || !allFilled}
+            className="w-full py-3 rounded-xl bg-blue-600 text-white text-sm font-semibold hover:bg-blue-700 disabled:opacity-50 flex items-center justify-center gap-2"
+          >
+            {submitting ? (
+              <>
+                <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                Menyimpan...
+              </>
+            ) : saved ? (
+              <>
+                <CheckCircle className="w-4 h-4" /> Penilaian Tersimpan
+              </>
+            ) : (
+              <>
+                <Save className="w-4 h-4" /> Simpan Penilaian
+              </>
+            )}
+          </button>
+        )}
+
+        {/* Tombol kunci nilai -- hanya muncul kalau nilai sudah pernah
+            disimpan dan belum dikunci. Klik ini membuka modal konfirmasi
+            kedua (KonfirmasiKuncModal) sebelum benar-benar difinalisasi. */}
+        {!isLocked && hasPenilaian && (
+          <button
+            type="button"
+            onClick={() => setShowLockConfirm(true)}
+            className="w-full py-3 rounded-xl border-2 border-orange-200 text-orange-600 text-sm font-semibold hover:bg-orange-50 transition flex items-center justify-center gap-2"
+          >
+            <Lock className="w-4 h-4" /> Kunci Nilai (Tidak Bisa Diubah Lagi)
+          </button>
+        )}
       </form>
+
+      {showLockConfirm && (
+        <KonfirmasiKuncModal
+          nilaiAkhir={nilaiAkhir}
+          grade={grade}
+          locking={locking}
+          onCancel={() => setShowLockConfirm(false)}
+          onConfirm={handleLock}
+        />
+      )}
     </div>
   );
 }

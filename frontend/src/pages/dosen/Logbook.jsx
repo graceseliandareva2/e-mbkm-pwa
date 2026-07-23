@@ -3,20 +3,31 @@
 //   - Saat mount: langsung tampilkan data terakhir dari cache
 //   - Saat fetch sukses: update cache
 //   - Saat offline: fetch gagal tapi data dari cache tetap muncul
+//
+// PERUBAHAN (BARU): logbook sekarang per-mahasiswa, bukan flat list semua
+// mahasiswa bimbingan digabung. Dosen pilih mahasiswa dulu (view "mahasiswa"),
+// baru masuk ke logbook mahasiswa itu saja (view "logbook") -- sama seperti
+// pola list->form di Penilaian.jsx. Endpoint backend tidak berubah:
+// GET /dosen/logbook sudah lama support filter ?mahasiswa_id=, cuma
+// sebelumnya frontend tidak pernah mengirim mahasiswa_id jadi selalu ambil
+// logbook SEMUA mahasiswa bimbingan sekaligus.
 
 import { useEffect, useState, useCallback } from 'react'
 import {
   BookOpen, CheckCircle, AlertCircle, Clock, MessageSquare, Eye, Search, X,
+  Users, ChevronLeft, FileText,
 } from 'lucide-react'
 import api from '../../utils/api'
 import toast from 'react-hot-toast'
 import { getCache, setCache } from '../../utils/offlineCache'   // ← BARU
 import usePeriodeFilter from '../../hooks/usePeriodeFilter'
 import PeriodeDropdown from '../../components/common/PeriodeDropdown'
-
+import { FileBuktiPreview, LinkBukti } from '../../components/common/BuktiPreview'
 // ── Cache key ─────────────────────────────────────────────────────
 const CACHE_MHS     = 'dosen_mahasiswa'
-const CACHE_LOGBOOK = (periodeId) => `dosen_logbook_${periodeId}`
+// Cache logbook sekarang per mahasiswa juga, bukan cuma per periode --
+// supaya masing-masing mahasiswa punya cache offline sendiri-sendiri.
+const CACHE_LOGBOOK = (periodeId, mahasiswaId) => `dosen_logbook_${periodeId}_${mahasiswaId}`
 
 const STATUS_CONFIG = {
   draft:        { label: 'Draft',        color: 'text-gray-500',   bg: 'bg-gray-50',    border: 'border-gray-200',  icon: Clock },
@@ -36,18 +47,28 @@ const formatDurasi = (menit) => {
 
 export default function DosenLogbook() {
   const [mahasiswa, setMahasiswa]         = useState([])
-  const [selectedPeriode, setSelectedPeriode] = useState('')
-  const [periode, setPeriode]             = useState([])
-  const [logbooks, setLogbooks]           = useState([])
   const [loading, setLoading]             = useState(true)
+  const [isOffline, setIsOffline]         = useState(!navigator.onLine)   // ← BARU
+
+  // ── View: pilih mahasiswa dulu, baru masuk ke logbook mahasiswa itu ──
+  const [view, setView]                   = useState('mahasiswa') // 'mahasiswa' | 'logbook'
+  const [selectedMhs, setSelectedMhs]     = useState(null)
+  const [mhsSearch, setMhsSearch]         = useState('')
+
+  // ── State logbook milik mahasiswa yang sedang dipilih ──
+  const [logbooks, setLogbooks]           = useState([])
   const [loadingLogbook, setLoadingLogbook] = useState(false)
   const [expanded, setExpanded]           = useState(null)
   const [feedback, setFeedback]           = useState('')
   const [processing, setProcessing]       = useState(false)
   const [searchQuery, setSearchQuery]     = useState('')
-  const [isOffline, setIsOffline]         = useState(!navigator.onLine)   // ← BARU
 
-  const { periodeId: periodeIdFromStore } = usePeriodeFilter('dosen_pembimbing')
+  const {
+    periodeId: selectedPeriode,
+    periodeList: periode,
+    loading: loadingPeriode,
+    setLocalPeriode,
+  } = usePeriodeFilter('dosen_pembimbing')
 
   // ── Offline listener ──────────────────────────────────────────
   useEffect(() => {
@@ -61,78 +82,84 @@ export default function DosenLogbook() {
     }
   }, [])
 
-  // ── 1. Ambil daftar periode ────────────────────────────────────
+  // ── 1. Kalau ternyata tidak ada periode (termasuk saat offline dan
+  // fetch periode di dalam hook gagal), fallback ke cache mahasiswa ──
   useEffect(() => {
-    const fetchPeriode = async () => {
-      try {
-        const res  = await api.get('/dosen/periode')
-        const list = res.data.data || res.data || []
-        setPeriode(list)
-        if (list.length === 0) { setMahasiswa([]); setLoading(false) }
-      } catch {
-        setPeriode([])
-        setMahasiswa([])
-        // Saat offline, coba load mahasiswa dari cache
-        const cached = getCache(CACHE_MHS, [])   // ← BARU
-        setMahasiswa(cached)
-        setLoading(false)
-      }
+    if (loadingPeriode) return
+    if (periode.length === 0) {
+      const cached = getCache(CACHE_MHS, [])
+      setMahasiswa(cached)
+      setLoading(false)
     }
-    fetchPeriode()
-  }, [])
+  }, [periode, loadingPeriode])
 
-  // ── 2. Sync selectedPeriode dari ProfileDropdown ──────────────
-  useEffect(() => {
-    if (periodeIdFromStore) { setSelectedPeriode(String(periodeIdFromStore)); return }
-    if (periode.length > 0) {
-      const aktif     = periode.find(p => p.is_active == 1)
-      const fallbackId = aktif?.id ?? periode[0]?.id ?? null
-      if (fallbackId) setSelectedPeriode(String(fallbackId))
-    }
-  }, [periodeIdFromStore, periode])
-
-  // ── 3. Fetch data saat periode berubah ────────────────────────
+  // ── 2. Fetch daftar mahasiswa saat periode berubah ─────────────
+  // Balik ke view "mahasiswa" setiap kali periode ganti, karena mahasiswa
+  // yang sebelumnya dipilih belum tentu ada di periode yang baru.
   useEffect(() => {
     if (!selectedPeriode) return
+    setView('mahasiswa')
+    setSelectedMhs(null)
+    setLogbooks([])
     setExpanded(null)
     setFeedback('')
     setSearchQuery('')
+    setMhsSearch('')
 
-    // Tampilkan cache dulu sebelum fetch ── ← BARU
-    const cachedLogbooks = getCache(CACHE_LOGBOOK(selectedPeriode), null)
-    if (cachedLogbooks) setLogbooks(cachedLogbooks)
-
-    fetchPageData(selectedPeriode)
+    fetchMahasiswa(selectedPeriode)
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [selectedPeriode])
 
-  const fetchPageData = useCallback(async (periodeId) => {
+  const fetchMahasiswa = useCallback(async (periodeId) => {
+    setLoading(true)
     try {
       const mhsRes = await api.get('/dosen/mahasiswa-bimbingan', { params: { periode_id: periodeId } })
       const list   = mhsRes.data.data || []
       setMahasiswa(list)
-      setCache(CACHE_MHS, list)   
+      setCache(CACHE_MHS, list)
     } catch {
       // Offline: tetap pakai state sebelumnya yang sudah di-load dari cache
     } finally {
       setLoading(false)
     }
-    fetchLogbook(periodeId)
   }, [])
 
-  const fetchLogbook = useCallback(async (periodeId) => {
+  const fetchLogbook = useCallback(async (periodeId, mahasiswaId) => {
     setLoadingLogbook(true)
     try {
-      const res  = await api.get('/dosen/logbook', { params: { periode_id: periodeId } })
+      const res  = await api.get('/dosen/logbook', { params: { periode_id: periodeId, mahasiswa_id: mahasiswaId } })
       const list = res.data.data || []
       setLogbooks(list)
-      setCache(CACHE_LOGBOOK(periodeId), list)   // ← BARU: simpan cache logbook per periode
+      setCache(CACHE_LOGBOOK(periodeId, mahasiswaId), list)
     } catch {
       // Offline: tetap pakai state dari cache yang sudah diisi di atas
     } finally {
       setLoadingLogbook(false)
     }
   }, [])
+
+  // ── Pilih mahasiswa -> masuk ke view logbook mahasiswa itu ──────
+  const handlePilihMhs = (mhs) => {
+    setSelectedMhs(mhs)
+    setExpanded(null)
+    setFeedback('')
+    setSearchQuery('')
+    setView('logbook')
+
+    // Tampilkan cache dulu sebelum fetch
+    const cached = getCache(CACHE_LOGBOOK(selectedPeriode, mhs.id), null)
+    setLogbooks(cached || [])
+
+    fetchLogbook(selectedPeriode, mhs.id)
+  }
+
+  const handleBack = () => {
+    setView('mahasiswa')
+    setSelectedMhs(null)
+    setLogbooks([])
+    setExpanded(null)
+    setFeedback('')
+  }
 
   // ── Verifikasi ────────────────────────────────────────────────
   const handleVerifikasi = async (id, status) => {
@@ -142,7 +169,7 @@ export default function DosenLogbook() {
       toast.success(status === 'diverifikasi' ? 'Logbook diverifikasi!' : 'Logbook dikembalikan untuk revisi!')
       setExpanded(null)
       setFeedback('')
-      fetchLogbook(selectedPeriode)
+      fetchLogbook(selectedPeriode, selectedMhs.id)
     } catch {
       toast.error('Gagal memproses logbook')
     } finally {
@@ -150,45 +177,147 @@ export default function DosenLogbook() {
     }
   }
 
-  // ── Filter ────────────────────────────────────────────────────
+  // ── Filter mahasiswa (view "mahasiswa") ─────────────────────────
+  const filteredMahasiswa = mahasiswa.filter(m => {
+    if (!mhsSearch.trim()) return true
+    const q = mhsSearch.toLowerCase()
+    return (m.nama || '').toLowerCase().includes(q) || (m.nim || '').toLowerCase().includes(q)
+  })
+
+  // ── Filter logbook (view "logbook", sudah dalam konteks 1 mahasiswa) ──
   const filteredLogbooks = logbooks.filter(log => {
     if (!searchQuery.trim()) return true
     const q = searchQuery.toLowerCase()
     return (
       (log.kegiatan || '').toLowerCase().includes(q) ||
-      (log.deskripsi || '').toLowerCase().includes(q) ||
-      (log.nama_mahasiswa || '').toLowerCase().includes(q)
+      (log.deskripsi || '').toLowerCase().includes(q)
     )
   })
 
-  // ── Loading ───────────────────────────────────────────────────
+  // ── Loading awal ──────────────────────────────────────────────
   if (loading) return (
     <div className="flex items-center justify-center h-64">
       <div className="w-8 h-8 border-4 border-blue-600 border-t-transparent rounded-full animate-spin" />
     </div>
   )
 
+  // ══════════════════════════════════════════════════════════════
+  // VIEW: DAFTAR MAHASISWA
+  // ══════════════════════════════════════════════════════════════
+  if (view === 'mahasiswa') {
+    return (
+      <div className="space-y-5">
+        <div>
+          <h1 className="text-xl font-bold text-gray-800">Logbook Mahasiswa</h1>
+          <p className="text-sm text-gray-500 mt-0.5">Pilih mahasiswa untuk lihat dan verifikasi logbook-nya</p>
+        </div>
+
+        {isOffline && (
+          <div className="bg-yellow-50 border border-yellow-200 rounded-xl px-4 py-3 text-sm text-yellow-700 font-medium">
+            ⚠️ Kamu sedang offline. Menampilkan data terakhir yang tersimpan.
+          </div>
+        )}
+
+        {/* Search & Periode */}
+        <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-4 flex flex-col sm:flex-row gap-3">
+          <div className="relative flex-1">
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400 pointer-events-none" />
+            <input type="text" value={mhsSearch}
+              onChange={e => setMhsSearch(e.target.value)}
+              placeholder="Cari nama atau NIM mahasiswa..."
+              className="w-full pl-9 pr-9 py-2 border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 bg-gray-50"
+            />
+            {mhsSearch && (
+              <button onClick={() => setMhsSearch('')}
+                className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600">
+                <X className="w-3.5 h-3.5" />
+              </button>
+            )}
+          </div>
+          <PeriodeDropdown
+            value={selectedPeriode}
+            onChange={(id) => setLocalPeriode(periode.find(p => String(p.id) === String(id)))}
+            options={periode}
+          />
+        </div>
+
+        {/* Daftar mahasiswa */}
+        <div className="space-y-3">
+          {filteredMahasiswa.length === 0 ? (
+            <div className="bg-white rounded-2xl p-10 text-center border border-dashed border-gray-200">
+              <Users className="w-10 h-10 text-gray-300 mx-auto mb-2" />
+              <p className="text-gray-500 font-medium">
+                {mhsSearch ? `Tidak ada hasil untuk "${mhsSearch}"` : 'Belum ada mahasiswa bimbingan'}
+              </p>
+              {isOffline && (
+                <p className="text-xs text-yellow-600 mt-2 bg-yellow-50 border border-yellow-100 rounded-xl px-3 py-2 inline-block">
+                  Data tidak ditemukan di cache lokal
+                </p>
+              )}
+            </div>
+          ) : filteredMahasiswa.map(mhs => (
+            <div key={mhs.id}
+              className="bg-white rounded-2xl shadow-sm border border-gray-100 p-4 flex items-center justify-between gap-4 hover:border-blue-200 transition">
+              <div className="flex items-center gap-3 min-w-0">
+                <div className="w-10 h-10 rounded-xl bg-blue-100 text-blue-700 font-bold text-sm flex items-center justify-center flex-shrink-0">
+                  {mhs.nama?.charAt(0)}
+                </div>
+                <div className="min-w-0">
+                  <p className="font-semibold text-gray-800 text-sm truncate">{mhs.nama}</p>
+                  <p className="text-xs text-gray-400">{mhs.nim} · {mhs.nama_periode}</p>
+                  {mhs.judul && (
+                    <p className="text-xs text-gray-500 truncate mt-0.5">{mhs.judul}</p>
+                  )}
+                </div>
+              </div>
+              <div className="flex items-center gap-2 flex-shrink-0">
+                <div className="flex items-center gap-1 text-xs text-blue-600 bg-blue-50 px-2 py-1 rounded-lg font-medium">
+                  <FileText className="w-3 h-3" />
+                  {mhs.jumlah_logbook || 0} entri
+                </div>
+                <button
+                  onClick={() => handlePilihMhs(mhs)}
+                  className="px-4 py-2 bg-blue-600 text-white text-xs font-semibold rounded-xl hover:bg-blue-700 transition"
+                >
+                  Lihat Logbook
+                </button>
+              </div>
+            </div>
+          ))}
+        </div>
+      </div>
+    )
+  }
+
+  // ══════════════════════════════════════════════════════════════
+  // VIEW: LOGBOOK MILIK 1 MAHASISWA
+  // ══════════════════════════════════════════════════════════════
   return (
     <div className="space-y-5">
-      <div>
-        <h1 className="text-xl font-bold text-gray-800">Logbook Mahasiswa</h1>
-        <p className="text-sm text-gray-500 mt-0.5">Verifikasi logbook kegiatan mahasiswa bimbingan</p>
+      <div className="flex items-center gap-3">
+        <button onClick={handleBack} className="p-2 rounded-xl hover:bg-gray-100 transition">
+          <ChevronLeft className="w-5 h-5 text-gray-600" />
+        </button>
+        <div>
+          <h1 className="text-xl font-bold text-gray-800">Logbook {selectedMhs?.nama}</h1>
+          <p className="text-sm text-gray-500 mt-0.5">{selectedMhs?.nim} · {selectedMhs?.nama_periode}</p>
+        </div>
       </div>
 
-      {/* Banner offline ── ← BARU */}
+      {/* Banner offline */}
       {isOffline && (
         <div className="bg-yellow-50 border border-yellow-200 rounded-xl px-4 py-3 text-sm text-yellow-700 font-medium">
           ⚠️ Kamu sedang offline. Menampilkan data terakhir yang tersimpan. Verifikasi tidak bisa dilakukan saat offline.
         </div>
       )}
 
-      {/* Search & Periode */}
-      <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-4 flex flex-col sm:flex-row gap-3">
-        <div className="relative flex-1">
+      {/* Search dalam konteks mahasiswa ini saja */}
+      <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-4">
+        <div className="relative">
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400 pointer-events-none" />
           <input type="text" value={searchQuery}
             onChange={e => { setSearchQuery(e.target.value); setExpanded(null); setFeedback('') }}
-            placeholder="Cari kegiatan, deskripsi, atau nama mahasiswa..."
+            placeholder="Cari kegiatan atau deskripsi..."
             className="w-full pl-9 pr-9 py-2 border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 bg-gray-50"
           />
           {searchQuery && (
@@ -198,10 +327,9 @@ export default function DosenLogbook() {
             </button>
           )}
         </div>
-        <PeriodeDropdown value={selectedPeriode} onChange={setSelectedPeriode} options={periode} />
       </div>
 
-      {/* List logbook */}
+      {/* List logbook -- khusus mahasiswa yang dipilih */}
       <div className="space-y-3">
         {loadingLogbook ? (
           <div className="flex justify-center py-10">
@@ -211,9 +339,7 @@ export default function DosenLogbook() {
           <div className="bg-white rounded-2xl p-10 text-center border border-dashed border-gray-200">
             <BookOpen className="w-10 h-10 text-gray-300 mx-auto mb-2" />
             <p className="text-gray-500 font-medium">
-              {searchQuery
-                ? `Tidak ada logbook untuk "${searchQuery}"`
-                : mahasiswa.length === 0 ? 'Belum ada mahasiswa bimbingan' : 'Belum ada logbook'}
+              {searchQuery ? `Tidak ada logbook untuk "${searchQuery}"` : 'Belum ada logbook'}
             </p>
             {isOffline && (
               <p className="text-xs text-yellow-600 mt-2 bg-yellow-50 border border-yellow-100 rounded-xl px-3 py-2 inline-block">
@@ -238,15 +364,15 @@ export default function DosenLogbook() {
                   <div className="min-w-0">
                     <div className="flex items-center gap-2 flex-wrap">
                       <p className="font-semibold text-gray-800 text-sm">{log.kegiatan}</p>
-                      {log.nama_mahasiswa && (
-                        <span className="text-xs text-gray-500 bg-gray-100 px-2 py-0.5 rounded-full flex-shrink-0">
-                          {log.nama_mahasiswa}
-                        </span>
-                      )}
                       <span className={`flex items-center gap-1 text-xs font-medium px-2 py-0.5 rounded-full border flex-shrink-0 ${statusCfg.color} ${statusCfg.bg} ${statusCfg.border}`}>
                         <StatusIcon className="w-3 h-3" />
                         {statusCfg.label}
                       </span>
+                      {log.nama_pelatihan && (
+                        <span className="text-xs bg-blue-50 text-blue-600 px-2 py-0.5 rounded-full font-medium flex-shrink-0">
+                          {log.nama_pelatihan}
+                        </span>
+                      )}
                     </div>
                     <p className="text-xs text-gray-400 mt-0.5">
                       {new Date(log.tanggal).toLocaleDateString('id-ID', { day: 'numeric', month: 'long', year: 'numeric' })}
@@ -269,30 +395,28 @@ export default function DosenLogbook() {
                       <p className="text-sm text-gray-700 text-justify">{log.deskripsi}</p>
                     </div>
                   )}
-                  {log.bukti_path && (
-                    <div>
-                      <p className="text-xs font-semibold text-gray-400 uppercase tracking-wide mb-1.5">Bukti Kegiatan</p>
-                      <div className="rounded-xl overflow-hidden border border-gray-200" style={{ height: '420px' }}>
-                       {/\.(jpg|jpeg|png)$/i.test(log.bukti_path) ? (
-  <img src={log.bukti_path.startsWith('http') ? log.bukti_path : `/uploads/${log.bukti_path.replace(/^.*uploads\//, '')}`}
-    className="w-full h-full object-contain bg-gray-50" alt="Bukti kegiatan" />
-) : (
-  <iframe src={log.bukti_path.startsWith('http') ? `${log.bukti_path}#toolbar=1&navpanes=0` : `/uploads/${log.bukti_path.replace(/^.*uploads\//, '')}#toolbar=1&navpanes=0`}
-    className="w-full h-full" title="Bukti PDF" type="application/pdf" />
-)}
+                  {log.bukti_link && (() => {
+                    // Sama persis dengan logic di LogbookMahasiswa.jsx: cloudinary_public_id
+                    // menandakan bukti_link berisi URL file (Cloudinary), bukan link manual.
+                    const isFileUpload = !!log.cloudinary_public_id
+                    return (
+                      <div>
+                        <p className="text-xs font-semibold text-gray-400 uppercase tracking-wide mb-2">
+                          {isFileUpload ? 'Bukti' : 'Bukti (Link)'}
+                        </p>
+                        {isFileUpload ? (
+                          <>
+                            <div className="rounded-xl overflow-hidden border border-gray-200" style={{ height: '420px' }}>
+                              <FileBuktiPreview path={log.bukti_link} filename={log.kegiatan} />
+                            </div>
+                            <p className="text-xs text-gray-400 mt-2 truncate">{log.bukti_link.split('/').pop()}</p>
+                          </>
+                        ) : (
+                          <LinkBukti url={log.bukti_link} />
+                        )}
                       </div>
-                      <p className="text-xs text-gray-400 mt-2">{log.bukti_path.split('/').pop()}</p>
-                    </div>
-                  )}
-                  {log.bukti_link && (
-                    <div>
-                      <p className="text-xs font-semibold text-gray-400 uppercase tracking-wide mb-1.5">Bukti (Link)</p>
-                      <a href={log.bukti_link} target="_blank" rel="noopener noreferrer"
-                        className="inline-flex items-center gap-2 text-sm text-blue-600 hover:underline bg-blue-50 border border-blue-100 rounded-xl px-3.5 py-2.5">
-                        🔗 <span className="truncate max-w-xs">{log.bukti_link}</span>
-                      </a>
-                    </div>
-                  )}
+                    )
+                  })()}
                   {log.feedback_dosen && (
                     <div className="bg-purple-50 border border-purple-100 rounded-xl p-3">
                       <div className="flex items-center gap-2 mb-1.5">

@@ -5,7 +5,9 @@ import toast from 'react-hot-toast'
 import { formatTanggal } from '../../utils/helpers'
 
 const defaultForm = {
-  nama_periode: '', jenis: 'keduanya',
+  nama_periode: '', jenis: 'capstone',
+  tanggal_mulai: '', tanggal_selesai: '',
+  min_jam_pengajuan: 48,
   tanggal_mulai_pengajuan: '', tanggal_selesai_pengajuan: '',
   tanggal_mulai_logbook: '', tanggal_selesai_logbook: '',
   tanggal_selesai_ppt: '', tanggal_selesai_laporan: '',
@@ -56,6 +58,9 @@ export default function KaprodiPeriode() {
     setForm({
       nama_periode:              p.nama_periode,
       jenis:                     p.jenis,
+      tanggal_mulai:             toInputDate(p.tanggal_mulai),
+      tanggal_selesai:           toInputDate(p.tanggal_selesai),
+      min_jam_pengajuan:         p.min_jam_pengajuan ?? 48,
       tanggal_mulai_pengajuan:   toInputDate(p.tanggal_mulai_pengajuan),
       tanggal_selesai_pengajuan: toInputDate(p.tanggal_selesai_pengajuan),
       tanggal_mulai_logbook:     toInputDate(p.tanggal_mulai_logbook),
@@ -136,13 +141,24 @@ export default function KaprodiPeriode() {
               <div className="flex-1 min-w-0">
                 <div className="flex items-center gap-2 flex-wrap">
                   <h3 className="font-bold text-gray-800">{p.nama_periode}</h3>
+                  <span className="text-xs px-2.5 py-0.5 rounded-full font-medium capitalize bg-blue-50 text-blue-700">
+                    {p.jenis === 'magang' ? 'Magang' : 'Capstone'}
+                  </span>
                   <span className={`text-xs px-2.5 py-0.5 rounded-full font-medium capitalize
                     ${p.is_active ? 'bg-green-100 text-green-700' : 'bg-gray-100 text-gray-500'}`}>
                     {p.is_active ? 'Aktif' : 'Nonaktif'}
                   </span>
                 </div>
 
-                <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 mt-4">
+                {(p.tanggal_mulai || p.tanggal_selesai) && (
+                  <p className="text-xs text-gray-400 mt-1">
+                    {p.tanggal_mulai ? formatTanggal(p.tanggal_mulai) : '-'}
+                    {' s/d '}
+                    {p.tanggal_selesai ? formatTanggal(p.tanggal_selesai) : '-'}
+                  </p>
+                )}
+
+                <div className="grid grid-cols-2 sm:grid-cols-5 gap-3 mt-4">
                   {[
                     { label: 'Mulai Pengajuan',   val: p.tanggal_mulai_pengajuan },
                     { label: 'Selesai Pengajuan', val: p.tanggal_selesai_pengajuan },
@@ -156,6 +172,12 @@ export default function KaprodiPeriode() {
                       </p>
                     </div>
                   ))}
+                  <div className="bg-gray-50 rounded-xl p-2.5">
+                    <p className="text-xs text-gray-400">Min. Jam Pelatihan</p>
+                    <p className="text-xs font-semibold text-gray-700 mt-0.5">
+                      {p.min_jam_pengajuan ? `${p.min_jam_pengajuan} jam` : '-'}
+                    </p>
+                  </div>
                 </div>
 
                 {/* Toggle Form */}
@@ -215,9 +237,8 @@ export default function KaprodiPeriode() {
                   <label className="text-xs font-semibold text-gray-600 block mb-1.5">Jenis</label>
                   <select value={form.jenis} onChange={e => setForm({ ...form, jenis: e.target.value })}
                     className="w-full px-3 py-2.5 border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 bg-gray-50">
-                    <option value="keduanya">Capstone & MBKM</option>
                     <option value="capstone">Capstone</option>
-                    <option value="mbkm">MBKM</option>
+                    <option value="magang">Magang</option>
                   </select>
                 </div>
                 <div>
@@ -227,6 +248,39 @@ export default function KaprodiPeriode() {
                     <option value={1}>Aktif</option>
                     <option value={0}>Nonaktif</option>
                   </select>
+                </div>
+              </div>
+
+              <div className="border-t border-gray-100 pt-4">
+                <p className="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-3">Rentang Periode</p>
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                  {[
+                    { label: 'Tanggal Mulai',   key: 'tanggal_mulai' },
+                    { label: 'Tanggal Selesai', key: 'tanggal_selesai' },
+                  ].map(({ label, key }) => (
+                    <div key={key}>
+                      <label className="text-xs font-medium text-gray-600 block mb-1.5">{label}</label>
+                      <input type="date" value={form[key]}
+                        onChange={e => setForm({ ...form, [key]: e.target.value })}
+                        className="w-full px-3 py-2.5 border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 bg-gray-50" />
+                    </div>
+                  ))}
+                </div>
+              </div>
+
+              <div className="border-t border-gray-100 pt-4">
+                <p className="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-3">Ketentuan Pengajuan</p>
+                <div>
+                  <label className="text-xs font-medium text-gray-600 block mb-1.5">
+                    Minimal Total Jam Pelatihan/Bootcamp
+                  </label>
+                  <input type="number" min="1" value={form.min_jam_pengajuan}
+                    onChange={e => setForm({ ...form, min_jam_pengajuan: e.target.value })}
+                    placeholder="48"
+                    className="w-full px-3 py-2.5 border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 bg-gray-50" />
+                  <p className="text-xs text-gray-400 mt-1">
+                    Total minimal jam pembelajaran yang harus dipenuhi mahasiswa saat mengajukan Capstone/MBKM.
+                  </p>
                 </div>
               </div>
 

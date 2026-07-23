@@ -2,7 +2,7 @@ import { Outlet, NavLink, useNavigate } from 'react-router-dom'
 import { useState } from 'react'
 import {
   LayoutDashboard, FileText, BookOpen, Upload,
-  History, LogOut, Menu, X, Bell, User
+  History, LogOut, Menu, X, User
 } from 'lucide-react'
 import useAuthStore from '../../store/authStore'
 import toast from 'react-hot-toast'
@@ -98,11 +98,7 @@ export default function MahasiswaLayout() {
           <p className="text-sm text-gray-600">
             Anda Masuk Sebagai <span className="font-bold text-blue-700">Mahasiswa</span>
           </p>
-          <div className="flex-1" />
-          <button className="relative p-2 text-gray-400 hover:text-gray-600 hover:bg-gray-100 rounded-xl">
-            <Bell className="w-5 h-5" />
-            <span className="absolute top-1.5 right-1.5 w-2 h-2 bg-red-500 rounded-full" />
-          </button>
+          <div className="flex-1" />         
           <div className="pl-2 border-l border-gray-200">
             <ProfileDropdown />
           </div>

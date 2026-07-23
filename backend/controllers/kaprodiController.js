@@ -1,11 +1,7 @@
 const { v4: uuidv4 } = require("uuid");
 const db = require("../config/db");
-const bcrypt = require("bcryptjs");
-const xlsx = require("xlsx");
-const fs = require("fs");
 const { sendPushToUser } = require("../utils/pushSender");
 
-// ========== PERIODE ==========
 
 const getPeriode = async (req, res) => {
   try {
@@ -22,30 +18,56 @@ const tambahPeriode = async (req, res) => {
   try {
     const {
       nama_periode, jenis,
+      tanggal_mulai, tanggal_selesai,
+      min_jam_pengajuan,
       tanggal_mulai_pengajuan, tanggal_selesai_pengajuan,
       tanggal_mulai_logbook, tanggal_selesai_logbook,
       tanggal_selesai_ppt, tanggal_selesai_laporan,
+      is_active,
     } = req.body;
 
     if (!nama_periode || !jenis) {
       return res.status(400).json({ message: "Nama periode dan jenis wajib diisi." });
     }
 
-    await db.query(
-      `INSERT INTO periode (nama_periode, jenis, tanggal_mulai_pengajuan, tanggal_selesai_pengajuan,
+    // PENTING: is_active WAJIB diisi eksplisit di sini. Kalau kolom ini
+    // dihilangkan dari INSERT, MySQL akan pakai DEFAULT kolom -- dan kalau
+    // defaultnya 1, setiap periode baru otomatis jadi aktif tanpa
+    // menonaktifkan periode lain (bug lama). Sekarang default eksplisit ke 0,
+    // dan hanya diaktifkan lewat langkah terpisah di bawah jika diminta.
+    const jadiAktif = Number(is_active) === 1;
+
+    const [result] = await db.query(
+      `INSERT INTO periode (nama_periode, jenis, tanggal_mulai, tanggal_selesai, min_jam_pengajuan,
+      tanggal_mulai_pengajuan, tanggal_selesai_pengajuan,
       tanggal_mulai_logbook, tanggal_selesai_logbook, tanggal_selesai_ppt, tanggal_selesai_laporan,
-      form_pengajuan_buka, form_logbook_buka, form_dokumen_buka)
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?, 0, 0, 0)`,
+      form_pengajuan_buka, form_logbook_buka, form_dokumen_buka, is_active)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 0, 0, 0, ?)`,
       [
         nama_periode, jenis,
+        tanggal_mulai || null, tanggal_selesai || null,
+        Number(min_jam_pengajuan) || 48,
         tanggal_mulai_pengajuan, tanggal_selesai_pengajuan,
         tanggal_mulai_logbook, tanggal_selesai_logbook,
         tanggal_selesai_ppt, tanggal_selesai_laporan,
+        jadiAktif ? 1 : 0,
       ]
     );
 
+    // Kalau periode baru ini memang diminta jadi aktif, nonaktifkan semua
+    // periode lain (berdasarkan id hasil INSERT, bukan nama) supaya invariant
+    // "hanya satu periode aktif" tetap terjaga -- aman walau ada nama_periode
+    // yang sama persis.
+    if (jadiAktif) {
+      await db.query(
+        "UPDATE periode SET is_active = 0 WHERE id != ?",
+        [result.insertId]
+      );
+    }
+
     res.status(201).json({ message: "Periode berhasil ditambahkan." });
   } catch (error) {
+    console.error("tambahPeriode error:", error);
     res.status(500).json({ message: "Terjadi kesalahan server." });
   }
 };
@@ -55,6 +77,8 @@ const updatePeriode = async (req, res) => {
     const { id } = req.params;
     const {
       nama_periode, jenis,
+      tanggal_mulai, tanggal_selesai,
+      min_jam_pengajuan,
       tanggal_mulai_pengajuan, tanggal_selesai_pengajuan,
       tanggal_mulai_logbook, tanggal_selesai_logbook,
       tanggal_selesai_ppt, tanggal_selesai_laporan,
@@ -126,6 +150,7 @@ const updatePeriode = async (req, res) => {
     await db.query(
       `UPDATE periode SET
         nama_periode=?, jenis=?,
+        tanggal_mulai=?, tanggal_selesai=?, min_jam_pengajuan=?,
         tanggal_mulai_pengajuan=?, tanggal_selesai_pengajuan=?,
         tanggal_mulai_logbook=?, tanggal_selesai_logbook=?,
         tanggal_selesai_ppt=?, tanggal_selesai_laporan=?,
@@ -135,6 +160,7 @@ const updatePeriode = async (req, res) => {
       WHERE id=?`,
       [
         nama_periode, jenis,
+        tanggal_mulai || null, tanggal_selesai || null, Number(min_jam_pengajuan) || 48,
         tanggal_mulai_pengajuan, tanggal_selesai_pengajuan,
         tanggal_mulai_logbook, tanggal_selesai_logbook,
         tanggal_selesai_ppt, tanggal_selesai_laporan,
@@ -192,299 +218,71 @@ const toggleForm = async (req, res) => {
   }
 };
 
-// ========== IMPORT MAHASISWA ==========
-
-const importMahasiswa = async (req, res) => {
+// ========== DAFTAR DOSEN ROSTER MBKM (BARU) ==========
+// Sumber dropdown untuk assignDosen di bawah -- BUKAN dosen.is_dosen_pa
+// (kolom itu sudah dihapus) dan BUKAN semua dosen master (staffController
+// punya getDaftarDosen sendiri untuk itu). Roster hanya daftar dosen yang
+// tersedia MBKM di periode_id tertentu; identitas dosen tetap dosen.id.
+// periode_id wajib dikirim (kaprodi bisa assign untuk periode yang sedang
+// diverifikasi, tidak selalu periode aktif).
+const getDosenRosterMBKM = async (req, res) => {
   try {
-    if (!req.file)
-      return res.status(400).json({ message: "File tidak ditemukan." });
+    const { periode_id } = req.query;
+    if (!periode_id) return res.status(400).json({ message: "periode_id wajib diisi." });
 
-    const { periode_id } = req.body;
-    if (!periode_id) {
-      fs.unlinkSync(req.file.path);
-      return res.status(400).json({ message: "periode_id wajib diisi saat import." });
-    }
-
-    const workbook = xlsx.readFile(req.file.path);
-    const sheetName = workbook.SheetNames[0];
-    const sheet = workbook.Sheets[sheetName];
-    const data = xlsx.utils.sheet_to_json(sheet);
-
-    if (data.length === 0)
-      return res.status(400).json({ message: "File kosong atau format tidak sesuai." });
-
-    let berhasil = 0, gagal = 0, errors = [];
-
-    for (const row of data) {
-      try {
-        const nim = String(row["NIM Mahasiswa"] || row["NIM"] || row["nim"] || "").trim();
-        const nama = String(row["Nama Mahasiswa"] || row["Nama"] || row["nama"] || "").trim();
-        const email = String(
-          row["Email Mahasiswa"] || row["E-mail Mahasiswa"] || row["E-Mail Mahasiswa"] ||
-          row["email mahasiswa"] || row["Email"] || row["E-mail"] || row["E-Mail"] || row["email"] || ""
-        ).trim();
-        const prodi = String(row["Program Studi"] || row["prodi"] || row["Prodi"] || "").trim();
-
-        if (!nim || !nama) {
-          errors.push(`Baris dilewati: NIM atau Nama kosong`);
-          gagal++;
-          continue;
-        }
-
-        const [existing] = await db.query("SELECT id FROM mahasiswa WHERE nim = ?", [nim]);
-        if (existing.length > 0) {
-          const [existingPeriode] = await db.query(
-            "SELECT id FROM mahasiswa WHERE nim = ? AND periode_id = ?",
-            [nim, periode_id]
-          );
-          if (existingPeriode.length > 0) {
-            errors.push(`NIM ${nim} sudah terdaftar di periode ini, dilewati.`);
-            gagal++;
-          } else {
-            const [mhs] = await db.query("SELECT * FROM mahasiswa WHERE nim = ?", [nim]);
-            await db.query(
-              "INSERT INTO mahasiswa (id, user_id, nim, nama, email, program_studi, periode_id) VALUES (?, ?, ?, ?, ?, ?, ?)",
-              [uuidv4(), mhs[0].user_id, nim, nama, email || null, prodi, periode_id]
-            );
-            berhasil++;
-          }
-          continue;
-        }
-
-        const hashedPassword = await bcrypt.hash(nim, 8);
-        const usernameToUse = email || nim;
-        const userId = uuidv4();
-
-        await db.query(
-          "INSERT INTO users (id, nama, username, password, email, role) VALUES (?, ?, ?, ?, ?, ?)",
-          [userId, nama, usernameToUse, hashedPassword, email || null, "mahasiswa"]
-        );
-
-        await db.query(
-          "INSERT INTO mahasiswa (id, user_id, nim, nama, email, program_studi, periode_id) VALUES (?, ?, ?, ?, ?, ?, ?)",
-          [uuidv4(), userId, nim, nama, email || null, prodi, periode_id]
-        );
-
-        berhasil++;
-      } catch (rowError) {
-        gagal++;
-        errors.push(`Error pada baris: ${rowError.message}`);
-      }
-    }
-
-    fs.unlinkSync(req.file.path);
-    res.json({
-      message: `Import selesai. Berhasil: ${berhasil}, Gagal: ${gagal}`,
-      berhasil, gagal, errors,
-    });
+    const [rows] = await db.query(
+      `SELECT d.id, d.nama
+       FROM roster_dosen_mbkm r
+       JOIN dosen d ON d.id = r.dosen_id
+       WHERE r.periode_id = ?
+       ORDER BY d.nama ASC`,
+      [periode_id]
+    );
+    res.json({ data: rows });
   } catch (error) {
-    console.error("Import mahasiswa error:", error);
+    console.error('getDosenRosterMBKM error:', error);
     res.status(500).json({ message: "Terjadi kesalahan server." });
   }
 };
 
-// ========== TAMBAH MAHASISWA ==========
-
-const tambahMahasiswa = async (req, res) => {
+// ========== DAFTAR DOSEN ROSTER PA (BARU) ==========
+// Sama pola dengan getDosenRosterMBKM di atas, tapi ke roster_dosen_pa.
+// periode_id wajib dikirim -- sumber dropdown/listing PA yang benar-benar
+// di-scope periode, bukan getDaftarDosen (semua master dosen).
+const getDosenRosterPA = async (req, res) => {
   try {
-    const { nim, nama, email, program_studi, periode_id } = req.body;
+    const { periode_id } = req.query;
+    if (!periode_id) return res.status(400).json({ message: "periode_id wajib diisi." });
 
-    if (!nim || !nama || !email || !program_studi || !periode_id) {
-      return res.status(400).json({ message: "Semua field wajib diisi." });
-    }
-
-    const [existing] = await db.query(
-      "SELECT id FROM mahasiswa WHERE nim = ? AND periode_id = ?",
-      [nim, periode_id]
+    const [rows] = await db.query(
+      `SELECT d.id, d.nama
+       FROM roster_dosen_pa r
+       JOIN dosen d ON d.id = r.dosen_id
+       WHERE r.periode_id = ?
+       ORDER BY d.nama ASC`,
+      [periode_id]
     );
-    if (existing.length > 0) {
-      return res.status(400).json({ message: "NIM sudah terdaftar di periode ini." });
-    }
-
-    const [existingUser] = await db.query(
-      "SELECT id, nama, role FROM users WHERE username = ? OR email = ?",
-      [email, email]
-    );
-
-    let userId;
-
-    if (existingUser.length > 0) {
-      const found = existingUser[0];
-
-      if (found.role !== "mahasiswa") {
-        return res.status(400).json({
-          message: `Email/username ini sudah terdaftar sebagai akun ${found.role} (${found.nama}). Gunakan email lain untuk mahasiswa ini.`,
-        });
-      }
-
-      const [mhsLain] = await db.query(
-        "SELECT nim, nama FROM mahasiswa WHERE user_id = ?",
-        [found.id]
-      );
-      if (mhsLain.length > 0 && mhsLain[0].nim !== nim) {
-        return res.status(400).json({
-          message: `Email ini sudah terdaftar untuk mahasiswa lain (${mhsLain[0].nama} - NIM ${mhsLain[0].nim}). Gunakan email lain.`,
-        });
-      }
-
-      userId = found.id;
-    } else {
-      const hashedPassword = await bcrypt.hash(nim, 8);
-      userId = uuidv4();
-      await db.query(
-        "INSERT INTO users (id, nama, username, password, email, role) VALUES (?, ?, ?, ?, ?, ?)",
-        [userId, nama, email, hashedPassword, email, "mahasiswa"]
-      );
-    }
-
-    await db.query(
-      "INSERT INTO mahasiswa (id, user_id, nim, nama, email, program_studi, periode_id) VALUES (?, ?, ?, ?, ?, ?, ?)",
-      [uuidv4(), userId, nim, nama, email || null, program_studi, periode_id]
-    );
-
-    res.status(201).json({ message: "Mahasiswa berhasil ditambahkan." });
+    res.json({ data: rows });
   } catch (error) {
-    console.error("Tambah mahasiswa error:", error);
-    res.status(500).json({ message: "Terjadi kesalahan server." });
-  }
-};
-
-// ========== IMPORT DOSEN ==========
-
-const importDosen = async (req, res) => {
-  try {
-    if (!req.file)
-      return res.status(400).json({ message: 'File tidak ditemukan.' });
-
-    const workbook = xlsx.readFile(req.file.path);
-    const sheet = workbook.Sheets[workbook.SheetNames[0]];
-    const data = xlsx.utils.sheet_to_json(sheet);
-
-    if (data.length === 0)
-      return res.status(400).json({ message: 'File kosong atau format tidak sesuai.' });
-
-    let berhasil = 0, gagal = 0, errors = [];
-
-    for (const row of data) {
-      try {
-        const id_dosen      = String(row['ID Dosen'] || row['id_dosen'] || row['Id Dosen'] || '').trim();
-        const nama          = String(row['Nama']     || row['nama']     || row['NAMA']     || '').trim();
-        const email         = String(row['Email']    || row['email']    || '').trim();
-        const program_studi = String(row['Program Studi'] || row['program_studi'] || '').trim() || null;
-
-        if (!id_dosen || !nama) {
-          gagal++;
-          errors.push(`Baris dilewati: ID Dosen atau Nama kosong`);
-          continue;
-        }
-
-        const [existing] = await db.query('SELECT id FROM dosen WHERE id_dosen = ?', [id_dosen]);
-        if (existing.length > 0) {
-          gagal++;
-          errors.push(`ID Dosen ${id_dosen} sudah terdaftar, dilewati.`);
-          continue;
-        }
-
-        const hashedPassword = await bcrypt.hash(id_dosen, 10);
-        const userId = uuidv4();
-
-        await db.query(
-          'INSERT INTO users (id, nama, username, password, email, role) VALUES (?, ?, ?, ?, ?, ?)',
-          [userId, nama, email, hashedPassword, email || null, 'dosen_pembimbing']
-        );
-
-        await db.query(
-          'INSERT INTO dosen (id, user_id, id_dosen, nama, email, program_studi) VALUES (?, ?, ?, ?, ?, ?)',
-          [uuidv4(), userId, id_dosen, nama, email || null, program_studi]
-        );
-
-        berhasil++;
-      } catch (rowError) {
-        gagal++;
-        errors.push(`Error: ${rowError.message}`);
-      }
-    }
-
-    fs.unlinkSync(req.file.path);
-    res.json({
-      message: `Import selesai. Berhasil: ${berhasil}, Gagal: ${gagal}`,
-      berhasil, gagal, errors,
-    });
-  } catch (error) {
-    console.error('Import dosen error:', error);
-    res.status(500).json({ message: 'Terjadi kesalahan server.' });
-  }
-};
-
-// ========== TAMBAH DOSEN ==========
-
-const tambahDosen = async (req, res) => {
-  try {
-    const { id_dosen, nama, email, program_studi } = req.body;
-
-    if (!id_dosen || !nama || !email || !program_studi) {
-      return res.status(400).json({ message: "Semua field wajib diisi." });
-    }
-
-    const [existing] = await db.query("SELECT id FROM dosen WHERE id_dosen = ?", [id_dosen]);
-    if (existing.length > 0) {
-      return res.status(400).json({ message: "ID Dosen sudah terdaftar." });
-    }
-
-    const hashedPassword = await bcrypt.hash(id_dosen, 10);
-    const userId = uuidv4();
-
-    await db.query(
-      'INSERT INTO users (id, nama, username, password, email, role) VALUES (?, ?, ?, ?, ?, ?)',
-      [userId, nama, email, hashedPassword, email, 'dosen_pembimbing']
-    );
-
-    await db.query(
-      'INSERT INTO dosen (id, user_id, id_dosen, nama, email, program_studi) VALUES (?, ?, ?, ?, ?, ?)',
-      [uuidv4(), userId, id_dosen, nama, email, program_studi]
-    );
-
-    res.status(201).json({ message: "Dosen berhasil ditambahkan." });
-  } catch (error) {
-    console.error("Tambah dosen error:", error);
-    res.status(500).json({ message: "Terjadi kesalahan server." });
-  }
-};
-
-// ========== UPDATE DOSEN ==========
-
-const updateDosen = async (req, res) => {
-  try {
-    const { id } = req.params;
-    const { id_dosen, nama, email, program_studi, is_active } = req.body;
-
-    if (!id_dosen || !nama || !email || !program_studi) {
-      return res.status(400).json({ message: "Semua field wajib diisi." });
-    }
-
-    const [dosen] = await db.query("SELECT * FROM dosen WHERE id = ?", [id]);
-    if (!dosen.length) {
-      return res.status(404).json({ message: "Dosen tidak ditemukan." });
-    }
-
-    await db.query(
-      "UPDATE dosen SET id_dosen=?, nama=?, email=?, program_studi=? WHERE id=?",
-      [id_dosen, nama, email, program_studi, id]
-    );
-
-    await db.query(
-      "UPDATE users SET nama=?, email=?, username=?, is_active=? WHERE id=?",
-      [nama, email, id_dosen, is_active ? 1 : 0, dosen[0].user_id]
-    );
-
-    res.json({ message: "Data dosen berhasil diperbarui." });
-  } catch (error) {
-    console.error("Update dosen error:", error);
+    console.error('getDosenRosterPA error:', error);
     res.status(500).json({ message: "Terjadi kesalahan server." });
   }
 };
 
 // ========== ASSIGN DOSEN ==========
+// PERUBAHAN: `bimbingan` sekarang keyed ke `pengajuan_id`, bukan
+// mahasiswa_id+periode_id -> harus cari pengajuan_id dulu.
+// TIDAK ADA integrasi storage file di sini sama sekali -- dosen akses
+// logbook/dokumentasi/PPT/laporan lewat aplikasi e-MBKM (query DB biasa),
+// bukan lewat share folder di storage backend. Ini sekaligus alasan kenapa
+// gak ada penggantian "grant/revoke access" versi Cloudinary: Cloudinary
+// gak punya konsep share-per-folder kayak Drive, dan memang gak dibutuhkan.
+//
+// BARU: dosen yang boleh di-assign HARUS terdaftar di roster_dosen_mbkm
+// untuk periode_id ini. Roster bukan relasi pembimbing -- cuma daftar dosen
+// yang tersedia -- jadi validasi ini dilakukan sebelum menyentuh `bimbingan`
+// sama sekali, dan `bimbingan.dosen_id` tetap mengarah ke `dosen.id` seperti
+// sebelumnya.
 
 const assignDosen = async (req, res) => {
   try {
@@ -494,21 +292,41 @@ const assignDosen = async (req, res) => {
       return res.status(400).json({ message: "mahasiswa_id, dosen_id, dan periode_id wajib diisi." });
     }
 
-    const [existing] = await db.query(
-      "SELECT id FROM bimbingan WHERE mahasiswa_id = ? AND periode_id = ?",
+    const [pengajuanRows] = await db.query(
+      `SELECT id FROM pengajuan WHERE mahasiswa_id = ? AND periode_id = ?`,
       [mahasiswa_id, periode_id]
+    );
+    if (!pengajuanRows.length) {
+      return res.status(404).json({ message: "Pengajuan mahasiswa ini di periode tersebut tidak ditemukan." });
+    }
+    const pengajuanId = pengajuanRows[0].id;
+
+    const [dosenRows] = await db.query("SELECT id, email FROM dosen WHERE id = ?", [dosen_id]);
+    if (!dosenRows.length) {
+      return res.status(404).json({ message: "Dosen tidak ditemukan." });
+    }
+
+    const [rosterRows] = await db.query(
+      `SELECT id FROM roster_dosen_mbkm WHERE dosen_id = ? AND periode_id = ?`,
+      [dosen_id, periode_id]
+    );
+    if (!rosterRows.length) {
+      return res.status(400).json({ message: "Dosen ini tidak terdaftar di roster MBKM periode tersebut." });
+    }
+
+    const [existing] = await db.query(
+      `SELECT b.id, b.dosen_id AS dosen_lama_id
+       FROM bimbingan b
+       WHERE b.pengajuan_id = ?`,
+      [pengajuanId]
     );
 
     if (existing.length > 0) {
-      await db.query(
-        "UPDATE bimbingan SET dosen_id = ? WHERE mahasiswa_id = ? AND periode_id = ?",
-        [dosen_id, mahasiswa_id, periode_id]
-      );
+      await db.query("UPDATE bimbingan SET dosen_id = ? WHERE pengajuan_id = ?", [dosen_id, pengajuanId]);
     } else {
-      const bimbinganId = uuidv4();
       await db.query(
-        "INSERT INTO bimbingan (id, mahasiswa_id, dosen_id, periode_id) VALUES (?, ?, ?, ?)",
-        [bimbinganId, mahasiswa_id, dosen_id, periode_id]
+        "INSERT INTO bimbingan (id, dosen_id, pengajuan_id) VALUES (?, ?, ?)",
+        [uuidv4(), dosen_id, pengajuanId]
       );
     }
 
@@ -519,45 +337,6 @@ const assignDosen = async (req, res) => {
   }
 };
 
-// ========== MONITORING ==========
-
-const getDaftarMahasiswa = async (req, res) => {
-  try {
-    const { periode_id } = req.query;
-    const query = `
-      SELECT m.*, u.is_active,
-        b.dosen_id, d.nama as nama_dosen,
-        p.judul as judul_capstone, p.status as status_pengajuan
-      FROM mahasiswa m
-      LEFT JOIN users u ON m.user_id = u.id
-      LEFT JOIN bimbingan b ON m.id = b.mahasiswa_id ${periode_id ? "AND b.periode_id = ?" : ""}
-      LEFT JOIN dosen d ON b.dosen_id = d.id
-      LEFT JOIN pengajuan_capstone p ON m.id = p.mahasiswa_id ${periode_id ? "AND p.periode_id = ?" : ""}
-      ${periode_id ? "WHERE m.periode_id = ?" : ""}
-      ORDER BY m.nama ASC
-    `;
-    const params = periode_id ? [periode_id, periode_id, periode_id] : [];
-    const [rows] = await db.query(query, params);
-    res.json({ data: rows });
-  } catch (error) {
-    res.status(500).json({ message: "Terjadi kesalahan server." });
-  }
-};
-
-const getDaftarDosen = async (req, res) => {
-  try {
-    const [rows] = await db.query(`
-      SELECT d.*, u.is_active, u.email as user_email
-      FROM dosen d LEFT JOIN users u ON d.user_id = u.id
-      ORDER BY d.nama ASC
-    `);
-    res.json({ data: rows });
-  } catch (error) {
-    res.status(500).json({ message: "Terjadi kesalahan server." });
-  }
-};
-
-// ========== VERIFIKASI PENGAJUAN ==========
 
 const getVerifikasiPengajuan = async (req, res) => {
   try {
@@ -572,11 +351,20 @@ const getVerifikasiPengajuan = async (req, res) => {
     }
 
     const [rows] = await db.query(
-      `SELECT pc.*, m.nim, m.nama as nama_mahasiswa
-       FROM pengajuan_capstone pc
-       JOIN mahasiswa m ON pc.mahasiswa_id = m.id
-       WHERE pc.periode_id = ?
-       ORDER BY pc.created_at DESC`,
+      `SELECT
+        p.id, p.mahasiswa_id, p.periode_id, p.status,
+        p.catatan_dosen, p.catatan_kaprodi,
+        p.created_at, p.updated_at, p.archived_at, p.archived_by,
+        dp.pelatihan, dp.judul, dp.penyelenggara, dp.waktu_studi_independen, dp.deskripsi,
+        dp.lokasi, dp.tanggal_mulai, dp.tanggal_selesai,
+        m.nim, m.nama as nama_mahasiswa, m.email,
+        dpa.nama as dosen_pembimbing_akademik
+       FROM pengajuan p
+       JOIN mahasiswa m ON p.mahasiswa_id = m.id
+       LEFT JOIN detail_pengajuan dp ON dp.pengajuan_id = p.id
+       LEFT JOIN dosen dpa ON dpa.id = m.dosen_pembimbing_akademik_id
+       WHERE p.periode_id = ?
+       ORDER BY p.created_at DESC`,
       [periode_id]
     );
 
@@ -585,6 +373,11 @@ const getVerifikasiPengajuan = async (req, res) => {
     res.status(500).json({ message: "Terjadi kesalahan server." });
   }
 };
+
+// PERUBAHAN: gak ada lagi langkah "bikin struktur folder" di sini -- Cloudinary
+// otomatis bikin folder dari path string pas file pertama diupload (lihat
+// cloudinaryService.js), jadi gak perlu idempotent-create + simpan folder id
+// kayak versi Drive dulu.
 
 const verifikasiPengajuan = async (req, res) => {
   try {
@@ -596,17 +389,19 @@ const verifikasiPengajuan = async (req, res) => {
     }
 
     await db.query(
-      "UPDATE pengajuan_capstone SET status = ?, catatan_kaprodi = ? WHERE id = ?",
+      "UPDATE pengajuan SET status = ?, catatan_kaprodi = ? WHERE id = ?",
       [status, catatan_kaprodi, id]
     );
 
     const [pengajuan] = await db.query(
-      `SELECT pc.mahasiswa_id, m.user_id FROM pengajuan_capstone pc
-       JOIN mahasiswa m ON pc.mahasiswa_id = m.id WHERE pc.id = ?`,
+      `SELECT p.mahasiswa_id, m.user_id, m.nim, m.nama
+       FROM pengajuan p JOIN mahasiswa m ON p.mahasiswa_id = m.id WHERE p.id = ?`,
       [id]
     );
 
     if (pengajuan.length > 0) {
+      const pj = pengajuan[0];
+
       const pesan =
         status === "disetujui_kaprodi"
           ? "Pengajuan capstone kamu telah disetujui oleh Kaprodi."
@@ -617,15 +412,14 @@ const verifikasiPengajuan = async (req, res) => {
       await db.query(
         "INSERT INTO notifikasi (id, user_id, judul, pesan, tipe) VALUES (?, ?, ?, ?, ?)",
         [
-          uuidv4(), pengajuan[0].user_id,
+          uuidv4(), pj.user_id,
           "Status Pengajuan Capstone", pesan,
           status === "disetujui_kaprodi" ? "sukses" : "peringatan",
         ]
       );
 
-      // Push notification hanya untuk status disetujui_kaprodi
       if (status === "disetujui_kaprodi") {
-        await sendPushToUser(pengajuan[0].user_id, {
+        await sendPushToUser(pj.user_id, {
           title: "Pengajuan Disetujui",
           body: pesan,
           url: "/mahasiswa/pengajuan",
@@ -635,9 +429,13 @@ const verifikasiPengajuan = async (req, res) => {
 
     res.json({ message: "Status pengajuan berhasil diupdate." });
   } catch (error) {
+    console.error("verifikasiPengajuan error:", error);
     res.status(500).json({ message: "Terjadi kesalahan server." });
   }
 };
+
+// PERUBAHAN: cukup hapus notifikasi + pengajuan; cascade otomatis membereskan
+// detail_pengajuan, logbook, dokumen, bimbingan, feedback, penilaian.
 
 const hapusPengajuan = async (req, res) => {
   const conn = await db.getConnection();
@@ -645,7 +443,7 @@ const hapusPengajuan = async (req, res) => {
     const { id } = req.params;
 
     const [pengajuan] = await conn.query(
-      "SELECT * FROM pengajuan_capstone WHERE id = ?", [id]
+      "SELECT * FROM pengajuan WHERE id = ?", [id]
     );
     if (!pengajuan.length) {
       conn.release();
@@ -657,19 +455,9 @@ const hapusPengajuan = async (req, res) => {
       "DELETE FROM notifikasi WHERE user_id IN (SELECT user_id FROM mahasiswa WHERE id = ?)",
       [pengajuan[0].mahasiswa_id]
     );
-    await conn.query(
-      "DELETE FROM dokumen WHERE mahasiswa_id = ? AND periode_id = ?",
-      [pengajuan[0].mahasiswa_id, pengajuan[0].periode_id]
-    );
-    await conn.query(
-      "DELETE FROM logbook WHERE mahasiswa_id = ? AND periode_id = ?",
-      [pengajuan[0].mahasiswa_id, pengajuan[0].periode_id]
-    );
-    await conn.query(
-      "DELETE FROM bimbingan WHERE mahasiswa_id = ? AND periode_id = ?",
-      [pengajuan[0].mahasiswa_id, pengajuan[0].periode_id]
-    );
-    await conn.query("DELETE FROM pengajuan_capstone WHERE id = ?", [id]);
+    // detail_pengajuan, logbook, dokumen, bimbingan, feedback, penilaian
+    // otomatis terhapus lewat ON DELETE CASCADE (semua nempel ke pengajuan_id)
+    await conn.query("DELETE FROM pengajuan WHERE id = ?", [id]);
 
     await conn.commit();
     res.json({ message: "Pengajuan berhasil dihapus." });
@@ -682,6 +470,8 @@ const hapusPengajuan = async (req, res) => {
   }
 };
 
+// PERUBAHAN: dokumen tidak lagi punya mahasiswa_id -> ambil lewat join pengajuan.
+
 const verifikasiDokumen = async (req, res) => {
   try {
     const { id } = req.params;
@@ -690,7 +480,12 @@ const verifikasiDokumen = async (req, res) => {
     if (!validStatus.includes(status))
       return res.status(400).json({ message: "Status tidak valid." });
 
-    const [dok] = await db.query("SELECT * FROM dokumen WHERE id = ?", [id]);
+    const [dok] = await db.query(
+      `SELECT d.*, p.mahasiswa_id
+       FROM dokumen d JOIN pengajuan p ON p.id = d.pengajuan_id
+       WHERE d.id = ?`,
+      [id]
+    );
     if (!dok.length)
       return res.status(404).json({ message: "Dokumen tidak ditemukan." });
 
@@ -698,9 +493,19 @@ const verifikasiDokumen = async (req, res) => {
       return res.status(403).json({ message: "Kaprodi hanya dapat memverifikasi Laporan Akhir." });
     }
 
+    // PERUBAHAN: urutan verifikasi laporan akhir sekarang Dospem DULU,
+    // baru Kaprodi. Kaprodi hanya boleh bertindak setelah Dospem
+    // menyatakan disetujui_dospem.
+    if (dok[0].status !== 'disetujui_dospem') {
+      return res.status(400).json({ message: "Laporan Akhir harus disetujui Dosen Pembimbing terlebih dahulu sebelum dapat diverifikasi Kaprodi." });
+    }
+
+    // Kaprodi adalah tahap verifikasi terakhir: approve = final (diverifikasi).
+    const statusAkhir = status === "disetujui_kaprodi" ? "diverifikasi" : status;
+
     await db.query(
       `UPDATE dokumen SET status=?, feedback_kaprodi=?, verified_kaprodi_by=?, verified_kaprodi_at=NOW() WHERE id=?`,
-      [status, feedback || null, req.user.id, id]
+      [statusAkhir, feedback || null, req.user.id, id]
     );
 
     const [mhsData] = await db.query(
@@ -708,13 +513,13 @@ const verifikasiDokumen = async (req, res) => {
       [dok[0].mahasiswa_id]
     );
     if (mhsData.length) {
-      const pesan = status === "disetujui_kaprodi"
-        ? "Laporan Akhir kamu telah disetujui Kaprodi, menunggu verifikasi Dosen Pembimbing."
+      const pesan = statusAkhir === "diverifikasi"
+        ? "Laporan Akhir kamu telah diverifikasi oleh Dosen Pembimbing dan Kaprodi."
         : `Laporan Akhir kamu perlu direvisi oleh Kaprodi. Catatan: ${feedback || "-"}`;
       await db.query(
         "INSERT INTO notifikasi (id, user_id, judul, pesan, tipe) VALUES (?, ?, ?, ?, ?)",
         [uuidv4(), mhsData[0].user_id, "Status Dokumen", pesan,
-          status === "disetujui_kaprodi" ? "sukses" : "peringatan"]
+          statusAkhir === "diverifikasi" ? "sukses" : "peringatan"]
       );
     }
 
@@ -725,108 +530,180 @@ const verifikasiDokumen = async (req, res) => {
   }
 };
 
+// PERUBAHAN: dokumen & logbook di-join lewat pengajuan (bukan mahasiswa_id
+// langsung), dan SUM(lb.jam) -> SUM(lb.durasi_menit)/60 karena kolom `jam`
+// sudah tidak dipakai lagi (nunggu di-drop di migration step 2).
+//
+// PERUBAHAN (kolom Nilai di tabel Monitoring): ditambahkan scalar subquery
+// nilai_akhir dari `penilaian`, DIBATASI `finalized_at IS NOT NULL` (nilai
+// draft dosen tidak boleh bocor ke Kaprodi/Staff sebelum difinalisasi).
+// Sengaja pakai subquery (bukan LEFT JOIN penilaian) supaya konsisten dengan
+// pola total_jam_terverifikasi di bawah -- LEFT JOIN penilaian akan ikut
+// dikalikan oleh cross join dokumen+logbook yang sudah ada di query ini
+// (makanya kolom dokumen juga pakai MAX(CASE...) untuk menghindari duplikasi
+// baris), jadi subquery scalar lebih aman & tidak mengubah jumlah baris.
+
 const getMonitoringDokumen = async (req, res) => {
   try {
     const { periode_id } = req.query;
     const [rows] = await db.query(
       `SELECT m.nim, m.nama,
-        pc.status as status_pengajuan,
+        p.id as pengajuan_id,
+        p.status as status_pengajuan,
         COUNT(DISTINCT l.id) as jumlah_logbook,
         COALESCE((
-          SELECT SUM(lb.jam) FROM logbook lb
-          WHERE lb.mahasiswa_id = m.id AND lb.periode_id = ? AND lb.status = 'diverifikasi'
+          SELECT SUM(lb.durasi_menit) / 60 FROM logbook lb
+          WHERE lb.pengajuan_id = p.id AND lb.status = 'diverifikasi'
         ), 0) as total_jam_terverifikasi,
+        (
+          SELECT pn.nilai_akhir FROM penilaian pn
+          WHERE pn.pengajuan_id = p.id AND pn.finalized_at IS NOT NULL
+          LIMIT 1
+        ) as nilai_akhir,
         MAX(CASE WHEN dok.jenis = 'laporan_akhir' THEN dok.status END) as status_laporan,
         MAX(CASE WHEN dok.jenis = 'ppt' THEN dok.status END) as status_ppt,
         MAX(CASE WHEN dok.jenis = 'laporan_akhir' THEN dok.id END) as laporan_id,
-        MAX(CASE WHEN dok.jenis = 'laporan_akhir' THEN dok.path_file END) as laporan_path,
+        MAX(CASE WHEN dok.jenis = 'laporan_akhir' THEN dok.cloudinary_url END) as laporan_path,
         MAX(CASE WHEN dok.jenis = 'laporan_akhir' THEN dok.nama_file END) as laporan_nama,
         MAX(CASE WHEN dok.jenis = 'ppt' THEN dok.id END) as ppt_id,
-        MAX(CASE WHEN dok.jenis = 'ppt' THEN dok.path_file END) as ppt_path,
+        MAX(CASE WHEN dok.jenis = 'ppt' THEN dok.cloudinary_url END) as ppt_path,
         MAX(CASE WHEN dok.jenis = 'ppt' THEN dok.nama_file END) as ppt_nama
       FROM mahasiswa m
-      LEFT JOIN dokumen dok ON m.id = dok.mahasiswa_id AND dok.periode_id = ?
-      LEFT JOIN logbook l ON m.id = l.mahasiswa_id AND l.periode_id = ?
-      LEFT JOIN pengajuan_capstone pc ON m.id = pc.mahasiswa_id AND pc.periode_id = ?
-      WHERE m.periode_id = ?
-      GROUP BY m.id, m.nim, m.nama, pc.status
+      INNER JOIN pengajuan p ON m.id = p.mahasiswa_id AND p.periode_id = ?
+      LEFT JOIN dokumen dok ON dok.pengajuan_id = p.id
+      LEFT JOIN logbook l ON l.pengajuan_id = p.id
+      GROUP BY m.id, m.nim, m.nama, p.id, p.status
       ORDER BY m.nama ASC`,
-      [periode_id, periode_id, periode_id, periode_id, periode_id]
+      [periode_id]
     );
 
     const formatted = rows.map((r) => ({
       nim: r.nim,
       nama: r.nama,
+      pengajuan_id: r.pengajuan_id,
       status_pengajuan: r.status_pengajuan,
       jumlah_logbook: r.jumlah_logbook,
       total_jam_terverifikasi: r.total_jam_terverifikasi,
+      nilai_akhir: r.nilai_akhir,
       status_laporan: r.status_laporan,
       status_ppt: r.status_ppt,
       dokumen_laporan: r.laporan_id ? {
-        id: r.laporan_id, path_file: r.laporan_path,
+        id: r.laporan_id, cloudinary_url: r.laporan_path,
         nama_file: r.laporan_nama, status: r.status_laporan,
       } : null,
       dokumen_ppt: r.ppt_id ? {
-        id: r.ppt_id, path_file: r.ppt_path,
+        id: r.ppt_id, cloudinary_url: r.ppt_path,
         nama_file: r.ppt_nama, status: r.status_ppt,
       } : null,
     }));
 
     res.json({ data: formatted });
   } catch (error) {
+    console.error("getMonitoringDokumen error:", error);
     res.status(500).json({ message: "Terjadi kesalahan server." });
   }
 };
 
 // ========== DASHBOARD STATS ==========
+// PERUBAHAN: `pengajuan_capstone` (sudah di-drop) -> `pengajuan`.
+//
+// PERUBAHAN (Total Dosen): dulu COUNT(*) dari tabel `dosen` (semua master
+// data dosen, tanpa scope periode). Sekarang di-scope ke roster_dosen_mbkm
+// pada periode_id yang sedang dipakai (COUNT DISTINCT dosen_id), supaya
+// konsisten dengan pola yang sama di staffController.getDashboardStats
+// (di sana disebut "Total Pembimbing MBKM"). periode_id di titik ini sudah
+// pasti ke-resolve (dari query string atau fallback periode aktif/terbaru
+// di blok if/else di atas), jadi tidak perlu helper _getPeriodeAktifId
+// terpisah seperti di staffController.
 
 const getDashboardStats = async (req, res) => {
   try {
     let periode_id = req.query.periode_id || null;
+    let nama_periode;
 
     if (!periode_id) {
       const [[periodeRow]] = await db.query(
-        `SELECT id, nama_periode FROM periode ORDER BY is_active DESC, created_at DESC LIMIT 1`
+        `SELECT id, nama_periode
+         FROM periode
+         ORDER BY is_active DESC, created_at DESC
+         LIMIT 1`
       );
+
       if (!periodeRow) {
         return res.json({
           data: {
-            total_mahasiswa: 0, total_dosen: 0,
-            total_pengajuan: 0, dokumen_lengkap: 0, periode_aktif: null,
+            total_mahasiswa: 0,
+            total_dosen: 0,
+            total_pengajuan: 0,
+            dokumen_lengkap: 0,
+            periode_aktif: null,
           },
         });
       }
+
       periode_id = periodeRow.id;
-      var nama_periode = periodeRow.nama_periode;
+      nama_periode = periodeRow.nama_periode;
     } else {
       const [[periodeRow]] = await db.query(
-        "SELECT nama_periode FROM periode WHERE id = ?", [periode_id]
+        "SELECT nama_periode FROM periode WHERE id = ?",
+        [periode_id]
       );
-      var nama_periode = periodeRow?.nama_periode || "";
+      nama_periode = periodeRow?.nama_periode || "";
     }
 
     const [[{ total_mahasiswa }]] = await db.query(
-      "SELECT COUNT(*) as total_mahasiswa FROM mahasiswa WHERE periode_id = ?", [periode_id]
-    );
-  const [[{ total_dosen }]] = await db.query(
-  "SELECT COUNT(*) as total_dosen FROM dosen"
-);
-    const [[{ total_pengajuan }]] = await db.query(
-      "SELECT COUNT(*) as total_pengajuan FROM pengajuan_capstone WHERE periode_id = ?", [periode_id]
-    );
-    const [[{ dokumen_lengkap }]] = await db.query(
-      `SELECT COUNT(*) as dokumen_lengkap FROM (
-        SELECT mahasiswa_id FROM dokumen WHERE periode_id = ?
-        GROUP BY mahasiswa_id
-        HAVING SUM(jenis = 'laporan_akhir') > 0 AND SUM(jenis = 'ppt') > 0
-      ) as lengkap`,
+      `SELECT COUNT(DISTINCT m.id) AS total_mahasiswa
+       FROM mahasiswa m
+       INNER JOIN pengajuan p ON p.mahasiswa_id = m.id
+       WHERE p.periode_id = ?`,
       [periode_id]
     );
 
+    const [[{ total_dosen }]] = await db.query(
+      `SELECT COUNT(DISTINCT dosen_id) AS total_dosen
+       FROM roster_dosen_mbkm
+       WHERE periode_id = ?`,
+      [periode_id]
+    );
+
+    const [[{ total_pengajuan }]] = await db.query(
+      "SELECT COUNT(*) AS total_pengajuan FROM pengajuan WHERE periode_id = ?",
+      [periode_id]
+    );
+
+    // Ambil min_jam_pengajuan periode ini dulu
+const [[periodeInfo]] = await db.query(
+  "SELECT min_jam_pengajuan FROM periode WHERE id = ?",
+  [periode_id]
+);
+const minJam = periodeInfo?.min_jam_pengajuan || 48;
+
+const [[{ dokumen_lengkap }]] = await db.query(
+  `SELECT COUNT(*) AS dokumen_lengkap
+   FROM (
+     SELECT dok.pengajuan_id
+     FROM dokumen dok
+     JOIN pengajuan p ON p.id = dok.pengajuan_id
+     WHERE p.periode_id = ?
+     GROUP BY dok.pengajuan_id
+     HAVING SUM(CASE WHEN dok.jenis = 'laporan_akhir' AND dok.status = 'diverifikasi' THEN 1 ELSE 0 END) > 0
+        AND SUM(dok.jenis = 'ppt') > 0
+        AND COALESCE((
+          SELECT SUM(lb.durasi_menit) / 60 FROM logbook lb
+          WHERE lb.pengajuan_id = dok.pengajuan_id AND lb.status = 'diverifikasi'
+        ), 0) >= ?
+   ) AS lengkap`,
+  [periode_id, minJam]
+);
+
     res.json({
       data: {
-        total_mahasiswa, total_dosen, total_pengajuan,
-        dokumen_lengkap, periode_id, nama_periode,
+        total_mahasiswa,
+        total_dosen,
+        total_pengajuan,
+        dokumen_lengkap,
+        periode_id,
+        nama_periode,
       },
     });
   } catch (error) {
@@ -836,25 +713,27 @@ const getDashboardStats = async (req, res) => {
 };
 
 // ========== PENGAJUAN UNTUK ASSIGN DOSEN ==========
+// PERUBAHAN: bimbingan join lewat pengajuan_id (bukan mahasiswa_id+periode_id).
 
 const getPengajuanDisetujui = async (req, res) => {
   try {
     const { periode_id } = req.query;
     const params = [];
-    let whereClause = `WHERE pc.status = 'disetujui_kaprodi'`;
+    let whereClause = `WHERE p.status = 'disetujui_kaprodi'`;
 
     if (periode_id) {
-      whereClause += ` AND pc.periode_id = ?`;
+      whereClause += ` AND p.periode_id = ?`;
       params.push(periode_id);
     }
 
     const [rows] = await db.query(
-      `SELECT pc.id, pc.mahasiswa_id, pc.status, pc.periode_id, pc.pelatihan,
+      `SELECT p.id, p.mahasiswa_id, p.status, p.periode_id, dp.pelatihan,
         m.nim, m.nama, m.program_studi,
         b.dosen_id, d.nama AS nama_dosen
-      FROM pengajuan_capstone pc
-      JOIN mahasiswa m ON pc.mahasiswa_id = m.id
-      LEFT JOIN bimbingan b ON b.mahasiswa_id = m.id AND b.periode_id = pc.periode_id
+      FROM pengajuan p
+      JOIN mahasiswa m ON p.mahasiswa_id = m.id
+      LEFT JOIN detail_pengajuan dp ON dp.pengajuan_id = p.id
+      LEFT JOIN bimbingan b ON b.pengajuan_id = p.id
       LEFT JOIN dosen d ON b.dosen_id = d.id
       ${whereClause}
       ORDER BY m.nama ASC`,
@@ -887,10 +766,114 @@ const getPengajuanDisetujui = async (req, res) => {
   }
 };
 
+// ========== REKAP NILAI ==========
+// Cuma nilai yang sudah difinalisasi dosen (finalized_at IS NOT NULL) yang
+// boleh tampil ke Kaprodi -- sebelum final, nilai masih draft dan cuma dosen
+// pembimbing yang boleh lihat/ubah.
+
+const getRekapNilai = async (req, res) => {
+  try {
+    const { periode_id } = req.query;
+    const params = [];
+    let where = "WHERE pn.finalized_at IS NOT NULL";
+    if (periode_id) {
+      where += " AND p.periode_id = ?";
+      params.push(periode_id);
+    }
+
+    const [rows] = await db.query(
+      `SELECT
+        pn.id, pn.pengajuan_id, pn.finalized_at,
+        pn.nilai_kesesuaian, pn.nilai_proyek, pn.nilai_evaluasi,
+        pn.nilai_laporan, pn.nilai_presentasi, pn.nilai_akhir, pn.grade, pn.catatan,
+        m.nim, m.nama, m.program_studi,
+        per.nama_periode,
+        d.nama as nama_dosen
+      FROM penilaian pn
+      JOIN pengajuan p ON p.id = pn.pengajuan_id
+      JOIN mahasiswa m ON p.mahasiswa_id = m.id
+      JOIN periode per ON p.periode_id = per.id
+      LEFT JOIN dosen d ON d.id = pn.dosen_id
+      ${where}
+      ORDER BY m.nama ASC`,
+      params
+    );
+
+    res.json({ data: rows });
+  } catch (error) {
+    console.error("getRekapNilai error:", error);
+    res.status(500).json({ message: "Terjadi kesalahan server." });
+  }
+};
+
+// ========== DETAIL MONITORING (BARU) ==========
+// Data lengkap 1 mahasiswa untuk tombol "Lihat" di halaman Monitoring:
+// info mahasiswa, progress (pengajuan/logbook/dokumen), seluruh entri
+// logbook milik pengajuan ini saja, dan nilai_akhir (kalau sudah final).
+// Tidak menyentuh/duplikasi getMonitoringDokumen (list tetap seperti semula).
+
+const getDetailMonitoring = async (req, res) => {
+  try {
+    const { pengajuan_id } = req.params;
+
+    const [info] = await db.query(
+      `SELECT
+        m.nim, m.nama, m.email,
+        p.id as pengajuan_id, p.status as status_pengajuan, p.periode_id,
+        dp.judul as program_mbkm, dp.penyelenggara as instansi,
+        d.nama as dosen_pembimbing
+      FROM pengajuan p
+      JOIN mahasiswa m ON m.id = p.mahasiswa_id
+      LEFT JOIN detail_pengajuan dp ON dp.pengajuan_id = p.id
+      LEFT JOIN bimbingan b ON b.pengajuan_id = p.id
+      LEFT JOIN dosen d ON d.id = b.dosen_id
+      WHERE p.id = ?`,
+      [pengajuan_id]
+    );
+    if (!info.length) return res.status(404).json({ message: "Pengajuan tidak ditemukan." });
+
+const [logbook] = await db.query(
+  `SELECT l.id, l.tanggal, l.jam_mulai, l.jam_selesai, l.kegiatan, l.durasi_menit, l.status, l.bukti_link, l.cloudinary_public_id, pl.nama AS nama_pelatihan
+   FROM logbook l
+   LEFT JOIN pelatihan pl ON pl.id = l.pelatihan_id
+   WHERE l.pengajuan_id = ? ORDER BY l.tanggal DESC`,
+  [pengajuan_id]
+);
+
+    const [dokumen] = await db.query(
+      `SELECT id, jenis, nama_file, cloudinary_url, status FROM dokumen WHERE pengajuan_id = ?`,
+      [pengajuan_id]
+    );
+    const dokumenLaporan = dokumen.find(d => d.jenis === "laporan_akhir") || null;
+    const dokumenPpt = dokumen.find(d => d.jenis === "ppt") || null;
+
+    const [nilai] = await db.query(
+      `SELECT nilai_akhir FROM penilaian WHERE pengajuan_id = ? AND finalized_at IS NOT NULL`,
+      [pengajuan_id]
+    );
+
+    res.json({
+      data: {
+        ...info[0],
+        jumlah_logbook: logbook.length,
+        logbook,
+        dokumen_laporan: dokumenLaporan,
+        dokumen_ppt: dokumenPpt,
+        nilai_akhir: nilai.length ? nilai[0].nilai_akhir : null,
+      },
+    });
+  } catch (error) {
+    console.error("getDetailMonitoring error:", error);
+    res.status(500).json({ message: "Terjadi kesalahan server." });
+  }
+};
+
 module.exports = {
   getPeriode, tambahPeriode, updatePeriode, toggleForm,
-  importMahasiswa, importDosen, tambahMahasiswa, tambahDosen, updateDosen,
-  assignDosen, getDaftarMahasiswa, getDaftarDosen,
+  getDosenRosterMBKM,
+   getDosenRosterPA,
+  assignDosen,
   getVerifikasiPengajuan, verifikasiPengajuan, hapusPengajuan,
-  verifikasiDokumen, getMonitoringDokumen, getDashboardStats, getPengajuanDisetujui,
+  verifikasiDokumen, getMonitoringDokumen, getDetailMonitoring, getDashboardStats, getPengajuanDisetujui,
+  getRekapNilai,
 };

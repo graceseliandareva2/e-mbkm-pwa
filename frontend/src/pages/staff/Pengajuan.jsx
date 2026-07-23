@@ -10,6 +10,7 @@ import {
 } from "lucide-react";
 import api from "../../utils/api";
 import toast from "react-hot-toast";
+import usePeriodeFilter from "../../hooks/usePeriodeFilter";
 
 const BASE_URL = import.meta.env.VITE_API_URL || "";
 
@@ -22,15 +23,12 @@ const getStatusBadge = (status) => {
     },
     ditolak: { cls: "bg-red-100 text-red-800", label: "Ditolak" },
     revisi: { cls: "bg-orange-100 text-orange-800", label: "Revisi" },
-    diarsipkan: { cls: "bg-blue-100 text-blue-800", label: "Diarsipkan" },
   };
   return map[status] || { cls: "bg-gray-100 text-gray-600", label: status };
 };
 
 export default function StaffPengajuan() {
   const [pengajuan, setPengajuan] = useState([]);
-  const [periode, setPeriode] = useState([]);
-  const [selectedPeriode, setSelectedPeriode] = useState("");
   const [search, setSearch] = useState("");
   const [filterStatus, setFilterStatus] = useState("");
   const [loading, setLoading] = useState(true);
@@ -39,6 +37,12 @@ export default function StaffPengajuan() {
   const [loadingDetail, setLoadingDetail] = useState(false);
   const [showExportMenu, setShowExportMenu] = useState(false);
 
+  const {
+    periodeId: selectedPeriode,
+    periodeList: periode,
+    setLocalPeriode,
+  } = usePeriodeFilter('staff_akademik');
+
   useEffect(() => {
     const handler = () => setShowExportMenu(false);
     if (showExportMenu) window.addEventListener("click", handler);
@@ -46,45 +50,27 @@ export default function StaffPengajuan() {
   }, [showExportMenu]);
 
   useEffect(() => {
-    fetchAll();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
-
-  useEffect(() => {
     if (selectedPeriode) fetchPengajuan();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [selectedPeriode, filterStatus]);
 
-  const fetchAll = async () => {
-    try {
-      const periodeRes = await api.get("/staff/periode");
-      const list = periodeRes.data.data || [];
-      setPeriode(list);
-      const firstId = list.length > 0 ? String(list[0].id) : "";
-      setSelectedPeriode(firstId);
-      await fetchPengajuanById(firstId);
-    } catch {
-      // silent
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  const fetchPengajuanById = async (periodeId) => {
+const fetchPengajuan = async () => {
+    setLoading(true);
     try {
       const params = {};
-      if (periodeId) params.periode_id = periodeId;
+      if (selectedPeriode) params.periode_id = selectedPeriode;
       if (filterStatus) params.status = filterStatus;
       const res = await api.get("/staff/pengajuan", { params });
       setPengajuan(res.data.data || []);
     } catch {
       setPengajuan([]);
+    } finally {
+      setLoading(false);
     }
   };
 
-  const fetchPengajuan = () => fetchPengajuanById(selectedPeriode);
-
   const openDetail = async (p) => {
+ 
     setShowDetail(p);
     setDetailData(null);
     setLoadingDetail(true);
@@ -174,19 +160,20 @@ const exportSingle = (mahasiswaId, format) => {
           <option value="diajukan">Diajukan</option>
           <option value="disetujui_kaprodi">Disetujui</option>
           <option value="ditolak">Ditolak</option>
-          <option value="diarsipkan">Diarsipkan</option>
         </select>
-        <select
-          value={selectedPeriode}
-          onChange={(e) => setSelectedPeriode(e.target.value)}
-          className="px-3 py-2 border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 bg-gray-50"
-        >
-          {periode.map((p) => (
-            <option key={p.id} value={p.id}>
-              {p.nama_periode}
-            </option>
-          ))}
-        </select>
+<select
+  value={selectedPeriode ?? ""}
+  onChange={(e) =>
+    setLocalPeriode(periode.find(p => String(p.id) === String(e.target.value)))
+  }
+  className="px-3 py-2 border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 bg-gray-50"
+>
+  {periode.map((p) => (
+    <option key={p.id} value={p.id}>
+      {p.nama_periode}
+    </option>
+  ))}
+</select>
 
         <div className="relative" onClick={(e) => e.stopPropagation()}>
           <button

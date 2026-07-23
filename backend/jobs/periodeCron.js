@@ -79,6 +79,13 @@ const runAutoToggle = async () => {
 };
 
 // Reminder deadline logbook (H-3 / H-1) — email (sudah ada) + push (baru)
+//
+// PERUBAHAN: `logbook` tidak lagi punya `mahasiswa_id`/`periode_id` langsung
+// (cuma `pengajuan_id`), dan `mahasiswa` tidak lagi punya `periode_id`.
+// "Mahasiswa terdaftar di periode X" sekarang berarti "punya baris pengajuan
+// di periode X" -- jadi query di-join lewat pengajuan. Juga ganti SUM(l.jam)
+// -> SUM(l.durasi_menit): l.jam satuannya JAM, bukan menit, jadi sebelumnya
+// salah unit selain salah kolom.
 const runDeadlineReminderLogbook = async (conn, todayStr) => {
   try {
     const [periodeList] = await conn.query(
@@ -100,14 +107,13 @@ const runDeadlineReminderLogbook = async (conn, todayStr) => {
 
       const [mahasiswaList] = await conn.query(
         `SELECT m.id, m.user_id, m.nama, m.email,
-           COALESCE(SUM(l.jam), 0) as total_menit
+           COALESCE(SUM(l.durasi_menit), 0) as total_menit
          FROM mahasiswa m
-         LEFT JOIN logbook l ON l.mahasiswa_id = m.id
-           AND l.periode_id = ? AND l.status = 'diverifikasi'
-         WHERE m.periode_id = ?
+         JOIN pengajuan p ON p.mahasiswa_id = m.id AND p.periode_id = ?
+         LEFT JOIN logbook l ON l.pengajuan_id = p.id AND l.status = 'diverifikasi'
          GROUP BY m.id, m.user_id, m.nama, m.email
          HAVING total_menit < 2880`,
-        [periode.id, periode.id]
+        [periode.id]
       );
 
       for (const mhs of mahasiswaList) {
@@ -159,6 +165,12 @@ const runDeadlineReminderLogbook = async (conn, todayStr) => {
 };
 
 // Reminder deadline pengajuan (H-3 / H-1) — push only, hanya yang belum submit
+//
+// PERUBAHAN: tabel `pengajuan_capstone` sudah di-drop (sekarang `pengajuan`),
+// dan `mahasiswa.periode_id` sudah tidak ada. "Belum submit" sekarang berarti
+// baris pengajuan-nya di periode ini masih berstatus 'draft' (baik draft dari
+// staff yang menambahkan mahasiswa, maupun draft yang mahasiswa buat sendiri
+// tapi belum di-submit).
 const runDeadlineReminderPengajuan = async (conn, todayStr) => {
   try {
     const [periodeList] = await conn.query(
@@ -181,11 +193,8 @@ const runDeadlineReminderPengajuan = async (conn, todayStr) => {
       const [belumSubmit] = await conn.query(
         `SELECT m.id, m.user_id, m.nama
          FROM mahasiswa m
-         WHERE m.periode_id = ?
-           AND NOT EXISTS (
-             SELECT 1 FROM pengajuan_capstone pc
-             WHERE pc.mahasiswa_id = m.id AND pc.periode_id = m.periode_id
-           )`,
+         JOIN pengajuan p ON p.mahasiswa_id = m.id AND p.periode_id = ?
+         WHERE p.status = 'draft'`,
         [periode.id]
       );
 
@@ -205,6 +214,12 @@ const runDeadlineReminderPengajuan = async (conn, todayStr) => {
 };
 
 // Reminder deadline dokumen PPT & Laporan Akhir (H-3 / H-1) — push only, hanya yang belum upload
+//
+// PERUBAHAN: `dokumen` tidak lagi punya `mahasiswa_id`/`periode_id` langsung
+// (cuma `pengajuan_id`). Juga ditambah filter p.status = 'disetujui_kaprodi'
+// karena sesuai alur bisnis (lihat mahasiswaController.STATUS_BOLEH_LOGBOOK_DOKUMEN),
+// upload dokumen cuma boleh dilakukan mahasiswa yang pengajuannya sudah
+// disetujui kaprodi -- mahasiswa lain tidak relevan untuk reminder ini.
 const runDeadlineReminderDokumen = async (conn, todayStr) => {
   const jenisConfig = [
     { jenis: 'ppt', kolomDeadline: 'tanggal_selesai_ppt', label: 'PPT' },
@@ -233,13 +248,13 @@ const runDeadlineReminderDokumen = async (conn, todayStr) => {
         const [belumLengkap] = await conn.query(
           `SELECT m.id, m.user_id, m.nama
            FROM mahasiswa m
-           WHERE m.periode_id = ?
-             AND NOT EXISTS (
-               SELECT 1 FROM dokumen d
-               WHERE d.mahasiswa_id = m.id
-                 AND d.periode_id = m.periode_id
-                 AND d.jenis = ?
-             )`,
+           JOIN pengajuan p ON p.mahasiswa_id = m.id
+             AND p.periode_id = ? AND p.status = 'disetujui_kaprodi'
+           WHERE NOT EXISTS (
+             SELECT 1 FROM dokumen d
+             WHERE d.pengajuan_id = p.id
+               AND d.jenis = ?
+           )`,
           [periode.id, cfg.jenis]
         );
 
@@ -260,6 +275,11 @@ const runDeadlineReminderDokumen = async (conn, todayStr) => {
 };
 
 // Reminder harian jam 17:00 — push only, mahasiswa yang belum isi logbook hari ini
+//
+// PERUBAHAN: sama seperti di atas -- join lewat pengajuan, bukan
+// mahasiswa.periode_id / logbook.mahasiswa_id yang sudah tidak ada. Ditambah
+// filter p.status = 'disetujui_kaprodi' dengan alasan yang sama seperti reminder
+// dokumen (cuma mahasiswa dengan pengajuan disetujui yang boleh isi logbook).
 const runLogbookHarianReminder = async () => {
   const conn = await db.getConnection();
   try {
@@ -273,12 +293,12 @@ const runLogbookHarianReminder = async () => {
     const [mahasiswaBelumIsi] = await conn.query(
       `SELECT m.id, m.user_id, m.nama
        FROM mahasiswa m
-       JOIN periode p ON m.periode_id = p.id
-       WHERE p.form_logbook_buka = 1
+       JOIN pengajuan p ON p.mahasiswa_id = m.id AND p.status = 'disetujui_kaprodi'
+       JOIN periode per ON per.id = p.periode_id
+       WHERE per.form_logbook_buka = 1
          AND NOT EXISTS (
            SELECT 1 FROM logbook l
-           WHERE l.mahasiswa_id = m.id
-             AND l.periode_id = p.id
+           WHERE l.pengajuan_id = p.id
              AND l.tanggal = ?
          )`,
       [todayStr]

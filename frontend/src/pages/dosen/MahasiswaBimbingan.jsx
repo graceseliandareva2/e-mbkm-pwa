@@ -23,49 +23,28 @@ const getStatusBadge = (status) => {
 
 export default function DosenMahasiswaBimbingan() {
   const [mahasiswa, setMahasiswa]         = useState([])
-  const [periodeList, setPeriodeList]     = useState([])
-  const [selectedPeriode, setSelectedPeriode] = useState('')
   const [search, setSearch]               = useState('')
   const [loading, setLoading]             = useState(true)
   const [expanded, setExpanded]           = useState(null)
   const [showDetail, setShowDetail]       = useState(null)
 
-  const { periodeId: periodeIdFromStore } = usePeriodeFilter('dosen_pembimbing')
+  const {
+    periodeId: selectedPeriode,
+    periodeList,
+    loading: loadingPeriode,
+    setLocalPeriode,
+  } = usePeriodeFilter('dosen_pembimbing')
 
-  // 1) Ambil daftar periode sekali saat mount
+  // Kalau ternyata tidak ada periode, hentikan loading & kosongkan list
   useEffect(() => {
-    const fetchPeriode = async () => {
-      try {
-        const res = await api.get('/dosen/periode')
-        const list = res.data.data || res.data || []
-        setPeriodeList(list)
-        if (list.length === 0) {
-          setMahasiswa([])
-          setLoading(false)
-        }
-      } catch {
-        setPeriodeList([])
-        setMahasiswa([])
-        setLoading(false)
-      }
+    if (loadingPeriode) return
+    if (periodeList.length === 0) {
+      setMahasiswa([])
+      setLoading(false)
     }
-    fetchPeriode()
-  }, [])
+  }, [periodeList, loadingPeriode])
 
-  // 2) Sinkronisasi ke global store — tiap kali periodeIdFromStore atau periodeList berubah
-  useEffect(() => {
-    if (periodeIdFromStore) {
-      setSelectedPeriode(String(periodeIdFromStore))
-      return
-    }
-    if (periodeList.length > 0) {
-      const aktif = periodeList.find(p => p.is_active == 1)
-      const fallbackId = aktif?.id ?? periodeList[0]?.id ?? null
-      if (fallbackId) setSelectedPeriode(String(fallbackId))
-    }
-  }, [periodeIdFromStore, periodeList])
-
-  // 3) Fetch data mahasiswa tiap kali selectedPeriode berubah
+  // Fetch data mahasiswa tiap kali selectedPeriode berubah
   useEffect(() => {
     if (!selectedPeriode) return
     fetchMahasiswa(selectedPeriode)
@@ -117,7 +96,7 @@ export default function DosenMahasiswaBimbingan() {
         </div>
         <PeriodeDropdown
           value={selectedPeriode}
-          onChange={setSelectedPeriode}
+          onChange={(id) => setLocalPeriode(periodeList.find(p => String(p.id) === String(id)))}
           options={periodeList}
         />
       </div>

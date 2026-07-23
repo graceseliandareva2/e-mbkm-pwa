@@ -1,30 +1,26 @@
 const express = require('express');
 const router = express.Router();
 const { verifyToken, authorizeRoles } = require('../middleware/authMiddleware');
-const multer = require('multer');
-const path = require('path');
 const {
   getPeriode, tambahPeriode, updatePeriode, toggleForm,
-  importMahasiswa, importDosen,
-  tambahMahasiswa, tambahDosen, updateDosen,
-  assignDosen, getDaftarMahasiswa, getDaftarDosen,
+  // BARU: sumber dropdown assign dosen -- dosen yang ada di
+  // roster_dosen_mbkm untuk periode aktif, bukan seluruh master dosen.
+  getDosenRosterMBKM,
+   getDosenRosterPA, 
+  assignDosen,
   getVerifikasiPengajuan,
-  verifikasiPengajuan, hapusPengajuan, verifikasiDokumen, getMonitoringDokumen,
+  verifikasiPengajuan, hapusPengajuan, verifikasiDokumen, getMonitoringDokumen, getDetailMonitoring,
   getDashboardStats,
   getPengajuanDisetujui,
+  getRekapNilai,
 } = require('../controllers/kaprodiController');
-
-const uploadImport = multer({
-  dest: 'uploads/temp/',
-  fileFilter: (req, file, cb) => {
-    const ext = path.extname(file.originalname).toLowerCase();
-    if (['.xlsx', '.xls', '.csv'].includes(ext)) {
-      cb(null, true);
-    } else {
-      cb(new Error('Hanya file Excel atau CSV yang diperbolehkan!'));
-    }
-  }
-});
+// PERUBAHAN (item #6): getDaftarMahasiswa & getDaftarDosen sudah pindah ke
+// staffController.js (satu sumber data). Kaprodi tetap butuh baca daftar ini
+// buat assignDosen, jadi di-import langsung dari staffController -- bukan
+// diduplikasi query-nya di sini.
+const {
+  getDaftarMahasiswa, getDaftarDosen,
+} = require('../controllers/staffController');
 
 const auth = [verifyToken, authorizeRoles('kaprodi')];
 
@@ -35,22 +31,26 @@ router.post('/periode', auth, tambahPeriode);
 router.put('/periode/:id', auth, updatePeriode);
 router.patch('/periode/:id/toggle-form', auth, toggleForm);
 
-router.post('/import-mahasiswa', auth, uploadImport.single('file'), importMahasiswa);
-router.post('/import-dosen', auth, uploadImport.single('file'), importDosen);
+// BARU: daftar dosen di roster MBKM periode aktif -- sumber dropdown
+// assign-dosen (bukan getDaftarDosen yang berisi seluruh master dosen).
+router.get('/dosen-roster-mbkm', auth, getDosenRosterMBKM);
+router.get('/dosen-roster-pa',   auth, getDosenRosterPA);
+
+// PERUBAHAN (item #6): import-mahasiswa, import-dosen, dan seluruh CRUD
+// tulis mahasiswa/dosen (POST/PUT/DELETE/reset-password) sudah pindah ke
+// staffRoutes.js. Di sini cuma disisakan GET buat kebutuhan assignDosen.
 
 router.get('/mahasiswa', auth, getDaftarMahasiswa);
-router.post('/mahasiswa', auth, tambahMahasiswa);
-router.get('/mahasiswa', auth, getDaftarMahasiswa);
-router.post('/mahasiswa', auth, tambahMahasiswa);
+
 router.get('/pengajuan-disetujui', auth, getPengajuanDisetujui);
+router.get('/rekap-nilai', auth, getRekapNilai);
 
 router.get('/verifikasi-pengajuan', auth, getVerifikasiPengajuan);
 
 router.get('/dosen', auth, getDaftarDosen);
-router.post('/dosen', auth, tambahDosen);
-router.put('/dosen/:id', auth, updateDosen);
 
 router.get('/monitoring', auth, getMonitoringDokumen);
+router.get('/monitoring/:pengajuan_id', auth, getDetailMonitoring);
 router.post('/assign-dosen', auth, assignDosen);
 router.patch('/pengajuan/:id/verifikasi', auth, verifikasiPengajuan);
 router.patch('/dokumen/:id/verifikasi', auth, verifikasiDokumen);

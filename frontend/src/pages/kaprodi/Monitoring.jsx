@@ -1,46 +1,72 @@
-import { useEffect, useState, useCallback } from 'react'
-import { Search, BarChart3, CheckCircle, XCircle, Clock, FileText } from 'lucide-react'
+import { useEffect, useState, useCallback, useMemo } from 'react'
+import { Search, BarChart3, CheckCircle, XCircle, Clock, FileText, Eye, Award, GraduationCap, User, X, Download, ExternalLink } from 'lucide-react'
 import api from '../../utils/api'
 import toast from 'react-hot-toast'
-import usePeriodeStore from '../../store/periodeStore'
-
+import usePeriodeFilter from '../../hooks/usePeriodeFilter'
+import BuktiPreview, { FileBuktiPreview } from '../../components/common/BuktiPreview'
 const BASE_URL = ''
-const MIN_JAM = 48
 
 const STATUS_CONFIG = {
   diupload:          { label: 'Menunggu',      color: 'text-yellow-600', bg: 'bg-yellow-50',  border: 'border-yellow-200', icon: Clock },
   diajukan:          { label: 'Menunggu',      color: 'text-yellow-600', bg: 'bg-yellow-50',  border: 'border-yellow-200', icon: Clock },
   revisi_kaprodi:    { label: 'Revisi',        color: 'text-red-600',    bg: 'bg-red-50',     border: 'border-red-200',    icon: XCircle },
   disetujui_kaprodi: { label: 'Disetujui',     color: 'text-blue-600',   bg: 'bg-blue-50',    border: 'border-blue-200',   icon: Clock },
+  disetujui_dospem:  { label: 'Disetujui Dospem', color: 'text-blue-600', bg: 'bg-blue-50',   border: 'border-blue-200',   icon: Clock },
   revisi_dospem:     { label: 'Revisi Dospem', color: 'text-orange-600', bg: 'bg-orange-50',  border: 'border-orange-200', icon: XCircle },
   diverifikasi:      { label: 'Diverifikasi',  color: 'text-green-600',  bg: 'bg-green-50',   border: 'border-green-200',  icon: CheckCircle },
   revisi:            { label: 'Revisi',        color: 'text-red-600',    bg: 'bg-red-50',     border: 'border-red-200',    icon: XCircle },
   ditolak:           { label: 'Ditolak',       color: 'text-red-600',    bg: 'bg-red-50',     border: 'border-red-200',    icon: XCircle },
 }
 
+const STATUS_BADGE_MAP = {
+  diupload:          'bg-blue-100 text-blue-700',
+  diverifikasi:      'bg-green-100 text-green-700',
+  disetujui:         'bg-green-100 text-green-700',
+  disetujui_kaprodi: 'bg-green-100 text-green-700',
+  disetujui_dospem:  'bg-blue-100 text-blue-700',
+  revisi:            'bg-red-100 text-red-700',
+  revisi_kaprodi:    'bg-red-100 text-red-700',
+  revisi_dospem:     'bg-orange-100 text-orange-700',
+  ditolak:           'bg-red-100 text-red-700',
+}
+
+const STATUS_BADGE_LABEL = {
+  diupload:          'Diupload',
+  diverifikasi:      'Diverifikasi',
+  disetujui:         'Disetujui',
+  disetujui_kaprodi: 'Disetujui',
+  disetujui_dospem:  'Disetujui Dospem',
+  revisi:            'Revisi',
+  revisi_kaprodi:    'Revisi',
+  revisi_dospem:     'Revisi Dospem',
+  ditolak:           'Ditolak',
+}
+
 const StatusBadge = ({ status }) => {
-  const map = {
-    diupload:          'bg-blue-100 text-blue-700',
-    diverifikasi:      'bg-green-100 text-green-700',
-    disetujui:         'bg-green-100 text-green-700',
-    disetujui_kaprodi: 'bg-green-100 text-green-700',
-    revisi:            'bg-red-100 text-red-700',
-    revisi_kaprodi:    'bg-red-100 text-red-700',
-    ditolak:           'bg-red-100 text-red-700',
-  }
-  const label = {
-    diupload:          'Diupload',
-    diverifikasi:      'Diverifikasi',
-    disetujui:         'Disetujui',
-    disetujui_kaprodi: 'Disetujui',
-    revisi:            'Revisi',
-    revisi_kaprodi:    'Revisi',
-    ditolak:           'Ditolak',
-  }
   if (!status) return <span className="text-xs text-gray-300">Belum</span>
   return (
-    <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${map[status] || 'bg-gray-100 text-gray-600'}`}>
-      {label[status] || status}
+    <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${STATUS_BADGE_MAP[status] || 'bg-gray-100 text-gray-600'}`}>
+      {STATUS_BADGE_LABEL[status] || status}
+    </span>
+  )
+}
+
+// ─── NilaiBadge ─────────────────────────────────────────────────────────
+// Kolom "Nilai" di tabel Monitoring. `nilai_akhir` hanya terisi kalau
+// backend sudah JOIN ke tabel penilaian dengan syarat finalized_at IS NOT
+// NULL (lihat catatan di kaprodiController.js getMonitoringDokumen).
+const NilaiBadge = ({ nilai }) => {
+  if (nilai === null || nilai === undefined) {
+    return (
+      <span className="text-xs px-2 py-0.5 rounded-full font-medium bg-gray-100 text-gray-400">
+        Belum Final
+      </span>
+    )
+  }
+  return (
+    <span className="inline-flex items-center gap-1 text-xs px-2 py-0.5 rounded-full font-semibold bg-violet-50 text-violet-700 border border-violet-100">
+      <Award className="w-3 h-3" />
+      {nilai}
     </span>
   )
 }
@@ -53,7 +79,7 @@ const LaporanModal = ({ row, onClose, onRefresh }) => {
   const statusKey  = dok?.status || 'diupload'
   const cfg        = STATUS_CONFIG[statusKey] || STATUS_CONFIG.diupload
   const StatusIcon = cfg.icon
-  const canAksi    = ['diupload', 'diajukan'].includes(statusKey)
+  const canAksi    = statusKey === 'disetujui_dospem'
 
   const handleVerifikasi = async (status) => {
     setProcessing(true)
@@ -73,6 +99,9 @@ const LaporanModal = ({ row, onClose, onRefresh }) => {
     }
   }
 
+  // File disimpan di Cloudinary -- backend kirim `cloudinary_url` (secure_url).
+  const fileUrl = dok?.cloudinary_url
+
   return (
     <div className="fixed inset-0 bg-black/60 z-50 flex items-center justify-center p-4" onClick={onClose}>
       <div className="bg-white rounded-2xl w-full max-w-3xl shadow-2xl flex flex-col" style={{ height: '90vh' }} onClick={e => e.stopPropagation()}>
@@ -84,25 +113,25 @@ const LaporanModal = ({ row, onClose, onRefresh }) => {
               {cfg.label}
             </span>
           </div>
-          <button onClick={onClose} className="text-gray-400 hover:text-gray-600 text-xl font-bold ml-3 flex-shrink-0">✕</button>
+          <button onClick={onClose} className="text-gray-400 hover:text-gray-600 text-xl font-bold ml-3 flex-shrink-0">×</button>
         </div>
         <div className="flex-1 overflow-hidden">
-          <iframe src={dok.path_file?.startsWith('http') ? dok.path_file : `${BASE_URL}/${dok.path_file}`} className="w-full h-full" title={dok.nama_file} />
+          <FileBuktiPreview path={fileUrl} filename={dok?.nama_file} />
         </div>
-       {canAksi && (
-  <div className="px-5 py-4 border-t border-gray-100 space-y-3 flex-shrink-0">
-    <div>
-      <p className="text-xs font-semibold text-gray-600 mb-1.5 text-left">
-        Feedback <span className="font-normal text-gray-400">(opsional)</span>
-      </p>
-      <textarea
-        value={feedback}
-        onChange={e => setFeedback(e.target.value)}
-        rows={2}
-        placeholder="Tambahkan catatan untuk mahasiswa..."
-        className="w-full px-3 py-2 border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white resize-none"
-      />
-    </div>
+        {canAksi && (
+          <div className="px-5 py-4 border-t border-gray-100 space-y-3 flex-shrink-0">
+            <div>
+              <p className="text-xs font-semibold text-gray-600 mb-1.5 text-left">
+                Feedback <span className="font-normal text-gray-400">(opsional)</span>
+              </p>
+              <textarea
+                value={feedback}
+                onChange={e => setFeedback(e.target.value)}
+                rows={2}
+                placeholder="Tambahkan catatan untuk mahasiswa..."
+                className="w-full px-3 py-2 border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white resize-none"
+              />
+            </div>
             <div className="flex gap-2">
               <button onClick={() => handleVerifikasi('revisi_kaprodi')} disabled={processing}
                 className="flex-1 py-2.5 bg-red-50 hover:bg-red-100 text-red-600 rounded-xl text-sm font-semibold disabled:opacity-60 flex items-center justify-center gap-2 transition-colors">
@@ -117,30 +146,14 @@ const LaporanModal = ({ row, onClose, onRefresh }) => {
         )}
         {!canAksi && (
           <div className="px-5 py-3 border-t border-gray-100 flex-shrink-0">
-            {statusKey === 'revisi_kaprodi' && (
-              <div className="flex items-center gap-2 text-red-600 bg-red-50 border border-red-100 rounded-xl px-3 py-2">
-                <XCircle className="w-4 h-4 flex-shrink-0" />
-                <p className="text-sm font-medium">Menunggu revisi dari mahasiswa</p>
-              </div>
-            )}
-            {statusKey === 'disetujui_kaprodi' && (
-              <div className="flex items-center gap-2 text-blue-600 bg-blue-50 border border-blue-100 rounded-xl px-3 py-2">
-                <Clock className="w-4 h-4 flex-shrink-0" />
-                <p className="text-sm font-medium">Sudah disetujui, menunggu verifikasi Dosen Pembimbing</p>
-              </div>
-            )}
-            {statusKey === 'revisi_dospem' && (
-              <div className="flex items-center gap-2 text-orange-600 bg-orange-50 border border-orange-100 rounded-xl px-3 py-2">
-                <XCircle className="w-4 h-4 flex-shrink-0" />
-                <p className="text-sm font-medium">Dosen Pembimbing meminta revisi dari mahasiswa</p>
-              </div>
-            )}
-            {statusKey === 'diverifikasi' && (
-              <div className="flex items-center gap-2 text-green-600 bg-green-50 border border-green-100 rounded-xl px-3 py-2">
-                <CheckCircle className="w-4 h-4 flex-shrink-0" />
-                <p className="text-sm font-medium">Laporan akhir telah diverifikasi oleh Dosen Pembimbing</p>
-              </div>
-            )}
+            <div className={`flex items-center gap-2 px-3 py-2 rounded-xl border ${cfg.color} ${cfg.bg} ${cfg.border}`}>
+              <StatusIcon className="w-4 h-4 flex-shrink-0" />
+              <p className="text-sm font-medium">
+                {statusKey === 'diverifikasi'
+                  ? 'Laporan akhir telah diverifikasi'
+                  : 'Menunggu persetujuan Dosen Pembimbing'}
+              </p>
+            </div>
           </div>
         )}
       </div>
@@ -151,9 +164,7 @@ const LaporanModal = ({ row, onClose, onRefresh }) => {
 const PptCell = ({ doc }) => {
   const [preview, setPreview] = useState(false)
   if (!doc) return <span className="text-xs text-gray-300">Belum</span>
-  const fileUrl = doc.path_file?.startsWith('http')
-    ? doc.path_file
-    : `${BASE_URL}/${doc.path_file}`
+  const fileUrl = doc.cloudinary_url
   return (
     <>
       <button onClick={() => setPreview(true)}
@@ -168,10 +179,10 @@ const PptCell = ({ doc }) => {
           <div className="bg-white rounded-2xl w-full max-w-3xl shadow-2xl flex flex-col" style={{ height: '90vh' }} onClick={e => e.stopPropagation()}>
             <div className="flex items-center justify-between px-5 py-3 border-b flex-shrink-0">
               <p className="font-bold text-gray-800 text-sm">{doc.nama_file}</p>
-              <button onClick={() => setPreview(false)} className="text-gray-400 hover:text-gray-600 text-xl font-bold">✕</button>
+              <button onClick={() => setPreview(false)} className="text-gray-400 hover:text-gray-600 text-xl font-bold">×</button>
             </div>
             <div className="flex-1 overflow-hidden rounded-b-2xl">
-              <iframe src={fileUrl} className="w-full h-full" title="Preview PPT" />
+              <FileBuktiPreview path={fileUrl} filename={doc.nama_file} />
             </div>
           </div>
         </div>
@@ -180,52 +191,255 @@ const PptCell = ({ doc }) => {
   )
 }
 
+const LAPORAN_COLOR_MAP = {
+  diupload:          'bg-blue-50 hover:bg-blue-100 text-blue-600',
+  diajukan:          'bg-yellow-50 hover:bg-yellow-100 text-yellow-600',
+  revisi_kaprodi:    'bg-red-50 hover:bg-red-100 text-red-600',
+  revisi:            'bg-red-50 hover:bg-red-100 text-red-600',
+  disetujui_kaprodi: 'bg-green-50 hover:bg-green-100 text-green-600',
+  diverifikasi:      'bg-green-50 hover:bg-green-100 text-green-600',
+  revisi_dospem:     'bg-orange-50 hover:bg-orange-100 text-orange-600',
+  ditolak:           'bg-red-50 hover:bg-red-100 text-red-600',
+}
+
+const LAPORAN_LABEL_MAP = {
+  diupload:          'Laporan',
+  diajukan:          'Menunggu',
+  revisi_kaprodi:    'Revisi',
+  revisi:            'Revisi',
+  disetujui_kaprodi: 'Disetujui',
+  diverifikasi:      'Diverifikasi',
+  revisi_dospem:     'Revisi Dospem',
+  ditolak:           'Ditolak',
+}
+
 const LaporanCell = ({ doc, row, onRefresh }) => {
   const [open, setOpen] = useState(false)
   if (!doc) return <span className="text-xs text-gray-300">Belum</span>
   const statusKey = doc.status || 'diupload'
-  const colorMap = {
-    diupload:          'bg-blue-50 hover:bg-blue-100 text-blue-600',
-    diajukan:          'bg-yellow-50 hover:bg-yellow-100 text-yellow-600',
-    revisi_kaprodi:    'bg-red-50 hover:bg-red-100 text-red-600',
-    revisi:            'bg-red-50 hover:bg-red-100 text-red-600',
-    disetujui_kaprodi: 'bg-green-50 hover:bg-green-100 text-green-600',
-    diverifikasi:      'bg-green-50 hover:bg-green-100 text-green-600',
-    revisi_dospem:     'bg-orange-50 hover:bg-orange-100 text-orange-600',
-    ditolak:           'bg-red-50 hover:bg-red-100 text-red-600',
-  }
-  const labelMap = {
-    diupload:          'Laporan',
-    diajukan:          'Menunggu',
-    revisi_kaprodi:    'Revisi',
-    revisi:            'Revisi',
-    disetujui_kaprodi: 'Disetujui',
-    diverifikasi:      'Diverifikasi',
-    revisi_dospem:     'Revisi Dospem',
-    ditolak:           'Ditolak',
-  }
   return (
     <>
       <button onClick={() => setOpen(true)}
-        className={`flex items-center justify-center gap-1.5 px-2.5 py-1.5 rounded-lg transition-colors mx-auto ${colorMap[statusKey] || 'bg-gray-50 hover:bg-gray-100 text-gray-600'}`}>
+        className={`flex items-center justify-center gap-1.5 px-2.5 py-1.5 rounded-lg transition-colors mx-auto ${LAPORAN_COLOR_MAP[statusKey] || 'bg-gray-50 hover:bg-gray-100 text-gray-600'}`}>
         <FileText className="w-3.5 h-3.5 flex-shrink-0" />
-        <span className="text-xs font-semibold">{labelMap[statusKey] || 'Laporan'}</span>
+        <span className="text-xs font-semibold">{LAPORAN_LABEL_MAP[statusKey] || 'Laporan'}</span>
       </button>
       {open && <LaporanModal row={row} onClose={() => setOpen(false)} onRefresh={onRefresh} />}
     </>
   )
 }
 
+// ─── DetailMahasiswaModal ──────────────────────────────────────────────
+// Dibuka lewat tombol "Lihat" di tabel. Menampilkan info lengkap 1 mahasiswa:
+// info dasar, progress, logbook khusus mahasiswa ini (paginated), dokumen
+// (PPT view-only, Laporan Akhir dengan gate verifikasi sesuai status dospem),
+// dan nilai akhir (angka saja). Tidak mengubah tabel/popup yang sudah ada.
+
+const LOGBOOK_PAGE_SIZE = 8
+
+const LogbookBuktiCell = ({ log }) => {
+  const [open, setOpen] = useState(false)
+
+  if (!log.bukti_link) {
+    return <span className="text-xs text-gray-300">-</span>
+  }
+
+  const isUploadedFile = !!log.cloudinary_public_id
+
+  return (
+    <>
+      <button
+        onClick={() => setOpen(true)}
+        className="inline-flex items-center gap-1 px-2 py-1 bg-blue-50 hover:bg-blue-100 text-blue-600 rounded-lg text-xs font-semibold"
+      >
+        <Eye className="w-3.5 h-3.5" />
+        Lihat
+      </button>
+
+      {open && (
+        <div className="fixed inset-0 bg-black/60 z-[60] flex items-center justify-center p-4" onClick={() => setOpen(false)}>
+          <div className="bg-white rounded-2xl w-full max-w-2xl shadow-2xl flex flex-col" style={{ height: '80vh' }} onClick={(e) => e.stopPropagation()}>
+            <div className="flex items-center justify-between px-4 py-3 border-b flex-shrink-0">
+              <p className="font-bold text-gray-800 text-sm truncate">Bukti — {log.kegiatan}</p>
+              <button onClick={() => setOpen(false)} className="text-gray-400 hover:text-gray-600 text-xl font-bold">×</button>
+            </div>
+            <div className="flex-1 overflow-hidden rounded-b-2xl">
+              <BuktiPreview
+                path={isUploadedFile ? log.bukti_link : null}
+                link={!isUploadedFile ? log.bukti_link : null}
+                filename={log.kegiatan}
+              />
+            </div>
+          </div>
+        </div>
+      )}
+    </>
+  )
+}
+
+const DetailMahasiswaModal = ({ row, onClose }) => {
+  const [detail, setDetail]   = useState(null)
+  const [loading, setLoading] = useState(true)
+  const [logPage, setLogPage] = useState(1)
+
+  const fetchDetail = useCallback(async () => {
+    setLoading(true)
+    try {
+      const res = await api.get(`/kaprodi/monitoring/${row.pengajuan_id}`)
+      setDetail(res.data.data)
+    } catch {
+      toast.error('Gagal memuat detail mahasiswa!')
+    } finally {
+      setLoading(false)
+    }
+  }, [row.pengajuan_id])
+
+  useEffect(() => { fetchDetail() }, [fetchDetail])
+
+  const logbook = detail?.logbook || []
+
+  const logTotalPages = useMemo(
+    () => Math.ceil(logbook.length / LOGBOOK_PAGE_SIZE),
+    [logbook.length]
+  )
+
+  const logPaginated = useMemo(
+    () => logbook.slice((logPage - 1) * LOGBOOK_PAGE_SIZE, logPage * LOGBOOK_PAGE_SIZE),
+    [logbook, logPage]
+  )
+
+  return (
+    <div className="fixed inset-0 bg-black/60 z-50 flex items-center justify-center p-4" onClick={onClose}>
+      <div className="bg-white rounded-2xl w-full max-w-4xl shadow-2xl flex flex-col max-h-[90vh]" onClick={e => e.stopPropagation()}>
+        <div className="flex items-center justify-between px-5 py-4 border-b flex-shrink-0">
+          <div>
+            <h2 className="font-bold text-gray-800">{row.nama}</h2>
+            <p className="text-xs text-gray-400 font-mono">{row.nim}</p>
+          </div>
+          <button onClick={onClose} className="p-1.5 text-gray-400 hover:text-gray-600 hover:bg-gray-100 rounded-lg">
+            <X className="w-5 h-5" />
+          </button>
+        </div>
+
+        <div className="flex-1 overflow-y-auto">
+          {loading || !detail ? (
+            <div className="flex items-center justify-center h-64">
+              <div className="w-8 h-8 border-4 border-blue-600 border-t-transparent rounded-full animate-spin" />
+            </div>
+          ) : (
+            <div className="p-5 space-y-6">
+
+              {/* Informasi Mahasiswa */}
+              <div>
+                <h3 className="text-sm font-bold text-gray-700 mb-3">Informasi Mahasiswa</h3>
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                  {[
+                    { icon: User, label: 'NIM', value: detail.nim },
+                    { icon: User, label: 'Nama', value: detail.nama },
+                    { icon: GraduationCap, label: 'Program MBKM', value: detail.program_mbkm || '-' },
+                    { icon: User, label: 'Dosen Pembimbing', value: detail.dosen_pembimbing || 'Belum ditentukan' },
+                    { icon: Clock, label: 'Status MBKM', value: <StatusBadge status={detail.status_pengajuan} /> },
+                  ].map((f, i) => (
+                    <div key={i} className="bg-gray-50 border border-gray-100 rounded-xl px-3.5 py-2.5">
+                      <p className="text-xs text-gray-400 mb-0.5">{f.label}</p>
+                      <div className="text-sm font-medium text-gray-800">{f.value}</div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+
+              {/* Logbook -- khusus mahasiswa ini, paginated */}
+              <div>
+                <h3 className="text-sm font-bold text-gray-700 mb-1">Logbook</h3>
+                <p className="text-xs text-gray-400 mb-3">{detail.nim} - {detail.nama} · {detail.jumlah_logbook} Entri Logbook</p>
+                {logbook.length === 0 ? (
+                  <p className="text-sm text-gray-400 italic">Belum ada entri logbook.</p>
+                ) : (
+                  <>
+                    <div className="border border-gray-100 rounded-xl overflow-hidden">
+                      <table className="w-full text-sm">
+                        <thead>
+                          <tr className="bg-gray-50">
+                            <th className="text-left px-3 py-2 text-xs font-semibold text-gray-500 uppercase">Tanggal</th>
+                            <th className="text-left px-3 py-2 text-xs font-semibold text-gray-500 uppercase">Jam</th>
+                            <th className="text-left px-3 py-2 text-xs font-semibold text-gray-500 uppercase">Kegiatan</th>
+                            <th className="text-left px-3 py-2 text-xs font-semibold text-gray-500 uppercase">Durasi</th>
+                            <th className="text-center px-3 py-2 text-xs font-semibold text-gray-500 uppercase">Bukti</th>
+                          </tr>
+                        </thead>
+                        <tbody className="divide-y divide-gray-100">
+                          {logPaginated.map(l => (
+                            <tr key={l.id}>
+                              <td className="px-3 py-2 text-gray-600 whitespace-nowrap">
+                                {new Date(l.tanggal).toLocaleDateString('id-ID')}
+                              </td>
+                              <td className="px-3 py-2 text-gray-500 whitespace-nowrap">
+                                {l.jam_mulai?.slice(0, 5)}–{l.jam_selesai?.slice(0, 5)}
+                              </td>
+                              <td className="px-3 py-2 text-gray-800">
+                                <div className="flex items-center gap-1.5 flex-wrap">
+                                  <span>{l.kegiatan}</span>
+                                  {l.nama_pelatihan && (
+                                    <span className="text-xs bg-blue-50 text-blue-600 px-2 py-0.5 rounded-full font-medium">
+                                      {l.nama_pelatihan}
+                                    </span>
+                                  )}
+                                </div>
+                              </td>
+                              <td className="px-3 py-2 text-gray-500 whitespace-nowrap">
+                                {l.durasi_menit != null ? `${Math.round(l.durasi_menit)} menit` : '-'}
+                              </td>
+                              <td className="px-3 py-2 text-center">
+                                <LogbookBuktiCell log={l} />
+                              </td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
+                    {logTotalPages > 1 && (
+                      <div className="flex items-center justify-between mt-2">
+                        <span className="text-xs text-gray-400">
+                          Halaman {logPage} dari {logTotalPages}
+                        </span>
+                        <div className="flex gap-1">
+                          <button onClick={() => setLogPage(p => Math.max(1, p - 1))} disabled={logPage === 1}
+                            className="px-2.5 py-1 text-xs rounded-lg border border-gray-200 text-gray-600 hover:bg-gray-50 disabled:opacity-40 disabled:cursor-not-allowed">
+                            ‹ Prev
+                          </button>
+                          <button onClick={() => setLogPage(p => Math.min(logTotalPages, p + 1))} disabled={logPage === logTotalPages}
+                            className="px-2.5 py-1 text-xs rounded-lg border border-gray-200 text-gray-600 hover:bg-gray-50 disabled:opacity-40 disabled:cursor-not-allowed">
+                            Next ›
+                          </button>
+                        </div>
+                      </div>
+                    )}
+                  </>
+                )}
+              </div>
+
+            </div>
+          )}
+        </div>
+      </div>
+    </div>
+  )
+}
+
 export default function KaprodiMonitoring() {
   const [data, setData]                       = useState([])
-  const [periode, setPeriode]                 = useState([])
-  const [selectedPeriode, setSelectedPeriode] = useState('')
-  const [search, setSearch]                   = useState('')
+  const [search, setSearch] = useState('')
+  const [filterStatus, setFilterStatus] = useState('')
   const [loading, setLoading]                 = useState(true)
   const [currentPage, setCurrentPage]         = useState(1)
+  const [selectedRow, setSelectedRow]         = useState(null)
   const PAGE_SIZE = 10
 
-  const { selectedPeriodeKaprodi } = usePeriodeStore()
+  const {
+    periodeId: selectedPeriode,
+    periodeList: periode,
+    setLocalPeriode,
+  } = usePeriodeFilter('kaprodi')
 
   const fetchMonitoring = useCallback(async () => {
     if (!selectedPeriode) return
@@ -240,46 +454,42 @@ export default function KaprodiMonitoring() {
     }
   }, [selectedPeriode])
 
-  useEffect(() => { fetchPeriode() }, [])
   useEffect(() => { if (selectedPeriode) fetchMonitoring() }, [selectedPeriode, fetchMonitoring])
 
-  useEffect(() => {
-    if (selectedPeriodeKaprodi && periode.some(p => p.id === selectedPeriodeKaprodi.id)) {
-      setSelectedPeriode(selectedPeriodeKaprodi.id)
-    }
-  }, [selectedPeriodeKaprodi])
+  // Filter dihitung ulang cuma kalau data/search/filterStatus berubah,
+  // bukan tiap render (mis. saat modal detail buka/tutup).
+  const filtered = useMemo(() => {
+    const q = search.toLowerCase()
+    return data.filter(m => {
+      const cocokSearch = m.nama?.toLowerCase().includes(q) || m.nim?.toLowerCase().includes(q)
+      const cocokStatus = !filterStatus || m.status_pengajuan === filterStatus
+      return cocokSearch && cocokStatus
+    })
+  }, [data, search, filterStatus])
 
-  const fetchPeriode = async () => {
-    try {
-      const res = await api.get('/kaprodi/periode')
-      const periodeData = res.data.data || []
-      setPeriode(periodeData)
-      const dariProfile = selectedPeriodeKaprodi && periodeData.find(p => p.id === selectedPeriodeKaprodi.id)
-      const aktif = periodeData.find(p => p.is_active)
-      const defaultPeriode = dariProfile || aktif || periodeData[0]
-      if (defaultPeriode) setSelectedPeriode(defaultPeriode.id)
-    } catch {
-      toast.error('Gagal memuat periode!')
-    }
-  }
+  const totalPages = useMemo(() => Math.ceil(filtered.length / PAGE_SIZE), [filtered.length])
 
-  const filtered = data.filter(m =>
-    m.nama?.toLowerCase().includes(search.toLowerCase()) ||
-    m.nim?.toLowerCase().includes(search.toLowerCase())
+  const paginated = useMemo(
+    () => filtered.slice((currentPage - 1) * PAGE_SIZE, currentPage * PAGE_SIZE),
+    [filtered, currentPage]
   )
-  const totalPages = Math.ceil(filtered.length / PAGE_SIZE)
-  const paginated  = filtered.slice((currentPage - 1) * PAGE_SIZE, currentPage * PAGE_SIZE)
 
-  const stats = {
+  const periodeAktif = useMemo(
+    () => periode.find(p => p.id === selectedPeriode),
+    [periode, selectedPeriode]
+  )
+  const minJam = periodeAktif?.min_jam_pengajuan || 48 // fallback 48 kalau belum ada datanya
+
+  const stats = useMemo(() => ({
     total:           data.length,
-    laporan_selesai: data.filter(m => m.dokumen_laporan !== null).length,
+    laporan_selesai: data.filter(m => m.dokumen_laporan?.status === 'diverifikasi').length,
     ppt_selesai:     data.filter(m => m.dokumen_ppt !== null).length,
     lengkap:         data.filter(m =>
-      (m.total_jam_terverifikasi || 0) >= MIN_JAM &&
-      m.dokumen_laporan !== null &&
+      (m.total_jam_terverifikasi || 0) >= minJam &&
+      m.dokumen_laporan?.status === 'diverifikasi' &&
       m.dokumen_ppt !== null
     ).length,
-  }
+  }), [data, minJam])
 
   return (
     <div className="space-y-5">
@@ -311,11 +521,22 @@ export default function KaprodiMonitoring() {
             placeholder="Cari nama atau NIM..."
             className="w-full pl-9 pr-4 py-2 border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 bg-gray-50" />
         </div>
-        <select value={selectedPeriode} onChange={e => { setSelectedPeriode(e.target.value); setCurrentPage(1) }}
+        <select value={selectedPeriode} onChange={e => {
+          setLocalPeriode(periode.find(p => String(p.id) === String(e.target.value)))
+          setCurrentPage(1)
+        }}
           className="px-3 py-2 border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 bg-gray-50">
           {periode.map(p => (
             <option key={p.id} value={p.id}>{p.nama_periode}</option>
           ))}
+        </select>
+        <select value={filterStatus} onChange={e => { setFilterStatus(e.target.value); setCurrentPage(1) }}
+          className="px-3 py-2 border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 bg-gray-50">
+          <option value="">Semua Status</option>
+          <option value="diajukan">Menunggu</option>
+          <option value="disetujui_kaprodi">Disetujui</option>
+          <option value="revisi">Revisi</option>
+          <option value="ditolak">Ditolak</option>
         </select>
       </div>
 
@@ -335,20 +556,22 @@ export default function KaprodiMonitoring() {
                 <th className="text-center px-6 py-3 text-xs font-semibold text-gray-500 uppercase">Logbook</th>
                 <th className="text-center px-6 py-3 text-xs font-semibold text-gray-500 uppercase">Laporan</th>
                 <th className="text-center px-6 py-3 text-xs font-semibold text-gray-500 uppercase">PPT</th>
+                <th className="text-center px-6 py-3 text-xs font-semibold text-gray-500 uppercase">Nilai</th>
+                <th className="text-center px-6 py-3 text-xs font-semibold text-gray-500 uppercase">Aksi</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-gray-100">
               {loading ? (
-                <tr><td colSpan={7} className="text-center py-12">
+                <tr><td colSpan={9} className="text-center py-12">
                   <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-blue-600 mx-auto" />
                 </td></tr>
               ) : filtered.length === 0 ? (
-                <tr><td colSpan={7} className="text-center py-12 text-gray-400 text-sm">
+                <tr><td colSpan={9} className="text-center py-12 text-gray-400 text-sm">
                   <BarChart3 className="w-10 h-10 mx-auto mb-2 text-gray-200" />
                   Belum ada data
                 </td></tr>
               ) : paginated.map((m, i) => (
-                <tr key={i} className="hover:bg-gray-50 transition-colors">
+                <tr key={m.pengajuan_id || i} className="hover:bg-gray-50 transition-colors">
                   <td className="px-6 py-4 text-sm text-gray-500">{(currentPage - 1) * PAGE_SIZE + i + 1}</td>
                   <td className="px-6 py-4 text-sm font-mono text-gray-700">{m.nim}</td>
                   <td className="px-6 py-4 text-sm font-medium text-gray-800">{m.nama}</td>
@@ -362,6 +585,15 @@ export default function KaprodiMonitoring() {
                   </td>
                   <td className="px-6 py-4 text-center">
                     <PptCell doc={m.dokumen_ppt} />
+                  </td>
+                  <td className="px-6 py-4 text-center">
+                    <NilaiBadge nilai={m.nilai_akhir} />
+                  </td>
+                  <td className="px-6 py-4 text-center">
+                    <button onClick={() => setSelectedRow(m)}
+                      className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-blue-50 hover:bg-blue-100 text-blue-600 rounded-lg text-xs font-semibold transition-colors">
+                      <Eye className="w-3.5 h-3.5" /> Lihat
+                    </button>
                   </td>
                 </tr>
               ))}
@@ -418,6 +650,10 @@ export default function KaprodiMonitoring() {
             })()}
           </div>
         </div>
+      )}
+
+      {selectedRow && (
+        <DetailMahasiswaModal row={selectedRow} onClose={() => setSelectedRow(null)} />
       )}
     </div>
   )

@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react'
 import { Users, BookOpen, FileText, Clock, Upload } from 'lucide-react'
 import api from '../../utils/api'
 import { useNavigate } from 'react-router-dom'
-import usePeriodeStore from '../../store/periodeStore'
+import usePeriodeFilter from '../../hooks/usePeriodeFilter'
 
 const formatWaktu = (date) => {
   const d = new Date(date)
@@ -24,9 +24,8 @@ export default function DosenDashboard() {
   const [loading, setLoading] = useState(true)
   const navigate = useNavigate()
 
-  // ─── ambil periode yang dipilih dosen dari store ───
-  const selectedPeriode = usePeriodeStore((s) => s.selectedPeriode)
-  const periodeId = selectedPeriode?.id ?? null
+  // ─── ambil periode dari sumber tunggal (global, auto-init kalau kosong) ───
+  const { periodeId, activePeriode: selectedPeriode } = usePeriodeFilter('dosen_pembimbing')
 
   // re-fetch setiap kali periode berubah
   useEffect(() => { fetchData() }, [periodeId])

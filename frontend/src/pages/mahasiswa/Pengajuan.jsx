@@ -5,11 +5,12 @@ import api from '../../utils/api'
 import toast from 'react-hot-toast'
 import { saveToQueue } from '../../utils/offlineQueue'
 import { useSyncOnline } from '../../utils/useSyncOnline'
-import { getCache, setCache } from '../../utils/offlineCache'   // ← BARU
-import useAuthStore from '../../store/authStore'                // ← BARU: ambil data akun mahasiswa yang login
+import { getCache, setCache } from '../../utils/offlineCache'
+import useAuthStore from '../../store/authStore'
 
 // ─────────────────────────── constants ───────────────────────────
-const CACHE_KEY = 'pengajuan'   
+const CACHE_KEY = 'pengajuan'
+const DEFAULT_MIN_JAM = 48   // fallback kalau periode aktif belum sempat di-fetch
 
 const STATUS_CONFIG = {
   menunggu:          { label: 'Menunggu Review',  color: 'text-yellow-600', bg: 'bg-yellow-50',  border: 'border-yellow-200', icon: Clock },
@@ -56,13 +57,30 @@ const getPelatihanArray = (pelatihan) => {
   } catch { return [] }
 }
 
-// ⬇️ BARU: email, nim, nama_lengkap SELALU diambil dari data akun mahasiswa yang login (user),
-// tidak lagi dari data pengajuan/respon server, karena field ini sudah tidak bisa diubah manual.
+const toDateInputValue = (val) => (val ? String(val).slice(0, 10) : '')
+
+// PERUBAHAN BESAR: email, nim, nama_lengkap sekarang SELALU dari data
+// pengajuan yang di-fetch dari server (backend sudah otomatis join & kirim
+// field ini) -- fallback ke `user` (authStore) cuma dipakai SEBELUM pengajuan
+// pertama pernah dibuat (karena endpoint getPengajuan 404 kalau belum ada
+// pengajuan sama sekali, jadi belum ada data buat ditampilkan).
+// judul, penyelenggara, waktu_studi_independen, lokasi, tanggal_mulai/selesai
+// adalah field yang wajib/opsional diisi mahasiswa sendiri.
+//
+// PERUBAHAN (fitur Dosen PA): `dosen_pembimbing_akademik` (nama, dari join
+// backend) tetap disimpan buat ditampilkan di mode view/readonly.
+// Ditambah `dosen_pembimbing_akademik_id` -- ini yang dikirim ke backend saat
+// submit, dipilih lewat dropdown dari endpoint GET /mahasiswa/dosen-pa.
 const mapResponseToForm = (data, user) => ({
-  email: user?.email || data?.email || '',
-  nim: user?.nim || data?.nim || '',
-  nama_lengkap: user?.nama || data?.nama_lengkap || '',
+  email: data?.email || user?.email || '',
+  nim: data?.nim || user?.nim || '',
+  nama_lengkap: data?.nama_lengkap || user?.nama || '',
   dosen_pembimbing_akademik: data?.dosen_pembimbing_akademik || '',
+  dosen_pembimbing_akademik_id: data?.dosen_pembimbing_akademik_id || '',
+  judul: data?.judul || '',
+  penyelenggara: data?.penyelenggara || '',
+  tanggal_mulai: toDateInputValue(data?.tanggal_mulai),
+  tanggal_selesai: toDateInputValue(data?.tanggal_selesai),
   pelatihan: (() => {
     const pel = getPelatihanArray(data?.pelatihan)
     return pel.length ? pel : [{ nama: '', link: '', durasi_jam: '' }]
@@ -71,7 +89,7 @@ const mapResponseToForm = (data, user) => ({
 
 // ─────────────────────────── component ───────────────────────────
 export default function MahasiswaPengajuan() {
-  const { user } = useAuthStore()   // ← BARU: data akun mahasiswa yang login (nama, email, nim, dll)
+  const { user } = useAuthStore()
 
   const [pengajuan, setPengajuan]   = useState(null)
   const [loading, setLoading]       = useState(true)
@@ -79,17 +97,36 @@ export default function MahasiswaPengajuan() {
   const [showDetail, setShowDetail] = useState(false)
   const [isEdit, setIsEdit]         = useState(false)
   const [form, setForm]             = useState(() => mapResponseToForm(null, user))
-  const [linkErrors, setLinkErrors] = useState({})   // ← BARU: { idx: true/false }
+  const [linkErrors, setLinkErrors] = useState({})
+  const [minJam, setMinJam]         = useState(DEFAULT_MIN_JAM)   // dinamis per periode
+  const [dosenPAList, setDosenPAList] = useState([])              // ← BARU: daftar Dosen PA buat dropdown
 
   // ── Load cache dulu sebelum fetch ──────────────────────────────
   useEffect(() => {
-    const cached = getCache(CACHE_KEY)      // ← BARU
+    const cached = getCache(CACHE_KEY)
     if (cached?.id) {
       setPengajuan(cached)
       setForm(mapResponseToForm(cached, user))
-      setLoading(false)   // tampilkan langsung dari cache, jangan spinner dulu
+      setLoading(false)
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
+
+  // ── Ambil min_jam_pengajuan dari periode aktif (buat form sebelum pengajuan ada) ──
+  useEffect(() => {
+    api.get('/mahasiswa/periode-aktif')
+      .then(res => {
+        const aktif = res.data?.data?.[0]
+        if (aktif?.min_jam_pengajuan) setMinJam(aktif.min_jam_pengajuan)
+      })
+      .catch(() => {})
+  }, [])
+
+  // ── Ambil daftar Dosen PA buat dropdown ────────────────────────
+  useEffect(() => {
+    api.get('/mahasiswa/dosen-pa')
+      .then(res => setDosenPAList(res.data?.data || []))
+      .catch(() => {})
   }, [])
 
   // ── Fetch dari server ──────────────────────────────────────────
@@ -99,14 +136,14 @@ export default function MahasiswaPengajuan() {
       if (res.data?.id) {
         setPengajuan(res.data)
         setForm(mapResponseToForm(res.data, user))
-        setCache(CACHE_KEY, res.data)        // ← BARU: simpan ke cache
+        setCache(CACHE_KEY, res.data)
+        if (res.data?.min_jam_pengajuan) setMinJam(res.data.min_jam_pengajuan)
       }
     } catch {
-      // Saat offline, tetap pakai state yang sudah diisi dari cache di atas
+      // Saat offline atau belum ada pengajuan, tetap pakai state yang sudah ada
     } finally {
       setLoading(false)
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [user])
 
   useEffect(() => { fetchPengajuan() }, [fetchPengajuan])
@@ -142,16 +179,16 @@ export default function MahasiswaPengajuan() {
   }
 
   // ── Validasi ──────────────────────────────────────────────────
+  // PERUBAHAN: validasi email/nim/nama_lengkap DIHAPUS (field itu readonly,
+  // bukan diisi manual). dosen_pembimbing_akademik_id TETAP OPSIONAL sesuai
+  // backend, jadi tidak divalidasi di sini.
   const validate = () => {
-    const emailRegex = /^[a-zA-Z0-9._%+-]+@itbss\.ac\.id$/
-    if (!emailRegex.test(form.email))
-      return 'Email harus menggunakan email kampus (@itbss.ac.id)'
-    if (!form.nim.trim())           return 'NIM wajib diisi'
-    if (!form.nama_lengkap.trim())  return 'Nama lengkap wajib diisi'
-    if (!form.dosen_pembimbing_akademik.trim()) return 'Dosen pembimbing akademik wajib diisi'
+    if (!form.judul.trim())                    return 'Judul Capstone Project wajib diisi'
+    if (!form.penyelenggara.trim())            return 'Penyelenggara wajib diisi'
+
     const totalJam = form.pelatihan.reduce((sum, p) => sum + (Number(p.durasi_jam) || 0), 0)
-    if (totalJam < 48)
-      return `Total waktu pembelajaran harus minimal 48 jam (saat ini ${totalJam} jam)`
+    if (totalJam < minJam)
+      return `Total waktu pembelajaran harus minimal ${minJam} jam (saat ini ${totalJam} jam)`
     const pelatihan1 = form.pelatihan[0]
     if (!pelatihan1?.nama?.trim() || !pelatihan1?.link?.trim() || !pelatihan1?.durasi_jam)
       return 'Pelatihan pertama (nama, link, dan durasi) wajib diisi'
@@ -173,11 +210,28 @@ export default function MahasiswaPengajuan() {
     return null
   }
 
+  // ── Payload ke server ──────────────────────────────────────────
+  // PERUBAHAN: hanya kirim field yang memang diterima kontrak baru. Field
+  // identitas (email/nim/nama_lengkap) TIDAK dikirim sama sekali karena itu
+  // bukan bagian dari body create/update lagi.
+  // dosen_pembimbing_akademik_id DITAMBAHKAN (opsional, boleh null) supaya
+  // backend bisa update mahasiswa.dosen_pembimbing_akademik_id.
+  const buildPayload = () => ({
+    judul: form.judul,
+    penyelenggara: form.penyelenggara,
+    pelatihan: form.pelatihan,
+    tanggal_mulai: form.tanggal_mulai || null,
+    tanggal_selesai: form.tanggal_selesai || null,
+    dosen_pembimbing_akademik_id: form.dosen_pembimbing_akademik_id || null,
+  })
+
   // ── Submit ────────────────────────────────────────────────────
   const handleSubmit = async (e) => {
     e.preventDefault()
     const err = validate()
     if (err) return toast.error(err)
+
+    const payload = buildPayload()
 
     // Offline path
     if (!navigator.onLine) {
@@ -187,7 +241,7 @@ export default function MahasiswaPengajuan() {
           url: pengajuan && isEdit
             ? `/mahasiswa/pengajuan/${pengajuan.id}`
             : '/mahasiswa/pengajuan',
-          data: form,
+          data: payload,
         })
         toast.success('Offline! Pengajuan tersimpan lokal, akan otomatis terkirim saat online.')
         setIsEdit(false)
@@ -201,11 +255,11 @@ export default function MahasiswaPengajuan() {
     setSubmitting(true)
     try {
       if (pengajuan && isEdit) {
-        await api.put(`/mahasiswa/pengajuan/${pengajuan.id}`, form)
+        await api.put(`/mahasiswa/pengajuan/${pengajuan.id}`, payload)
         toast.success('Pengajuan berhasil diperbarui!')
         setIsEdit(false)
       } else {
-        await api.post('/mahasiswa/pengajuan', form)
+        await api.post('/mahasiswa/pengajuan', payload)
         toast.success('Pengajuan berhasil dikirim!')
       }
       fetchPengajuan()
@@ -224,6 +278,7 @@ export default function MahasiswaPengajuan() {
 
   const renderForm = (disabled = false) => (
     <div className="space-y-4">
+      {/* Identitas -- selalu readonly, otomatis dari profil mahasiswa */}
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
         <Field label="Email" required>
           <input className={inputClass} type="email" value={form.email} disabled readOnly />
@@ -235,10 +290,50 @@ export default function MahasiswaPengajuan() {
       <Field label="Nama Lengkap" required>
         <input className={inputClass} value={form.nama_lengkap} disabled readOnly />
       </Field>
-      <Field label="Dosen Pembimbing Akademik" required>
-        <input className={inputClass} value={form.dosen_pembimbing_akademik}
-          onChange={e => setForm({ ...form, dosen_pembimbing_akademik: e.target.value })} disabled={disabled} />
+
+      {/* PERUBAHAN: field ini dulu SELALU readonly (cuma nampilin teks nama).
+          Sekarang, saat form bisa diedit (disabled=false), jadi dropdown
+          pilih Dosen PA dari GET /mahasiswa/dosen-pa. Saat mode view
+          (disabled=true), tetap tampil sebagai teks nama seperti sebelumnya.
+          Label "required" dihapus karena field ini memang opsional di backend. */}
+      <Field label="Dosen Pembimbing Akademik">
+        {disabled ? (
+          <input className={inputClass} value={form.dosen_pembimbing_akademik || '-'} disabled readOnly />
+        ) : (
+          <select
+            className={inputClass}
+            value={form.dosen_pembimbing_akademik_id}
+            onChange={e => setForm({ ...form, dosen_pembimbing_akademik_id: e.target.value })}
+          >
+            <option value="">-- Pilih Dosen PA (opsional) --</option>
+            {dosenPAList.map(d => (
+              <option key={d.id} value={d.id}>{d.nama}</option>
+            ))}
+          </select>
+        )}
       </Field>
+
+      {/* Detail Capstone Project -- field sesuai kontrak backend */}
+      <Field label="Judul Capstone Project" required>
+        <input className={inputClass} value={form.judul}
+          onChange={e => setForm({ ...form, judul: e.target.value })} disabled={disabled}
+          placeholder="Contoh: Sistem Informasi Manajemen MBKM Berbasis Web" />
+      </Field>
+      <Field label="Penyelenggara" required>
+        <input className={inputClass} value={form.penyelenggara}
+          onChange={e => setForm({ ...form, penyelenggara: e.target.value })} disabled={disabled}
+          placeholder="Contoh: PT Contoh Teknologi Indonesia" />
+      </Field>
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+        <Field label="Tanggal Mulai">
+          <input className={inputClass} type="date" value={form.tanggal_mulai}
+            onChange={e => setForm({ ...form, tanggal_mulai: e.target.value })} disabled={disabled} />
+        </Field>
+        <Field label="Tanggal Selesai">
+          <input className={inputClass} type="date" value={form.tanggal_selesai}
+            onChange={e => setForm({ ...form, tanggal_selesai: e.target.value })} disabled={disabled} />
+        </Field>
+      </div>
 
       <div className="space-y-3">
         <div className="flex items-center justify-between">
@@ -253,7 +348,7 @@ export default function MahasiswaPengajuan() {
           )}
         </div>
         <p className="text-xs text-gray-500 -mt-1">
-          Minimal total waktu pembelajaran <span className="font-semibold text-gray-700">48 jam</span>.
+          Minimal total waktu pembelajaran <span className="font-semibold text-gray-700">{minJam} jam</span>.
         </p>
 
         {form.pelatihan.map((p, idx) => (
@@ -296,9 +391,9 @@ export default function MahasiswaPengajuan() {
         ))}
 
         <div className={`flex items-center justify-between px-4 py-2.5 rounded-xl border text-sm font-semibold
-          ${totalJam >= 48 ? 'bg-green-50 border-green-200 text-green-700' : 'bg-orange-50 border-orange-200 text-orange-700'}`}>
+          ${totalJam >= minJam ? 'bg-green-50 border-green-200 text-green-700' : 'bg-orange-50 border-orange-200 text-orange-700'}`}>
           <span>Total Waktu Pembelajaran</span>
-          <span>{totalJam} jam {totalJam >= 48 ? '✓' : `(kurang ${48 - totalJam} jam)`}</span>
+          <span>{totalJam} jam {totalJam >= minJam ? '✓' : `(kurang ${minJam - totalJam} jam)`}</span>
         </div>
       </div>
     </div>
@@ -357,8 +452,9 @@ export default function MahasiswaPengajuan() {
       <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-4">
         <div className="flex items-center justify-between gap-3">
           <div className="flex items-center gap-2 flex-wrap min-w-0">
+            {/* menampilkan pengajuan.judul (judul capstone sebenarnya) */}
             <p className="font-semibold text-gray-800 truncate">
-              {getPelatihanArray(pengajuan.pelatihan)[0]?.nama || '-'}
+              {pengajuan.judul || '-'}
             </p>
             <div className={`flex items-center gap-1.5 px-2.5 py-1 rounded-full border text-xs font-semibold flex-shrink-0
               ${statusCfg.color} ${statusCfg.bg} ${statusCfg.border}`}>
@@ -375,6 +471,12 @@ export default function MahasiswaPengajuan() {
           <div className="mt-3 p-3 bg-purple-50 rounded-xl border border-purple-100">
             <p className="text-xs font-semibold text-purple-500 mb-1">Catatan dari Kaprodi:</p>
             <p className="text-sm text-purple-800">{pengajuan.catatan_kaprodi}</p>
+          </div>
+        )}
+        {pengajuan.catatan_dosen && (
+          <div className="mt-3 p-3 bg-blue-50 rounded-xl border border-blue-100">
+            <p className="text-xs font-semibold text-blue-500 mb-1">Catatan dari Dosen Pembimbing:</p>
+            <p className="text-sm text-blue-800">{pengajuan.catatan_dosen}</p>
           </div>
         )}
       </div>

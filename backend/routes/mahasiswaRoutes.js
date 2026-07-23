@@ -1,15 +1,14 @@
 const express = require("express");
 const router = express.Router();
+const multer = require("multer");
 const { verifyToken, authorizeRoles } = require("../middleware/authMiddleware");
-const {
-  upload,
-  uploadToCloudinary,
-} = require("../middleware/uploadMiddleware");
 const {
   getPengajuan,
   tambahPengajuan,
   updatePengajuan,
   hapusPengajuan,
+  getDosenPA,
+  getPelatihanAktif,
   getLogbook,
   tambahLogbook,
   updateLogbook,
@@ -26,6 +25,12 @@ const {
 
 const auth = [verifyToken, authorizeRoles("mahasiswa")];
 
+// PERUBAHAN: file logbook & dokumen sekarang disimpan ke Cloudinary
+// (cloudinaryService.uploadFile pakai req.file.buffer lewat upload_stream),
+// jadi multer tetap pakai memoryStorage() -- bukan disk storage -- karena
+// controller butuh buffer di memori, bukan path file di disk.
+const uploadMemory = multer({ storage: multer.memoryStorage() });
+
 // Periode aktif
 router.get("/periode-aktif", auth, getPeriodeAktif);
 
@@ -35,28 +40,25 @@ router.post("/pengajuan", auth, tambahPengajuan);
 router.put("/pengajuan/:id", auth, updatePengajuan);
 router.delete("/pengajuan/:id", auth, hapusPengajuan);
 
+// BARU: daftar Dosen PA (is_dosen_pa = true) buat dropdown di form pengajuan
+router.get("/dosen-pa", auth, getDosenPA);
+
+// Pelatihan (dalam pengajuan yang disetujui) -- dipakai dropdown/tab di halaman Logbook
+router.get("/pelatihan", auth, getPelatihanAktif);
+
 // Logbook
+// GET /logbook mendukung query opsional ?pelatihan_id=... untuk filter per pelatihan
 router.get("/logbook", auth, getLogbook);
 router.post(
   "/logbook",
   auth,
-  (req, res, next) => {
-    req.uploadFolder = "logbook-bukti";
-    next();
-  },
-  upload.single("bukti"),
-  uploadToCloudinary,
+  uploadMemory.single("bukti"),
   tambahLogbook,
 );
 router.put(
   "/logbook/:id",
   auth,
-  (req, res, next) => {
-    req.uploadFolder = "logbook-bukti";
-    next();
-  },
-  upload.single("bukti"),
-  uploadToCloudinary,
+  uploadMemory.single("bukti"),
   updateLogbook,
 );
 router.delete("/logbook/:id", auth, hapusLogbook);
@@ -66,24 +68,14 @@ router.get("/dokumen", auth, getDokumen);
 router.post(
   "/dokumen",
   auth,
-  (req, res, next) => {
-    req.uploadFolder = "dokumen-pendukung";
-    next();
-  },
-  upload.single("file"),
-  uploadToCloudinary,
+  uploadMemory.single("file"),
   uploadDokumen,
 );
 router.delete("/dokumen/:id", auth, hapusDokumen);
 router.put(
   "/dokumen/:id/resubmit",
   auth,
-  (req, res, next) => {
-    req.uploadFolder = "dokumen-pendukung";
-    next();
-  },
-  upload.single("file"),
-  uploadToCloudinary,
+  uploadMemory.single("file"),
   resubmitDokumen,
 );
 

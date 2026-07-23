@@ -4,8 +4,17 @@ import api from '../../utils/api'
 import toast from 'react-hot-toast'
 import usePeriodeFilter from '../../hooks/usePeriodeFilter'
 import PeriodeDropdown from '../../components/common/PeriodeDropdown'
-
+import BuktiPreview, { FileBuktiPreview } from '../../components/common/BuktiPreview'
 const BASE_URL = ''
+
+// Ambil URL file yang bisa dipreview -- utamakan cloudinary_url (upload baru),
+// fallback ke path_file (dokumen lama sebelum migrasi Cloudinary yang belum
+// punya cloudinary_url). Sama persis dengan getFileUrl di Dokumen_mahasiswa.jsx
+// supaya preview bukti konsisten antara dosen & mahasiswa.
+const getFileUrl = (doc) => {
+  if (!doc) return null
+  return doc.cloudinary_url || doc.path_file || null
+}
 
 const STATUS_CONFIG = {
   diupload:          { label: 'Menunggu Review',   color: 'text-yellow-600', bg: 'bg-yellow-50', border: 'border-yellow-200', icon: Clock },
@@ -36,13 +45,14 @@ function DetailModal({ doc, onClose, onRefresh }) {
 
   const statusCfg  = STATUS_CONFIG[doc.status] || STATUS_CONFIG.diupload
   const StatusIcon = statusCfg.icon
- const fileUrl = doc.path_file?.startsWith('http')
-  ? doc.path_file
-  : `${BASE_URL}/${doc.path_file}`
 
+  // FIX: urutan verifikasi laporan_akhir sekarang Dospem DULU, baru Kaprodi
+  // (sebelumnya di sini kebalik: nunggu 'disetujui_kaprodi' dulu, padahal
+  // backend/dosenController.js & kaprodiController.js sudah pakai urutan
+  // dospem-duluan sejak revisi terakhir).
   const canAksi = doc.jenis === 'ppt'
     ? ['diupload', 'revisi_dospem'].includes(doc.status)
-    : doc.status === 'disetujui_kaprodi'
+    : doc.status === 'diupload'
 
   const handleVerifikasi = async (status) => {
     setProcessing(true)
@@ -61,8 +71,9 @@ function DetailModal({ doc, onClose, onRefresh }) {
   const getInfoMessage = () => {
     if (doc.jenis === 'laporan_akhir') {
       switch (doc.status) {
-        case 'diupload':
-          return { text: 'Menunggu persetujuan Kaprodi terlebih dahulu sebelum dapat diverifikasi.', icon: AlertCircle, cfg: { color: 'text-yellow-700', bg: 'bg-yellow-50', border: 'border-yellow-200' } }
+        // FIX: case 'diupload' dihapus. Status ini sekarang canAksi=true
+        // (dosen yang harus bertindak duluan), jadi tidak pernah lagi masuk
+        // ke cabang infoMsg. Sebelumnya di sini salah bilang "menunggu Kaprodi".
         case 'revisi_kaprodi':
           return { text: 'Kaprodi meminta revisi dari mahasiswa. Menunggu mahasiswa mengupload ulang.', icon: XCircle, cfg: statusCfg }
         case 'diverifikasi':
@@ -119,11 +130,7 @@ function DetailModal({ doc, onClose, onRefresh }) {
 
         {/* Preview PDF */}
         <div className="flex-1 overflow-hidden bg-gray-50 p-5">
-          <iframe
-            src={fileUrl}
-            className="w-full h-full rounded-xl"
-            title={doc.nama_file}
-          />
+          <FileBuktiPreview path={getFileUrl(doc)} filename={doc.nama_file} />
         </div>
 
         {/* Footer */}
@@ -181,8 +188,6 @@ function DetailModal({ doc, onClose, onRefresh }) {
 // ── Main Component ────────────────────────────────────────────────────────────
 export default function DosenDokumen() {
   const [mahasiswa, setMahasiswa]             = useState([])
-  const [selectedPeriode, setSelectedPeriode] = useState('')
-  const [periodeList, setPeriodeList]         = useState([])
   const [dokumen, setDokumen]                 = useState([])
   const [loading, setLoading]                 = useState(true)
   const [loadingDok, setLoadingDok]           = useState(false)
@@ -190,45 +195,23 @@ export default function DosenDokumen() {
   const [searchQuery, setSearchQuery]         = useState('')
   const [activeTab, setActiveTab]             = useState('semua')
 
-  const { periodeId: periodeIdFromStore } = usePeriodeFilter('dosen_pembimbing')
+  const {
+    periodeId: selectedPeriode,
+    periodeList,
+    loading: loadingPeriode,
+    setLocalPeriode,
+  } = usePeriodeFilter('dosen_pembimbing')
 
   useEffect(() => {
-    const fetchPeriode = async () => {
-      try {
-        const res = await api.get('/dosen/periode')
-        const list = res.data.data || res.data || []
-        setPeriodeList(list)
-        if (list.length === 0) {
-          setMahasiswa([])
-          setLoading(false)
-        }
-      } catch (err) {
-        console.error('fetchPeriode error:', err)
-        setPeriodeList([])
-        setMahasiswa([])
-        setLoading(false)
-      }
-    }
-    fetchPeriode()
-  }, [])
-
-  useEffect(() => {
-    if (periodeIdFromStore) {
-      setSelectedPeriode(String(periodeIdFromStore))
+    if (loadingPeriode) return
+    if (periodeList.length === 0) {
+      setMahasiswa([])
+      setLoading(false)
       return
     }
-    if (periodeList.length > 0) {
-      const aktif = periodeList.find(p => p.is_active == 1)
-      const fallbackId = aktif?.id ?? periodeList[0]?.id ?? null
-      if (fallbackId) setSelectedPeriode(String(fallbackId))
-    }
-  }, [periodeIdFromStore, periodeList])
-
-  useEffect(() => {
-    if (!selectedPeriode) return
-    fetchPageData(selectedPeriode)
+    if (selectedPeriode) fetchPageData(selectedPeriode)
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [selectedPeriode])
+  }, [selectedPeriode, periodeList, loadingPeriode])
 
   const fetchPageData = async (periodeId) => {
     try {
@@ -308,7 +291,7 @@ export default function DosenDokumen() {
 
         <PeriodeDropdown
           value={selectedPeriode}
-          onChange={setSelectedPeriode}
+          onChange={(id) => setLocalPeriode(periodeList.find(p => String(p.id) === String(id)))}
           options={periodeList}
         />
       </div>
