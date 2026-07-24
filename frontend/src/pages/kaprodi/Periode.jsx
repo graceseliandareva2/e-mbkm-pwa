@@ -10,8 +10,8 @@ const defaultForm = {
   min_jam_pengajuan: 48,
   tanggal_mulai_pengajuan: '', tanggal_selesai_pengajuan: '',
   tanggal_mulai_logbook: '', tanggal_selesai_logbook: '',
-  tanggal_selesai_ppt: '', tanggal_selesai_laporan: '',
-  form_pengajuan_buka: 1, form_logbook_buka: 1, form_dokumen_buka: 1, is_active: 1
+  tanggal_mulai_dokumen: '', tanggal_selesai_ppt: '', tanggal_selesai_laporan: '',
+  form_pengajuan_buka: 1, form_logbook_buka: 1, form_ppt_buka: 1, form_laporan_buka: 1, is_active: 1
 }
 
 // ✅ Fix: handle semua format tanggal dari MySQL (string ISO, Date object, dsb)
@@ -65,11 +65,13 @@ export default function KaprodiPeriode() {
       tanggal_selesai_pengajuan: toInputDate(p.tanggal_selesai_pengajuan),
       tanggal_mulai_logbook:     toInputDate(p.tanggal_mulai_logbook),
       tanggal_selesai_logbook:   toInputDate(p.tanggal_selesai_logbook),
+      tanggal_mulai_dokumen:     toInputDate(p.tanggal_mulai_dokumen),
       tanggal_selesai_ppt:       toInputDate(p.tanggal_selesai_ppt),
       tanggal_selesai_laporan:   toInputDate(p.tanggal_selesai_laporan),
       form_pengajuan_buka:       p.form_pengajuan_buka,
       form_logbook_buka:         p.form_logbook_buka,
-      form_dokumen_buka:         p.form_dokumen_buka ?? 1,
+      form_ppt_buka:             p.form_ppt_buka ?? 1,
+      form_laporan_buka:         p.form_laporan_buka ?? 1,
       is_active:                 p.is_active
     })
     setShowModal(true)
@@ -100,12 +102,15 @@ export default function KaprodiPeriode() {
       await api.patch(`/kaprodi/periode/${p.id}/toggle-form`, {
         form_pengajuan_buka: field === 'pengajuan' ? (p.form_pengajuan_buka ? 0 : 1) : p.form_pengajuan_buka,
         form_logbook_buka:   field === 'logbook'   ? (p.form_logbook_buka   ? 0 : 1) : p.form_logbook_buka,
-        form_dokumen_buka:   field === 'dokumen'   ? ((p.form_dokumen_buka ?? 1) ? 0 : 1) : (p.form_dokumen_buka ?? 1),
+        form_ppt_buka:       field === 'ppt'       ? ((p.form_ppt_buka ?? 1) ? 0 : 1) : (p.form_ppt_buka ?? 1),
+        form_laporan_buka:   field === 'laporan'   ? ((p.form_laporan_buka ?? 1) ? 0 : 1) : (p.form_laporan_buka ?? 1),
       })
       toast.success('Status form berhasil diubah!')
       fetchPeriode()
-    } catch {
-      toast.error('Gagal mengubah status!')
+    } catch (err) {
+      // ✅ Tampilkan pesan dari backend (mis. penolakan buka toggle sebelum
+      // tanggal mulai), bukan cuma pesan generik.
+      toast.error(err.response?.data?.message || 'Gagal mengubah status!')
     }
   }
 
@@ -185,7 +190,8 @@ export default function KaprodiPeriode() {
                   {[
                     { field: 'pengajuan', label: 'Form Pengajuan', val: p.form_pengajuan_buka },
                     { field: 'logbook',   label: 'Form Logbook',   val: p.form_logbook_buka },
-                    { field: 'dokumen',   label: 'Form Dokumen',   val: p.form_dokumen_buka ?? 1 },
+                    { field: 'ppt',       label: 'Form PPT',       val: p.form_ppt_buka ?? 1 },
+                    { field: 'laporan',   label: 'Form Laporan',   val: p.form_laporan_buka ?? 1 },
                   ].map(({ field, label, val }) => (
                     <div key={field} className="flex items-center gap-2">
                       <span className="text-xs text-gray-500 font-medium">{label}:</span>
@@ -307,6 +313,7 @@ export default function KaprodiPeriode() {
                   {[
                     { label: 'Mulai Logbook',         key: 'tanggal_mulai_logbook' },
                     { label: 'Selesai Logbook',        key: 'tanggal_selesai_logbook' },
+                    { label: 'Mulai Dokumen (PPT & Laporan)', key: 'tanggal_mulai_dokumen' },
                     { label: 'Deadline PPT',           key: 'tanggal_selesai_ppt' },
                     { label: 'Deadline Laporan Akhir', key: 'tanggal_selesai_laporan' },
                   ].map(({ label, key }) => (

@@ -13,15 +13,46 @@ const runAutoToggle = async () => {
       String(today.getDate()).padStart(2, '0')
     ].join('-');
 
-    // ── AUTO OPEN ──────────────────────────────────────────
+    // ── AUTO OPEN PENGAJUAN ────────────────────────────────
     await conn.query(
       `UPDATE periode
        SET form_pengajuan_buka = 1,
-           form_logbook_buka   = 1,
-           form_dokumen_buka   = 1,
            auto_opened_at      = NOW()
        WHERE tanggal_mulai_pengajuan = ?
          AND auto_opened_at IS NULL`,
+      [todayStr]
+    );
+
+    // ── AUTO OPEN LOGBOOK ──────────────────────────────────
+    // Independen dari pengajuan -- dipicu tanggal_mulai_logbook sendiri.
+    await conn.query(
+      `UPDATE periode
+       SET form_logbook_buka      = 1,
+           auto_opened_logbook_at = NOW()
+       WHERE tanggal_mulai_logbook = ?
+         AND auto_opened_logbook_at IS NULL`,
+      [todayStr]
+    );
+
+    // ── AUTO OPEN PPT ──────────────────────────────────────
+    // Independen -- dipicu tanggal_mulai_dokumen (kolom baru).
+    await conn.query(
+      `UPDATE periode
+       SET form_ppt_buka      = 1,
+           auto_opened_ppt_at = NOW()
+       WHERE tanggal_mulai_dokumen = ?
+         AND auto_opened_ppt_at IS NULL`,
+      [todayStr]
+    );
+
+    // ── AUTO OPEN LAPORAN AKHIR ────────────────────────────
+    // Independen -- dipicu tanggal_mulai_dokumen (kolom baru).
+    await conn.query(
+      `UPDATE periode
+       SET form_laporan_buka      = 1,
+           auto_opened_laporan_at = NOW()
+       WHERE tanggal_mulai_dokumen = ?
+         AND auto_opened_laporan_at IS NULL`,
       [todayStr]
     );
 
@@ -49,15 +80,27 @@ const runAutoToggle = async () => {
       [todayStr]
     );
 
-    // ── AUTO CLOSE DOKUMEN ─────────────────────────────────
+    // ── AUTO CLOSE PPT ─────────────────────────────────────
     await conn.query(
       `UPDATE periode
-       SET form_dokumen_buka      = 0,
-           auto_closed_dokumen_at = NOW()
+       SET form_ppt_buka      = 0,
+           auto_closed_ppt_at = NOW()
+       WHERE tanggal_selesai_ppt IS NOT NULL
+         AND tanggal_selesai_ppt < ?
+         AND auto_closed_ppt_at IS NULL
+         AND manual_open_ppt   = 0`,
+      [todayStr]
+    );
+
+    // ── AUTO CLOSE LAPORAN AKHIR ───────────────────────────
+    await conn.query(
+      `UPDATE periode
+       SET form_laporan_buka      = 0,
+           auto_closed_laporan_at = NOW()
        WHERE tanggal_selesai_laporan IS NOT NULL
          AND tanggal_selesai_laporan < ?
-         AND auto_closed_dokumen_at IS NULL
-         AND manual_open_dokumen   = 0`,
+         AND auto_closed_laporan_at IS NULL
+         AND manual_open_laporan   = 0`,
       [todayStr]
     );
 
@@ -220,10 +263,16 @@ const runDeadlineReminderPengajuan = async (conn, todayStr) => {
 // karena sesuai alur bisnis (lihat mahasiswaController.STATUS_BOLEH_LOGBOOK_DOKUMEN),
 // upload dokumen cuma boleh dilakukan mahasiswa yang pengajuannya sudah
 // disetujui kaprodi -- mahasiswa lain tidak relevan untuk reminder ini.
+//
+// PERUBAHAN (form_dokumen_buka -> form_ppt_buka/form_laporan_buka): PPT dan
+// Laporan Akhir sekarang punya form terpisah (bisa beda tanggal selesai dan
+// beda status buka/tutup), jadi tiap entri config bawa kolomForm-nya sendiri
+// dan query periodeList difilter pakai kolom itu -- bukan lagi satu kolom
+// form_dokumen_buka gabungan.
 const runDeadlineReminderDokumen = async (conn, todayStr) => {
   const jenisConfig = [
-    { jenis: 'ppt', kolomDeadline: 'tanggal_selesai_ppt', label: 'PPT' },
-    { jenis: 'laporan_akhir', kolomDeadline: 'tanggal_selesai_laporan', label: 'Laporan Akhir' },
+    { jenis: 'ppt', kolomDeadline: 'tanggal_selesai_ppt', kolomForm: 'form_ppt_buka', label: 'PPT' },
+    { jenis: 'laporan_akhir', kolomDeadline: 'tanggal_selesai_laporan', kolomForm: 'form_laporan_buka', label: 'Laporan Akhir' },
   ];
 
   for (const cfg of jenisConfig) {
@@ -232,7 +281,7 @@ const runDeadlineReminderDokumen = async (conn, todayStr) => {
         `SELECT id, nama_periode, ${cfg.kolomDeadline} as deadline
          FROM periode
          WHERE ${cfg.kolomDeadline} IS NOT NULL
-           AND form_dokumen_buka = 1
+           AND ${cfg.kolomForm} = 1
            AND (
              DATE_SUB(${cfg.kolomDeadline}, INTERVAL 3 DAY) = ?
              OR DATE_SUB(${cfg.kolomDeadline}, INTERVAL 1 DAY) = ?

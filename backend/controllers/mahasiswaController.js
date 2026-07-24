@@ -126,8 +126,8 @@ async function _notifikasiDokumenKeReviewer(pengajuanId, mahasiswa, jenisLabel, 
   }
 }
 
-const JENIS_LABEL_MAP = { laporan_akhir: "Laporan Akhir", ppt: "PPT", dokumen_pendukung: "Dokumen Pendukung" };
-const JENIS_SUBFOLDER_MAP = { laporan_akhir: "laporan", ppt: "ppt", dokumen_pendukung: "dokumentasi" };
+const JENIS_LABEL_MAP = { laporan_akhir: "Laporan Akhir", ppt: "PPT" };
+const JENIS_SUBFOLDER_MAP = { laporan_akhir: "laporan", ppt: "ppt" };
 
 // ========== PENGAJUAN CAPSTONE ==========
 
@@ -550,11 +550,21 @@ const tambahLogbook = async (req, res) => {
     }
 
     const [periodeCheck] = await db.query(
-      `SELECT per.form_logbook_buka FROM periode per JOIN pengajuan p ON p.periode_id = per.id WHERE p.id = ?`,
+      `SELECT per.form_logbook_buka, per.tanggal_mulai_logbook FROM periode per JOIN pengajuan p ON p.periode_id = per.id WHERE p.id = ?`,
       [pengajuan.pengajuan_id]
     );
     if (!periodeCheck.length || periodeCheck[0].form_logbook_buka !== 1) {
       return res.status(400).json({ message: "Form logbook sedang ditutup." });
+    }
+    // BARU: jaga-jaga di luar flag toggle -- kalau form_logbook_buka ke-set 1
+    // padahal tanggal_mulai_logbook periode ini belum tiba (mis. toggle manual
+    // dipakai sebelum tanggalnya), mahasiswa tetap tidak boleh submit logbook.
+    if (periodeCheck[0].tanggal_mulai_logbook) {
+      const todayStr = new Date().toISOString().slice(0, 10);
+      const mulaiStr = new Date(periodeCheck[0].tanggal_mulai_logbook).toISOString().slice(0, 10);
+      if (mulaiStr > todayStr) {
+        return res.status(400).json({ message: `Logbook baru bisa diisi mulai ${mulaiStr}.` });
+      }
     }
 
     // Kalau pengajuan ini punya lebih dari 1 pelatihan, mahasiswa WAJIB
@@ -628,6 +638,25 @@ const updateLogbook = async (req, res) => {
     }
 
     const pengajuan = await getPengajuanDisetujui(mahasiswa.id);
+
+    // BARU: updateLogbook sebelumnya tidak pernah cek form_logbook_buka /
+    // tanggal_mulai_logbook sama sekali -- disamakan dengan tambahLogbook
+    // supaya edit logbook juga tidak bisa dilakukan saat form ditutup atau
+    // sebelum tanggal mulai logbook periode ini.
+    const [periodeCheck] = await db.query(
+      `SELECT per.form_logbook_buka, per.tanggal_mulai_logbook FROM periode per JOIN pengajuan p ON p.periode_id = per.id WHERE p.id = ?`,
+      [logbook.pengajuan_id]
+    );
+    if (!periodeCheck.length || periodeCheck[0].form_logbook_buka !== 1) {
+      return res.status(400).json({ message: "Form logbook sedang ditutup." });
+    }
+    if (periodeCheck[0].tanggal_mulai_logbook) {
+      const todayStr = new Date().toISOString().slice(0, 10);
+      const mulaiStr = new Date(periodeCheck[0].tanggal_mulai_logbook).toISOString().slice(0, 10);
+      if (mulaiStr > todayStr) {
+        return res.status(400).json({ message: `Logbook baru bisa diedit mulai ${mulaiStr}.` });
+      }
+    }
 
     let cloudinaryPublicId = logbook.cloudinary_public_id;
     let buktiLink = logbook.bukti_link;
@@ -728,7 +757,7 @@ const uploadDokumen = async (req, res) => {
     const mahasiswa = await getMahasiswaProfile(req.user.id);
     const { jenis } = req.body;
 
-    if (!["laporan_akhir", "ppt", "dokumen_pendukung"].includes(jenis)) {
+    if (!["laporan_akhir", "ppt"].includes(jenis)) {
       return res.status(400).json({ message: "Jenis dokumen tidak valid." });
     }
 
@@ -737,12 +766,30 @@ const uploadDokumen = async (req, res) => {
       return res.status(403).json({ message: "Upload dokumen hanya bisa dilakukan setelah pengajuan disetujui kaprodi." });
     }
 
+    // PERUBAHAN: form_dokumen_buka (gabungan) sudah tidak ada di skema --
+    // sudah dipecah jadi form_ppt_buka & form_laporan_buka (lihat
+    // periodeCron.js/kaprodiController.js). Kolom lama itu selalu undefined
+    // di sini, jadi cek `=== 0` sebelumnya TIDAK PERNAH ke-trigger dan upload
+    // dokumen tidak pernah benar-benar diblokir. Sekarang dicek per jenis,
+    // plus tanggal_mulai_dokumen (kolom baru) sebagai jaga-jaga di luar toggle.
     const [periodeCheck] = await db.query(
-      `SELECT per.form_dokumen_buka FROM periode per JOIN pengajuan p ON p.periode_id = per.id WHERE p.id = ?`,
+      `SELECT per.form_ppt_buka, per.form_laporan_buka, per.tanggal_mulai_dokumen
+       FROM periode per JOIN pengajuan p ON p.periode_id = per.id WHERE p.id = ?`,
       [pengajuan.pengajuan_id]
     );
-    if (periodeCheck.length && periodeCheck[0].form_dokumen_buka === 0) {
-      return res.status(400).json({ message: "Form upload dokumen sedang ditutup." });
+    if (periodeCheck.length) {
+      const per = periodeCheck[0];
+      const kolomToggle = { ppt: "form_ppt_buka", laporan_akhir: "form_laporan_buka" }[jenis];
+      if (kolomToggle && per[kolomToggle] !== 1) {
+        return res.status(400).json({ message: `Form upload ${JENIS_LABEL_MAP[jenis]} sedang ditutup.` });
+      }
+      if (per.tanggal_mulai_dokumen) {
+        const todayStr = new Date().toISOString().slice(0, 10);
+        const mulaiStr = new Date(per.tanggal_mulai_dokumen).toISOString().slice(0, 10);
+        if (mulaiStr > todayStr) {
+          return res.status(400).json({ message: `Upload dokumen baru bisa dilakukan mulai ${mulaiStr}.` });
+        }
+      }
     }
 
     const subfolder = JENIS_SUBFOLDER_MAP[jenis];
@@ -818,6 +865,31 @@ const resubmitDokumen = async (req, res) => {
     }
 
     const pengajuan = await getPengajuanDisetujui(mahasiswa.id);
+
+    // BARU: resubmitDokumen sebelumnya tidak cek status buka/tutup periode
+    // sama sekali -- disamakan dengan uploadDokumen supaya submit ulang
+    // dokumen revisi juga tidak bisa dilakukan saat form ditutup atau sebelum
+    // tanggal mulai dokumen periode ini.
+    const [periodeCheckResubmit] = await db.query(
+      `SELECT per.form_ppt_buka, per.form_laporan_buka, per.tanggal_mulai_dokumen
+       FROM periode per JOIN pengajuan p ON p.periode_id = per.id WHERE p.id = ?`,
+      [pengajuan.pengajuan_id]
+    );
+    if (periodeCheckResubmit.length) {
+      const per = periodeCheckResubmit[0];
+      const kolomToggle = { ppt: "form_ppt_buka", laporan_akhir: "form_laporan_buka" }[dokumen[0].jenis];
+      if (kolomToggle && per[kolomToggle] !== 1) {
+        return res.status(400).json({ message: `Form upload ${JENIS_LABEL_MAP[dokumen[0].jenis] || dokumen[0].jenis} sedang ditutup.` });
+      }
+      if (per.tanggal_mulai_dokumen) {
+        const todayStr = new Date().toISOString().slice(0, 10);
+        const mulaiStr = new Date(per.tanggal_mulai_dokumen).toISOString().slice(0, 10);
+        if (mulaiStr > todayStr) {
+          return res.status(400).json({ message: `Upload dokumen baru bisa dilakukan mulai ${mulaiStr}.` });
+        }
+      }
+    }
+
     const subfolder = JENIS_SUBFOLDER_MAP[dokumen[0].jenis];
 
     const uploaded = await cloudinaryService.uploadFile(req.file.buffer, req.file.originalname, mahasiswa.nim, mahasiswa.nama, subfolder);

@@ -22,7 +22,7 @@ const tambahPeriode = async (req, res) => {
       min_jam_pengajuan,
       tanggal_mulai_pengajuan, tanggal_selesai_pengajuan,
       tanggal_mulai_logbook, tanggal_selesai_logbook,
-      tanggal_selesai_ppt, tanggal_selesai_laporan,
+      tanggal_mulai_dokumen, tanggal_selesai_ppt, tanggal_selesai_laporan,
       is_active,
     } = req.body;
 
@@ -37,19 +37,24 @@ const tambahPeriode = async (req, res) => {
     // dan hanya diaktifkan lewat langkah terpisah di bawah jika diminta.
     const jadiAktif = Number(is_active) === 1;
 
+    // PERUBAHAN: form_dokumen_buka (gabungan PPT + Laporan) dipecah jadi
+    // form_ppt_buka & form_laporan_buka -- keduanya independen, punya
+    // tanggal selesai sendiri (tanggal_selesai_ppt / tanggal_selesai_laporan)
+    // dan bisa auto-close di waktu yang berbeda (lihat periodeCron.js).
     const [result] = await db.query(
       `INSERT INTO periode (nama_periode, jenis, tanggal_mulai, tanggal_selesai, min_jam_pengajuan,
       tanggal_mulai_pengajuan, tanggal_selesai_pengajuan,
-      tanggal_mulai_logbook, tanggal_selesai_logbook, tanggal_selesai_ppt, tanggal_selesai_laporan,
-      form_pengajuan_buka, form_logbook_buka, form_dokumen_buka, is_active)
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 0, 0, 0, ?)`,
+      tanggal_mulai_logbook, tanggal_selesai_logbook,
+      tanggal_mulai_dokumen, tanggal_selesai_ppt, tanggal_selesai_laporan,
+      form_pengajuan_buka, form_logbook_buka, form_ppt_buka, form_laporan_buka, is_active)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 0, 0, 0, 0, ?)`,
       [
         nama_periode, jenis,
         tanggal_mulai || null, tanggal_selesai || null,
         Number(min_jam_pengajuan) || 48,
         tanggal_mulai_pengajuan, tanggal_selesai_pengajuan,
         tanggal_mulai_logbook, tanggal_selesai_logbook,
-        tanggal_selesai_ppt, tanggal_selesai_laporan,
+        tanggal_mulai_dokumen || null, tanggal_selesai_ppt, tanggal_selesai_laporan,
         jadiAktif ? 1 : 0,
       ]
     );
@@ -81,8 +86,8 @@ const updatePeriode = async (req, res) => {
       min_jam_pengajuan,
       tanggal_mulai_pengajuan, tanggal_selesai_pengajuan,
       tanggal_mulai_logbook, tanggal_selesai_logbook,
-      tanggal_selesai_ppt, tanggal_selesai_laporan,
-      form_pengajuan_buka, form_logbook_buka, form_dokumen_buka,
+      tanggal_mulai_dokumen, tanggal_selesai_ppt, tanggal_selesai_laporan,
+      form_pengajuan_buka, form_logbook_buka, form_ppt_buka, form_laporan_buka,
       is_active,
     } = req.body;
 
@@ -103,6 +108,13 @@ const updatePeriode = async (req, res) => {
     const today = new Date().toISOString().slice(0, 10);
 
     const mulaiPengajuanBerubah   = toDateStr(lama.tanggal_mulai_pengajuan)   !== toDateStr(tanggal_mulai_pengajuan);
+    // BARU: logbook & dokumen sekarang juga auto-open berdasarkan tanggal
+    // mulai masing-masing (lihat periodeCron.js) -- jadi sama seperti
+    // mulaiPengajuanBerubah, kalau tanggal mulainya diubah, form terkait
+    // ditutup dulu dan auto_opened_..._at di-reset supaya cron bisa
+    // membukanya lagi otomatis begitu tanggal barunya tiba.
+    const mulaiLogbookBerubah    = toDateStr(lama.tanggal_mulai_logbook)      !== toDateStr(tanggal_mulai_logbook);
+    const mulaiDokumenBerubah    = toDateStr(lama.tanggal_mulai_dokumen)      !== toDateStr(tanggal_mulai_dokumen);
     const selesaiPengajuanBerubah = toDateStr(lama.tanggal_selesai_pengajuan) !== toDateStr(tanggal_selesai_pengajuan);
     const selesaiLogbookBerubah   = toDateStr(lama.tanggal_selesai_logbook)   !== toDateStr(tanggal_selesai_logbook);
     const selesaiPptBerubah       = toDateStr(lama.tanggal_selesai_ppt)       !== toDateStr(tanggal_selesai_ppt);
@@ -110,12 +122,26 @@ const updatePeriode = async (req, res) => {
 
     const pengajuanSudahLewat = toDateStr(tanggal_selesai_pengajuan) && toDateStr(tanggal_selesai_pengajuan) < today;
     const logbookSudahLewat   = toDateStr(tanggal_selesai_logbook)   && toDateStr(tanggal_selesai_logbook)   < today;
-    const dokumenSudahLewat   = toDateStr(tanggal_selesai_laporan)   && toDateStr(tanggal_selesai_laporan)   < today;
+    const pptSudahLewat       = toDateStr(tanggal_selesai_ppt)       && toDateStr(tanggal_selesai_ppt)       < today;
+    const laporanSudahLewat   = toDateStr(tanggal_selesai_laporan)   && toDateStr(tanggal_selesai_laporan)   < today;
 
     let extraClauses = [];
 
     if (mulaiPengajuanBerubah) {
       extraClauses.push('auto_opened_at = NULL', 'form_pengajuan_buka = 0');
+    }
+
+    // BARU
+    if (mulaiLogbookBerubah) {
+      extraClauses.push('auto_opened_logbook_at = NULL', 'form_logbook_buka = 0');
+    }
+
+    // BARU
+    if (mulaiDokumenBerubah) {
+      extraClauses.push(
+        'auto_opened_ppt_at = NULL', 'form_ppt_buka = 0',
+        'auto_opened_laporan_at = NULL', 'form_laporan_buka = 0'
+      );
     }
 
     if (selesaiPengajuanBerubah) {
@@ -136,12 +162,24 @@ const updatePeriode = async (req, res) => {
       }
     }
 
-    if (selesaiPptBerubah || selesaiLaporanBerubah) {
-      extraClauses.push('auto_closed_dokumen_at = NULL', 'manual_open_dokumen = 0');
-      if (dokumenSudahLewat) {
-        extraClauses.push('form_dokumen_buka = 0', 'auto_closed_dokumen_at = NOW()');
+    // PERUBAHAN: dipecah dari blok gabungan (selesaiPptBerubah || selesaiLaporanBerubah)
+    // menjadi 2 blok terpisah -- PPT dan Laporan Akhir sekarang punya form,
+    // status auto_closed, dan manual_open masing-masing sendiri.
+    if (selesaiPptBerubah) {
+      extraClauses.push('auto_closed_ppt_at = NULL', 'manual_open_ppt = 0');
+      if (pptSudahLewat) {
+        extraClauses.push('form_ppt_buka = 0', 'auto_closed_ppt_at = NOW()');
       } else {
-        extraClauses.push('form_dokumen_buka = 1');
+        extraClauses.push('form_ppt_buka = 1');
+      }
+    }
+
+    if (selesaiLaporanBerubah) {
+      extraClauses.push('auto_closed_laporan_at = NULL', 'manual_open_laporan = 0');
+      if (laporanSudahLewat) {
+        extraClauses.push('form_laporan_buka = 0', 'auto_closed_laporan_at = NOW()');
+      } else {
+        extraClauses.push('form_laporan_buka = 1');
       }
     }
 
@@ -153,8 +191,8 @@ const updatePeriode = async (req, res) => {
         tanggal_mulai=?, tanggal_selesai=?, min_jam_pengajuan=?,
         tanggal_mulai_pengajuan=?, tanggal_selesai_pengajuan=?,
         tanggal_mulai_logbook=?, tanggal_selesai_logbook=?,
-        tanggal_selesai_ppt=?, tanggal_selesai_laporan=?,
-        form_pengajuan_buka=?, form_logbook_buka=?, form_dokumen_buka=?,
+        tanggal_mulai_dokumen=?, tanggal_selesai_ppt=?, tanggal_selesai_laporan=?,
+        form_pengajuan_buka=?, form_logbook_buka=?, form_ppt_buka=?, form_laporan_buka=?,
         is_active=?
         ${extraSQL}
       WHERE id=?`,
@@ -163,8 +201,9 @@ const updatePeriode = async (req, res) => {
         tanggal_mulai || null, tanggal_selesai || null, Number(min_jam_pengajuan) || 48,
         tanggal_mulai_pengajuan, tanggal_selesai_pengajuan,
         tanggal_mulai_logbook, tanggal_selesai_logbook,
-        tanggal_selesai_ppt, tanggal_selesai_laporan,
-        form_pengajuan_buka, form_logbook_buka, form_dokumen_buka ?? 1,
+        tanggal_mulai_dokumen || null, tanggal_selesai_ppt, tanggal_selesai_laporan,
+        form_pengajuan_buka, form_logbook_buka,
+        form_ppt_buka ?? lama.form_ppt_buka, form_laporan_buka ?? lama.form_laporan_buka,
         is_active, id,
       ]
     );
@@ -179,7 +218,52 @@ const updatePeriode = async (req, res) => {
 const toggleForm = async (req, res) => {
   try {
     const { id } = req.params;
-    const { form_pengajuan_buka, form_logbook_buka, form_dokumen_buka } = req.body;
+
+    const [[periode]] = await db.query(
+      `SELECT form_pengajuan_buka, form_logbook_buka, form_ppt_buka, form_laporan_buka,
+              tanggal_mulai_pengajuan, tanggal_mulai_logbook, tanggal_mulai_dokumen
+       FROM periode WHERE id = ?`,
+      [id]
+    );
+    if (!periode) return res.status(404).json({ message: "Periode tidak ditemukan." });
+
+    // PERUBAHAN: field yang tidak dikirim di body sekarang mempertahankan nilai
+    // yang sudah ada di DB (bukan fallback ke 1 lagi) -- sebelumnya toggle
+    // pengajuan/logbook saja bisa tidak sengaja membuka kembali form PPT &
+    // Laporan karena form_ppt_buka/form_laporan_buka yang tidak dikirim selalu
+    // jatuh ke default 1.
+    const form_pengajuan_buka = req.body.form_pengajuan_buka ?? periode.form_pengajuan_buka;
+    const form_logbook_buka   = req.body.form_logbook_buka   ?? periode.form_logbook_buka;
+    const pptVal              = req.body.form_ppt_buka       ?? periode.form_ppt_buka;
+    const laporanVal          = req.body.form_laporan_buka   ?? periode.form_laporan_buka;
+
+    const toDateStr = (val) => {
+      if (!val) return null;
+      const d = new Date(val);
+      return isNaN(d.getTime()) ? null : d.toISOString().slice(0, 10);
+    };
+    const today = new Date().toISOString().slice(0, 10);
+    const mulaiPengajuan = toDateStr(periode.tanggal_mulai_pengajuan);
+    const mulaiLogbook   = toDateStr(periode.tanggal_mulai_logbook);
+    const mulaiDokumen   = toDateStr(periode.tanggal_mulai_dokumen);
+
+    // BARU: toggle manual ini cuma untuk MEMBUKA KEMBALI form yang sudah
+    // auto-close (mis. deadline lewat), bukan untuk membuka lebih awal dari
+    // tanggal mulai yang sudah ditetapkan -- itu tugas auto-open di
+    // periodeCron.js. Kalau kaprodi coba paksa buka sebelum tanggal mulai,
+    // tolak dengan pesan jelas.
+    if (form_pengajuan_buka == 1 && mulaiPengajuan && mulaiPengajuan > today) {
+      return res.status(400).json({ message: `Form pengajuan belum bisa dibuka -- tanggal mulai pengajuan masih ${mulaiPengajuan}.` });
+    }
+    if (form_logbook_buka == 1 && mulaiLogbook && mulaiLogbook > today) {
+      return res.status(400).json({ message: `Form logbook belum bisa dibuka -- tanggal mulai logbook masih ${mulaiLogbook}.` });
+    }
+    if (pptVal == 1 && mulaiDokumen && mulaiDokumen > today) {
+      return res.status(400).json({ message: `Form PPT belum bisa dibuka -- tanggal mulai dokumen masih ${mulaiDokumen}.` });
+    }
+    if (laporanVal == 1 && mulaiDokumen && mulaiDokumen > today) {
+      return res.status(400).json({ message: `Form Laporan Akhir belum bisa dibuka -- tanggal mulai dokumen masih ${mulaiDokumen}.` });
+    }
 
     const resetFields = [];
 
@@ -195,20 +279,25 @@ const toggleForm = async (req, res) => {
       resetFields.push('manual_open_logbook = 0', 'auto_closed_logbook_at = COALESCE(auto_closed_logbook_at, NOW())');
     }
 
-    const dokumenVal = form_dokumen_buka ?? 1;
-    if (dokumenVal == 1) {
-      resetFields.push('auto_closed_dokumen_at = NULL', 'manual_open_dokumen = 1');
+    if (pptVal == 1) {
+      resetFields.push('auto_closed_ppt_at = NULL', 'manual_open_ppt = 1');
     } else {
-      resetFields.push('manual_open_dokumen = 0', 'auto_closed_dokumen_at = COALESCE(auto_closed_dokumen_at, NOW())');
+      resetFields.push('manual_open_ppt = 0', 'auto_closed_ppt_at = COALESCE(auto_closed_ppt_at, NOW())');
+    }
+
+    if (laporanVal == 1) {
+      resetFields.push('auto_closed_laporan_at = NULL', 'manual_open_laporan = 1');
+    } else {
+      resetFields.push('manual_open_laporan = 0', 'auto_closed_laporan_at = COALESCE(auto_closed_laporan_at, NOW())');
     }
 
     const resetClause = ', ' + resetFields.join(', ');
 
     await db.query(
       `UPDATE periode
-       SET form_pengajuan_buka=?, form_logbook_buka=?, form_dokumen_buka=? ${resetClause}
+       SET form_pengajuan_buka=?, form_logbook_buka=?, form_ppt_buka=?, form_laporan_buka=? ${resetClause}
        WHERE id=?`,
-      [form_pengajuan_buka, form_logbook_buka, dokumenVal, id]
+      [form_pengajuan_buka, form_logbook_buka, pptVal, laporanVal, id]
     );
 
     res.json({ message: 'Status form berhasil diubah.' });
@@ -615,7 +704,14 @@ const getMonitoringDokumen = async (req, res) => {
 // pasti ke-resolve (dari query string atau fallback periode aktif/terbaru
 // di blok if/else di atas), jadi tidak perlu helper _getPeriodeAktifId
 // terpisah seperti di staffController.
-
+//
+// PERUBAHAN (Total Mahasiswa): dulu COUNT(DISTINCT m.id) dari
+// INNER JOIN pengajuan -- ini cuma menghitung mahasiswa yang SUDAH SUBMIT
+// pengajuan di periode itu, bukan semua mahasiswa yang berhak ikut MBKM
+// periode itu (roster). Sekarang disamakan dengan pola getDaftarMahasiswa
+// (staffController) & getDashboardStats (staffController): di-scope ke
+// roster_mahasiswa_mbkm, supaya angka di dashboard konsisten dengan yang
+// tampil di halaman Data Mahasiswa.
 const getDashboardStats = async (req, res) => {
   try {
     let periode_id = req.query.periode_id || null;
@@ -651,12 +747,12 @@ const getDashboardStats = async (req, res) => {
       nama_periode = periodeRow?.nama_periode || "";
     }
 
- const [[{ total_mahasiswa }]] = await db.query(
-  `SELECT COUNT(DISTINCT r.mahasiswa_id) AS total_mahasiswa
-   FROM roster_mahasiswa_mbkm r
-   WHERE r.periode_id = ?`,
-  [periode_id]
-);
+    const [[{ total_mahasiswa }]] = await db.query(
+      `SELECT COUNT(DISTINCT r.mahasiswa_id) AS total_mahasiswa
+       FROM roster_mahasiswa_mbkm r
+       WHERE r.periode_id = ?`,
+      [periode_id]
+    );
 
     const [[{ total_dosen }]] = await db.query(
       `SELECT COUNT(DISTINCT dosen_id) AS total_dosen
@@ -671,29 +767,29 @@ const getDashboardStats = async (req, res) => {
     );
 
     // Ambil min_jam_pengajuan periode ini dulu
-const [[periodeInfo]] = await db.query(
-  "SELECT min_jam_pengajuan FROM periode WHERE id = ?",
-  [periode_id]
-);
-const minJam = periodeInfo?.min_jam_pengajuan || 48;
+    const [[periodeInfo]] = await db.query(
+      "SELECT min_jam_pengajuan FROM periode WHERE id = ?",
+      [periode_id]
+    );
+    const minJam = periodeInfo?.min_jam_pengajuan || 48;
 
-const [[{ dokumen_lengkap }]] = await db.query(
-  `SELECT COUNT(*) AS dokumen_lengkap
-   FROM (
-     SELECT dok.pengajuan_id
-     FROM dokumen dok
-     JOIN pengajuan p ON p.id = dok.pengajuan_id
-     WHERE p.periode_id = ?
-     GROUP BY dok.pengajuan_id
-     HAVING SUM(CASE WHEN dok.jenis = 'laporan_akhir' AND dok.status = 'diverifikasi' THEN 1 ELSE 0 END) > 0
-        AND SUM(dok.jenis = 'ppt') > 0
-        AND COALESCE((
-          SELECT SUM(lb.durasi_menit) / 60 FROM logbook lb
-          WHERE lb.pengajuan_id = dok.pengajuan_id AND lb.status = 'diverifikasi'
-        ), 0) >= ?
-   ) AS lengkap`,
-  [periode_id, minJam]
-);
+    const [[{ dokumen_lengkap }]] = await db.query(
+      `SELECT COUNT(*) AS dokumen_lengkap
+       FROM (
+         SELECT dok.pengajuan_id
+         FROM dokumen dok
+         JOIN pengajuan p ON p.id = dok.pengajuan_id
+         WHERE p.periode_id = ?
+         GROUP BY dok.pengajuan_id
+         HAVING SUM(CASE WHEN dok.jenis = 'laporan_akhir' AND dok.status = 'diverifikasi' THEN 1 ELSE 0 END) > 0
+            AND SUM(dok.jenis = 'ppt') > 0
+            AND COALESCE((
+              SELECT SUM(lb.durasi_menit) / 60 FROM logbook lb
+              WHERE lb.pengajuan_id = dok.pengajuan_id AND lb.status = 'diverifikasi'
+            ), 0) >= ?
+       ) AS lengkap`,
+      [periode_id, minJam]
+    );
 
     res.json({
       data: {
@@ -831,13 +927,13 @@ const getDetailMonitoring = async (req, res) => {
     );
     if (!info.length) return res.status(404).json({ message: "Pengajuan tidak ditemukan." });
 
-const [logbook] = await db.query(
-  `SELECT l.id, l.tanggal, l.jam_mulai, l.jam_selesai, l.kegiatan, l.durasi_menit, l.status, l.bukti_link, l.cloudinary_public_id, pl.nama AS nama_pelatihan
-   FROM logbook l
-   LEFT JOIN pelatihan pl ON pl.id = l.pelatihan_id
-   WHERE l.pengajuan_id = ? ORDER BY l.tanggal DESC`,
-  [pengajuan_id]
-);
+    const [logbook] = await db.query(
+      `SELECT l.id, l.tanggal, l.jam_mulai, l.jam_selesai, l.kegiatan, l.durasi_menit, l.status, l.bukti_link, l.cloudinary_public_id, pl.nama AS nama_pelatihan
+       FROM logbook l
+       LEFT JOIN pelatihan pl ON pl.id = l.pelatihan_id
+       WHERE l.pengajuan_id = ? ORDER BY l.tanggal DESC`,
+      [pengajuan_id]
+    );
 
     const [dokumen] = await db.query(
       `SELECT id, jenis, nama_file, cloudinary_url, status FROM dokumen WHERE pengajuan_id = ?`,
