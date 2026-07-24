@@ -651,13 +651,12 @@ const getDashboardStats = async (req, res) => {
       nama_periode = periodeRow?.nama_periode || "";
     }
 
-    const [[{ total_mahasiswa }]] = await db.query(
-      `SELECT COUNT(DISTINCT m.id) AS total_mahasiswa
-       FROM mahasiswa m
-       INNER JOIN pengajuan p ON p.mahasiswa_id = m.id
-       WHERE p.periode_id = ?`,
-      [periode_id]
-    );
+ const [[{ total_mahasiswa }]] = await db.query(
+  `SELECT COUNT(DISTINCT r.mahasiswa_id) AS total_mahasiswa
+   FROM roster_mahasiswa_mbkm r
+   WHERE r.periode_id = ?`,
+  [periode_id]
+);
 
     const [[{ total_dosen }]] = await db.query(
       `SELECT COUNT(DISTINCT dosen_id) AS total_dosen
