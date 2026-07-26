@@ -7,7 +7,7 @@ const api = axios.create({
   },
 });
 
-// Request interceptor — tambahkan token di setiap request
+
 api.interceptors.request.use(
   (config) => {
     const token = localStorage.getItem("token");
@@ -19,18 +19,19 @@ api.interceptors.request.use(
   (error) => Promise.reject(error),
 );
 
-// Response interceptor — handle token expired
+
 api.interceptors.response.use(
   (response) => response,
   (error) => {
-    if (error.response?.status === 401) {
-      // Hanya redirect jika token memang tidak ada atau server bilang token invalid/expired
+    const isLoginRequest = error.config?.url?.includes("/auth/login");
+
+    if (error.response?.status === 401 && !isLoginRequest) {
+
       const message = error.response?.data?.message || "";
       const isTokenError =
         message.toLowerCase().includes("token") ||
         message.toLowerCase().includes("unauthorized") ||
-        message.toLowerCase().includes("jwt") ||
-        !localStorage.getItem("token");
+        message.toLowerCase().includes("jwt");
 
       if (isTokenError) {
         localStorage.removeItem("token");
@@ -38,7 +39,7 @@ api.interceptors.response.use(
         window.location.href = "/login";
       }
     }
-    // 403 (forbidden) jangan redirect — biarkan komponen handle sendiri
+
     return Promise.reject(error);
   },
 );
