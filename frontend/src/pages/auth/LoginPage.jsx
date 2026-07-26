@@ -20,7 +20,7 @@ export default function LoginPage() {
       const res = await api.post('/auth/login', data)
 console.log('RESPONSE LOGIN:', res.data)
 login(res.data.user, res.data.token)
-toast.success(`Selamat datang, ${res.data.user.nama || res.data.user.username}!`)
+toast.success(res.data.message)
       const redirectMap = {
         mahasiswa: '/mahasiswa/dashboard',
         dosen_pembimbing: '/dosen/dashboard',
