@@ -2,14 +2,6 @@ import { useEffect, useState } from 'react'
 import { Search, Users } from 'lucide-react'
 import api from '../../utils/api'
 import toast from 'react-hot-toast'
-
-// PERUBAHAN (item #6): halaman ini sekarang READ-ONLY. Import, tambah, dan
-// edit dosen sudah pindah ke Staff Akademik (lihat pages/staff/Dosen.jsx)
-// karena backend-nya (POST/PUT /staff/dosen) cuma bisa diakses role
-// staff_akademik. Kaprodi tetap perlu lihat daftar ini buat referensi &
-// assign dosen pembimbing, jadi tabelnya dipertahankan tapi tanpa kolom
-// Aksi / tombol Tambah / Import.
-
 export default function KaprodiDosen() {
   const [dosen, setDosen] = useState([])
   const [search, setSearch] = useState('')
@@ -38,9 +30,6 @@ export default function KaprodiDosen() {
       <div className="flex items-center justify-between flex-wrap gap-3">
         <div>
           <h1 className="text-2xl font-bold text-gray-800">Data Dosen</h1>
-          <p className="text-gray-500 text-sm mt-1">
-            Lihat data dosen pembimbing. Untuk tambah/edit/import, hubungi Staff Akademik.
-          </p>
         </div>
       </div>
 

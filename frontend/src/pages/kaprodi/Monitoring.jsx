@@ -50,11 +50,6 @@ const StatusBadge = ({ status }) => {
     </span>
   )
 }
-
-// ─── NilaiBadge ─────────────────────────────────────────────────────────
-// Kolom "Nilai" di tabel Monitoring. `nilai_akhir` hanya terisi kalau
-// backend sudah JOIN ke tabel penilaian dengan syarat finalized_at IS NOT
-// NULL (lihat catatan di kaprodiController.js getMonitoringDokumen).
 const NilaiBadge = ({ nilai }) => {
   if (nilai === null || nilai === undefined) {
     return (
@@ -99,7 +94,6 @@ const LaporanModal = ({ row, onClose, onRefresh }) => {
     }
   }
 
-  // File disimpan di Cloudinary -- backend kirim `cloudinary_url` (secure_url).
   const fileUrl = dok?.cloudinary_url
 
   return (
@@ -229,12 +223,6 @@ const LaporanCell = ({ doc, row, onRefresh }) => {
   )
 }
 
-// ─── DetailMahasiswaModal ──────────────────────────────────────────────
-// Dibuka lewat tombol "Lihat" di tabel. Menampilkan info lengkap 1 mahasiswa:
-// info dasar, progress, logbook khusus mahasiswa ini (paginated), dokumen
-// (PPT view-only, Laporan Akhir dengan gate verifikasi sesuai status dospem),
-// dan nilai akhir (angka saja). Tidak mengubah tabel/popup yang sudah ada.
-
 const LOGBOOK_PAGE_SIZE = 8
 
 const LogbookBuktiCell = ({ log }) => {
@@ -348,7 +336,7 @@ const DetailMahasiswaModal = ({ row, onClose }) => {
                 </div>
               </div>
 
-              {/* Logbook -- khusus mahasiswa ini, paginated */}
+              {/* Logbook*/}
               <div>
                 <h3 className="text-sm font-bold text-gray-700 mb-1">Logbook</h3>
                 <p className="text-xs text-gray-400 mb-3">{detail.nim} - {detail.nama} · {detail.jumlah_logbook} Entri Logbook</p>
@@ -456,8 +444,6 @@ export default function KaprodiMonitoring() {
 
   useEffect(() => { if (selectedPeriode) fetchMonitoring() }, [selectedPeriode, fetchMonitoring])
 
-  // Filter dihitung ulang cuma kalau data/search/filterStatus berubah,
-  // bukan tiap render (mis. saat modal detail buka/tutup).
   const filtered = useMemo(() => {
     const q = search.toLowerCase()
     return data.filter(m => {
@@ -478,7 +464,7 @@ export default function KaprodiMonitoring() {
     () => periode.find(p => p.id === selectedPeriode),
     [periode, selectedPeriode]
   )
-  const minJam = periodeAktif?.min_jam_pengajuan || 48 // fallback 48 kalau belum ada datanya
+  const minJam = periodeAktif?.min_jam_pengajuan || 48 
 
   const stats = useMemo(() => ({
     total:           data.length,

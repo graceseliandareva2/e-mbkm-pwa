@@ -12,7 +12,6 @@ const BASE_URL = ''
 
 const LS_PENGAJUAN = 'cache_pengajuan'
 const LS_LOGBOOKS  = 'cache_logbooks'
-// ✅ Cache baru khusus daftar pelatihan (dipakai untuk dropdown/tab, tetap offline-first)
 const LS_PELATIHAN = 'cache_pelatihan'
 
 const STATUS_CONFIG = {
@@ -32,10 +31,6 @@ const formatDurasi = (menit) => {
   if (j === 0) return `${m} menit`
   return `${j} jam ${m} menit`
 }
-
-// Backend menyimpan jam_mulai & jam_selesai (kolom TIME) dan menurunkan
-// durasi_menit dari situ -- bukan input durasi manual. Fungsi ini cuma
-// dipakai untuk preview di form, nilai final durasi tetap dihitung server.
 const hitungDurasiMenit = (mulai, selesai) => {
   if (!mulai || !selesai) return null
   const [h1, m1] = mulai.split(':').map(Number)
@@ -47,9 +42,7 @@ const hitungDurasiMenit = (mulai, selesai) => {
 export default function MahasiswaLogbook() {
   const [logbooks, setLogbooks] = useState([])
   const [pengajuan, setPengajuan] = useState(null)
-  // ✅ Daftar pelatihan (maks 3) dalam pengajuan yang aktif
   const [pelatihanList, setPelatihanList] = useState([])
-  // ✅ Pelatihan yang sedang dipilih mahasiswa untuk difilter/ditambahkan logbook-nya
   const [selectedPelatihanId, setSelectedPelatihanId] = useState(null)
   const [loading, setLoading] = useState(true)
   const [modalOpen, setModalOpen] = useState(false)
@@ -69,7 +62,6 @@ export default function MahasiswaLogbook() {
   const fileRef = useRef(null)
   const editFileRef = useRef(null)
 
-  // ✅ Load dari cache localStorage saat pertama mount (sebelum fetch)
   useEffect(() => {
     try {
       const cachedPengajuan = localStorage.getItem(LS_PENGAJUAN)
@@ -82,7 +74,7 @@ export default function MahasiswaLogbook() {
         setPelatihanList(list)
         if (list.length > 0) setSelectedPelatihanId(prev => prev ?? list[0].id)
       }
-    } catch { /* ignore parse error */ }
+    } catch { /*  */ }
   }, [])
 
   const fetchAll = async () => {
@@ -97,19 +89,15 @@ export default function MahasiswaLogbook() {
         const data = logbookRes.value.data?.data ?? logbookRes.value.data
         const list = Array.isArray(data) ? data : []
         setLogbooks(list)
-        // ✅ Simpan ke cache
         try { localStorage.setItem(LS_LOGBOOKS, JSON.stringify(list)) } catch { /* ignore */ }
       }
 
       if (pengajuanRes.status === 'fulfilled' && pengajuanRes.value.data?.id) {
         const p = pengajuanRes.value.data
         setPengajuan(p)
-        // ✅ Simpan ke cache
         try { localStorage.setItem(LS_PENGAJUAN, JSON.stringify(p)) } catch { /* ignore */ }
       }
 
-      // ✅ Daftar pelatihan untuk dropdown/tab. Kalau endpoint gagal (mis. offline),
-      // fallback ke pelatihan_list yang sudah menempel di response pengajuan.
       let pelatihanData = null
       if (pelatihanRes.status === 'fulfilled') {
         pelatihanData = pelatihanRes.value.data?.data ?? pelatihanRes.value.data
@@ -119,8 +107,6 @@ export default function MahasiswaLogbook() {
       if (Array.isArray(pelatihanData)) {
         setPelatihanList(pelatihanData)
         try { localStorage.setItem(LS_PELATIHAN, JSON.stringify(pelatihanData)) } catch { /* ignore */ }
-        // Kalau pelatihan yang lagi dipilih sudah tidak ada di daftar (mis. diedit
-        // mahasiswa dari halaman pengajuan), fallback ke pelatihan pertama.
         setSelectedPelatihanId(prev => {
           if (prev && pelatihanData.some(p => p.id === prev)) return prev
           return pelatihanData.length > 0 ? pelatihanData[0].id : null
@@ -160,25 +146,22 @@ export default function MahasiswaLogbook() {
 
   const handleSubmit = async (e) => {
     e.preventDefault()
-    // Backend (tambahLogbook) mewajibkan: tanggal, jam_mulai, jam_selesai, kegiatan, deskripsi
+    
     if (!form.tanggal || !form.kegiatan || !form.deskripsi?.trim() || !form.jam_mulai || !form.jam_selesai) {
       return toast.error('Tanggal, jam mulai/selesai, kegiatan, dan deskripsi wajib diisi!')
     }
     if (!hitungDurasiMenit(form.jam_mulai, form.jam_selesai)) {
       return toast.error('Jam selesai harus setelah jam mulai!')
     }
-    // ✅ Kalau mahasiswa punya lebih dari 1 pelatihan, pelatihan wajib dipilih dulu
-    // (tab/dropdown selalu tampil di halaman ini kalau pelatihanList.length > 1,
-    // jadi ini seharusnya jarang kena, tapi tetap dijaga di sisi form).
     if (pelatihanList.length > 1 && !selectedPelatihanId) {
       return toast.error('Pilih pelatihan terlebih dahulu!')
     }
+    const hasBukti = (buktiType === 'file' && !!form.bukti) || (buktiType === 'link' && !!buktiLink?.trim())
+    if (!hasBukti) {
+      return toast.error('Bukti kegiatan wajib diisi (upload file atau link)!')
+    }
 
     if (!navigator.onLine) {
-      if (form.bukti) {
-        toast.error('File bukti tidak bisa disimpan offline. Hapus file dulu, upload bukti saat online.')
-        return
-      }
       try {
         await saveToQueue({
           method: 'POST',
@@ -189,12 +172,14 @@ export default function MahasiswaLogbook() {
             deskripsi: form.deskripsi,
             jam_mulai: form.jam_mulai,
             jam_selesai: form.jam_selesai,
-            // ✅ pelatihan_id ikut disimpan di antrean offline, supaya saat
-            // disinkronkan nanti backend tetap tahu logbook ini milik pelatihan mana.
             pelatihan_id: selectedPelatihanId || undefined,
-          }
+            bukti_link: buktiType === 'link' ? buktiLink : undefined,
+          },
+          file: buktiType === 'file' && form.bukti
+            ? { blob: form.bukti, filename: form.bukti.name, fieldName: 'bukti' }
+            : undefined,
         })
-        toast.success('Offline! Logbook tersimpan lokal, akan otomatis terkirim saat online.')
+        toast.success('Offline! Logbook beserta bukti tersimpan lokal, akan otomatis terkirim saat online.')
         setModalOpen(false)
         resetForm()
       } catch {
@@ -211,7 +196,6 @@ export default function MahasiswaLogbook() {
       formData.append('deskripsi', form.deskripsi)
       formData.append('jam_mulai', form.jam_mulai)
       formData.append('jam_selesai', form.jam_selesai)
-      // ✅ Sertakan pelatihan_id yang sedang dipilih (kosong/aman kalau cuma 1 pelatihan)
       if (selectedPelatihanId) formData.append('pelatihan_id', selectedPelatihanId)
       if (buktiType === 'file' && form.bukti) formData.append('bukti', form.bukti)
       if (buktiType === 'link' && buktiLink) formData.append('bukti_link', buktiLink)
@@ -232,6 +216,12 @@ export default function MahasiswaLogbook() {
     }
     if (!hitungDurasiMenit(editForm.jam_mulai, editForm.jam_selesai)) {
       return toast.error('Jam selesai harus setelah jam mulai!')
+    }
+    const hasBuktiSetelahEdit = !!editForm.bukti
+      || (editBuktiType === 'link' && !!editBuktiLink?.trim())
+      || (!editForm.hapusBukti && (!!editLog.cloudinary_public_id || !!editLog.bukti_link))
+    if (!hasBuktiSetelahEdit) {
+      return toast.error('Bukti kegiatan wajib diisi (upload file atau link)!')
     }
     setEditSubmitting(true)
     try {
@@ -275,11 +265,6 @@ export default function MahasiswaLogbook() {
       fetchAll()
     } catch { toast.error('Gagal menghapus logbook') }
   }
-
-  // ✅ Logbook yang ditampilkan: kalau mahasiswa punya >1 pelatihan dan sudah
-  // memilih salah satu, filter cuma logbook milik pelatihan itu. Logbook lama
-  // yang belum punya pelatihan_id (data sebelum migrasi) tetap muncul di semua
-  // tab supaya tidak ada data yang "hilang" dari tampilan.
   const logbooksByPelatihan = logbooks
 
   const isDisabled = pengajuan?.status !== 'disetujui_kaprodi'
@@ -312,7 +297,6 @@ export default function MahasiswaLogbook() {
         <p className="text-sm text-gray-400 mt-1 max-w-xs mx-auto">
           Logbook dapat diisi setelah pengajuan Capstone Project kamu disetujui oleh Kaprodi.
         </p>
-        {/* ✅ Tunjukkan info offline jika memang sedang offline */}
         {!navigator.onLine && (
           <p className="text-xs text-yellow-600 mt-3 bg-yellow-50 border border-yellow-100 rounded-xl px-3 py-2">
             Kamu sedang offline. Data pengajuan tidak ditemukan di cache lokal.
@@ -339,7 +323,7 @@ export default function MahasiswaLogbook() {
       {/* Banner offline */}
       {!navigator.onLine && (
         <div className="bg-yellow-50 border border-yellow-200 rounded-xl px-4 py-3 text-sm text-yellow-700 font-medium">
-          ⚠️ Kamu sedang offline. Menampilkan data tersimpan terakhir. Logbook (tanpa file) bisa tetap ditambah dan akan terkirim otomatis saat online.
+          ⚠️ Kamu sedang offline. Menampilkan data tersimpan terakhir. Logbook beserta bukti tetap bisa ditambah dan akan terkirim otomatis saat online.
         </div>
       )}
 
@@ -373,7 +357,6 @@ return (
                       <span className={`text-xs font-medium px-2 py-0.5 rounded-full border flex-shrink-0 ${statusCfg.color} ${statusCfg.bg} ${statusCfg.border}`}>
                         {statusCfg.label}
                       </span>
-                      {/* ✅ Badge nama pelatihan -- cuma tampil kalau mahasiswa punya >1 pelatihan */}
                       {pelatihanList.length > 1 && log.nama_pelatihan && (
                         <span className="text-xs font-medium px-2 py-0.5 rounded-full border flex-shrink-0 text-blue-600 bg-blue-50 border-blue-200">
                           {log.nama_pelatihan}
@@ -501,11 +484,9 @@ return (
             <form onSubmit={handleSubmit} className="p-5 space-y-4">
               {!navigator.onLine && (
                 <div className="bg-yellow-50 border border-yellow-200 rounded-xl px-3.5 py-2.5 text-xs text-yellow-700 font-medium">
-                  ⚠️ Offline — data tersimpan lokal, file bukti tidak bisa dilampirkan.
+                  ⚠️ Offline — data & bukti akan tersimpan lokal dan otomatis terupload saat online.
                 </div>
               )}
-
-              {/* ✅ Dropdown pelatihan -- cuma tampil kalau mahasiswa punya lebih dari 1 pelatihan */}
               {pelatihanList.length > 1 && (
   <div>
     <label className="block text-xs font-semibold text-gray-500 uppercase tracking-wide mb-1.5">Pelatihan *</label>
@@ -559,10 +540,9 @@ return (
                 {previewDurasi() && <p className="text-xs text-blue-500 font-medium mt-1.5">Durasi: {previewDurasi()}</p>}
               </div>
 
-              {navigator.onLine && (
-                <div>
+              <div>
                   <label className="block text-xs font-semibold text-gray-500 uppercase tracking-wide mb-1.5">
-                    Bukti Kegiatan <span className="text-gray-400 normal-case font-normal">(opsional)</span>
+                    Bukti Kegiatan *
                   </label>
                   <div className="flex gap-2 mb-3">
                   <button
@@ -623,7 +603,6 @@ return (
                       className="w-full border border-gray-200 rounded-xl px-3.5 py-2.5 text-sm focus:outline-none focus:border-blue-500" />
                   )}
                 </div>
-              )}
 
               <div className="flex gap-3 pt-1">
                 <button type="button" onClick={() => { setModalOpen(false); resetForm() }}
@@ -684,7 +663,7 @@ return (
 
               <div>
                 <label className="block text-xs font-semibold text-gray-500 uppercase tracking-wide mb-1.5">
-                  Bukti <span className="text-gray-400 normal-case font-normal">(opsional · PDF / JPG / PNG · maks 20 MB)</span>
+                  Bukti * <span className="text-gray-400 normal-case font-normal">(PDF / JPG / PNG · maks 20 MB)</span>
                 </label>
                 <div className="flex gap-2 mb-3">
                   <button type="button" onClick={() => { setEditBuktiType('file'); setEditBuktiLink('') }}

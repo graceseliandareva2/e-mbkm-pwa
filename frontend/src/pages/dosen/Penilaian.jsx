@@ -86,10 +86,6 @@ const getGrade = (nilai) => {
 const inputClass =
   "w-full border border-gray-200 rounded-xl px-3 py-2 text-sm text-gray-800 focus:outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500 text-center font-semibold disabled:bg-gray-100 disabled:text-gray-400 disabled:cursor-not-allowed";
 
-// ─── Modal konfirmasi kedua sebelum nilai dikunci permanen ─────────────────
-// Ini sengaja dibuat modal terpisah (bukan window.confirm) supaya dosen
-// benar-benar sadar konsekuensinya: setelah dikunci, nilai tidak bisa
-// diedit lagi dan langsung tampil ke dashboard Kaprodi & Staff.
 function KonfirmasiKuncModal({ nilaiAkhir, grade, onCancel, onConfirm, locking }) {
   return (
     <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4">
@@ -102,8 +98,7 @@ function KonfirmasiKuncModal({ nilaiAkhir, grade, onCancel, onConfirm, locking }
             <h3 className="font-bold text-gray-800">Kunci Nilai Permanen?</h3>
             <p className="text-sm text-gray-500 mt-1.5 leading-relaxed">
               Nilai akhir <span className="font-semibold text-gray-700">{nilaiAkhir.toFixed(1)} ({grade})</span> akan
-              dikunci dan <span className="font-semibold text-red-600">tidak bisa diubah lagi</span>. Kaprodi dan
-              Staff akan langsung bisa melihat nilai ini di dashboard mereka.
+              dikunci dan <span className="font-semibold text-red-600">tidak bisa diubah lagi</span>. 
             </p>
           </div>
           <div className="flex gap-2 pt-1">
@@ -148,9 +143,8 @@ export default function DosenPenilaian() {
     catatan: "",
   });
 
-  // ── State untuk fitur kunci nilai (finalisasi) ──
-  const [hasPenilaian, setHasPenilaian] = useState(false); // sudah pernah disimpan sebelumnya?
-  const [finalizedAt, setFinalizedAt] = useState(null);    // null = belum dikunci
+  const [hasPenilaian, setHasPenilaian] = useState(false); 
+  const [finalizedAt, setFinalizedAt] = useState(null);    
   const [showLockConfirm, setShowLockConfirm] = useState(false);
   const [locking, setLocking] = useState(false);
   const isLocked = !!finalizedAt;
@@ -162,7 +156,6 @@ export default function DosenPenilaian() {
     setLocalPeriode,
   } = usePeriodeFilter('dosen_pembimbing')
 
-  // Kalau ternyata tidak ada periode, hentikan loading & kosongkan list
   useEffect(() => {
     if (loadingPeriode) return
     if (periode.length === 0) {
@@ -224,7 +217,7 @@ export default function DosenPenilaian() {
 
   const handleSubmit = async (e) => {
     e.preventDefault();
-    if (isLocked) return; // safety net -- form seharusnya sudah disabled
+    if (isLocked) return; 
     if (!allFilled) return toast.error("Semua nilai rubrik wajib diisi!");
     for (const r of RUBRIK) {
       const v = parseFloat(nilai[r.field]);
@@ -233,12 +226,7 @@ export default function DosenPenilaian() {
     }
     setSubmitting(true);
     try {
-      // FIX: backend (berikanPenilaian di dosenController.js) mewajibkan
-      // pengajuan_id di body dan tidak pernah membaca mahasiswa_id/periode_id.
-      // Sebelumnya di sini yang dikirim mahasiswa_id & periode_id, jadi
-      // pengajuan_id selalu kosong -> backend selalu balas 400 "pengajuan_id
-      // wajib diisi". Datanya sudah ada di selectedMhs.pengajuan_id (dikirim
-      // oleh endpoint /dosen/mahasiswa-siap-dinilai), tinggal dipakai.
+    
       await api.post("/dosen/penilaian", {
         pengajuan_id: selectedMhs.pengajuan_id,
         ...Object.fromEntries(
@@ -258,18 +246,10 @@ export default function DosenPenilaian() {
     }
   };
 
-  // ── Kunci nilai (finalisasi) -- ini adalah konfirmasi KEDUA setelah
-  // dosen klik tombol "Kunci Nilai". Setelah berhasil, backend menolak
-  // semua perubahan lebih lanjut (lihat berikanPenilaian di
-  // dosenController.js: 403 kalau finalized_at sudah terisi), dan nilai
-  // otomatis mulai muncul di dashboard Kaprodi/Staff (query mereka sudah
-  // difilter WHERE pn.finalized_at IS NOT NULL).
   const handleLock = async () => {
     setLocking(true);
     try {
-      // NOTE: sesuaikan path ini kalau route asli finalisasiNilai di
-      // dosenRoutes.js berbeda -- ini asumsi mengikuti pola nama fungsi
-      // finalisasiNilai & konvensi POST /dosen/penilaian yang sudah ada.
+     
       await api.post("/dosen/penilaian/finalisasi", {
         pengajuan_id: selectedMhs.pengajuan_id,
       });
@@ -336,9 +316,6 @@ export default function DosenPenilaian() {
         <div className="flex items-start justify-between gap-3 flex-wrap">
           <div>
             <h1 className="text-xl font-bold text-gray-800">Penilaian Akhir</h1>
-            <p className="text-sm text-gray-500 mt-0.5">
-              Mahasiswa yang dokumennya sudah lengkap dan siap dinilai
-            </p>
           </div>
           {mahasiswaList.some((m) => m.penilaian_id) && (
             <button
@@ -389,11 +366,6 @@ export default function DosenPenilaian() {
                 ? `Tidak ada hasil untuk "${search}"`
                 : 'Belum ada mahasiswa yang dokumennya lengkap'}
             </p>
-            {!search && (
-              <p className="text-xs text-gray-400 mt-1">
-                Mahasiswa perlu upload PPT, laporan akhir, dan logbook ≥48 jam yang sudah diverifikasi
-              </p>
-            )}
           </div>
         ) : (
           <div className="space-y-3">
@@ -496,7 +468,7 @@ export default function DosenPenilaian() {
           <div>
             <p className="text-sm font-semibold text-violet-700">Nilai Sudah Dikunci</p>
             <p className="text-xs text-violet-500 mt-0.5">
-              Nilai ini sudah difinalisasi dan tidak bisa diubah lagi. Kaprodi dan Staff sudah bisa melihatnya di dashboard mereka.
+              Nilai ini sudah difinalisasi dan tidak bisa diubah lagi. 
             </p>
           </div>
         </div>
@@ -640,10 +612,6 @@ export default function DosenPenilaian() {
             )}
           </button>
         )}
-
-        {/* Tombol kunci nilai -- hanya muncul kalau nilai sudah pernah
-            disimpan dan belum dikunci. Klik ini membuka modal konfirmasi
-            kedua (KonfirmasiKuncModal) sebelum benar-benar difinalisasi. */}
         {!isLocked && hasPenilaian && (
           <button
             type="button"

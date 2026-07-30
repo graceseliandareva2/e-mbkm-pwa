@@ -5,10 +5,10 @@ import toast from 'react-hot-toast'
 import usePeriodeFilter from '../../hooks/usePeriodeFilter'
 import BuktiPreview, { FileBuktiPreview } from '../../components/common/BuktiPreview'
 
-const ROUTE_LIST     = '/staff/mahasiswa-mbkm'  // GET ?periode_id=
-const ROUTE_LOGBOOK  = '/staff/logbook'         // GET ?pengajuan_id=
-const ROUTE_DOKUMEN  = '/staff/dokumen'         // GET ?pengajuan_id=
-const ROUTE_NILAI    = '/staff/nilai'           // GET ?pengajuan_id=
+const ROUTE_LIST     = '/staff/mahasiswa-mbkm'  
+const ROUTE_LOGBOOK  = '/staff/logbook'       
+const ROUTE_DOKUMEN  = '/staff/dokumen'         
+const ROUTE_NILAI    = '/staff/nilai'           
 
 const STATUS_CONFIG = {
   diupload:          { label: 'Diupload',      color: 'text-yellow-600', bg: 'bg-yellow-50',  border: 'border-yellow-200' },
@@ -30,11 +30,6 @@ const StatusBadge = ({ status }) => {
   )
 }
 
-// ─── PreviewModal ───────────────────────────────────────────────────────
-// Modal preview generik -- dipakai buat dokumen (laporan/PPT) dan bukti
-// logbook, sama seperti pola FileBuktiPreview/BuktiPreview yang dipakai di
-// role lain (mahasiswa/dosen/kaprodi), supaya PDF/gambar tampil inline
-// langsung, bukan ngelempar ke URL Cloudinary mentah.
 const PreviewModal = ({ preview, onClose }) => {
   if (!preview) return null
   const { title, subtitle, path, link, filename } = preview
@@ -63,11 +58,6 @@ const PreviewModal = ({ preview, onClose }) => {
   )
 }
 
-// ─── DokumenSection ─────────────────────────────────────────────────────
-// View-only: Staff cuma bisa preview/download, tidak ada tombol verifikasi
-// (backend getDokumenMahasiswa juga tidak expose endpoint PATCH untuk staff).
-// Preview sekarang render inline lewat FileBuktiPreview (PDF/gambar in-app),
-// bukan buka tab baru ke URL Cloudinary mentah.
 const DokumenSection = ({ dok, label, onPreview }) => {
   if (!dok) return <p className="text-sm text-gray-400 italic">{label} belum diupload.</p>
   const fileUrl = dok.cloudinary_url
@@ -91,11 +81,6 @@ const DokumenSection = ({ dok, label, onPreview }) => {
   )
 }
 
-// ─── LogbookSection ─────────────────────────────────────────────────────
-// Tabel logbook lengkap (sama seperti yang dilihat Kaprodi), tapi view-only
-// murni -- tidak ada tombol verifikasi/reject di sisi Staff. Data sudah
-// dibawa lengkap oleh getLogbookMahasiswa (staff), cuma sebelumnya cuma
-// dipakai buat hitung jumlah entri saja.
 const LOGBOOK_STATUS_CONFIG = {
   menunggu:      { label: 'Menunggu',      color: 'text-yellow-600', bg: 'bg-yellow-50' },
   disetujui:     { label: 'Disetujui',     color: 'text-green-600',  bg: 'bg-green-50' },
@@ -190,18 +175,11 @@ const LogbookSection = ({ logbook, onPreview }) => {
     </div>
   )
 }
-
-// ─── NilaiSection ───────────────────────────────────────────────────────
-// Detail nilai di dalam modal. View-only: nilai cuma muncul kalau dosen PA
-// sudah finalisasi (backend getNilaiMahasiswa cuma balikin baris kalau
-// finalized_at IS NOT NULL, selain itu `null`).
-// PERUBAHAN: grid rincian (Kesesuaian, Proyek, Evaluasi, Laporan, Presentasi)
-// dihapus -- cukup tampilkan Nilai Akhir dan Grade saja.
 const NilaiSection = ({ nilai }) => {
   if (!nilai) {
     return (
       <p className="text-sm text-gray-400 italic">
-        Nilai belum tersedia — menunggu finalisasi dari Dosen Pembimbing Akademik.
+        Nilai belum tersedia
       </p>
     )
   }
@@ -239,11 +217,6 @@ const NilaiSection = ({ nilai }) => {
     </div>
   )
 }
-
-// ─── DetailMahasiswaModal ───────────────────────────────────────────────
-// Beda dari versi Kaprodi: backend staff pisah endpoint (logbook, dokumen,
-// nilai), jadi di-fetch bareng lewat Promise.all lalu digabung ke satu state.
-// View-only sepenuhnya -- tidak ada aksi verifikasi/revisi di sini.
 const DetailMahasiswaModal = ({ row, onClose }) => {
   const [logbook, setLogbook]   = useState([])
   const [nilai, setNilai]       = useState(null)

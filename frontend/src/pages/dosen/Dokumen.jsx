@@ -71,9 +71,6 @@ function DetailModal({ doc, onClose, onRefresh }) {
   const getInfoMessage = () => {
     if (doc.jenis === 'laporan_akhir') {
       switch (doc.status) {
-        // FIX: case 'diupload' dihapus. Status ini sekarang canAksi=true
-        // (dosen yang harus bertindak duluan), jadi tidak pernah lagi masuk
-        // ke cabang infoMsg. Sebelumnya di sini salah bilang "menunggu Kaprodi".
         case 'revisi_kaprodi':
           return { text: 'Kaprodi meminta revisi dari mahasiswa. Menunggu mahasiswa mengupload ulang.', icon: XCircle, cfg: statusCfg }
         case 'diverifikasi':
@@ -185,7 +182,6 @@ function DetailModal({ doc, onClose, onRefresh }) {
   )
 }
 
-// ── Main Component ────────────────────────────────────────────────────────────
 export default function DosenDokumen() {
   const [mahasiswa, setMahasiswa]             = useState([])
   const [dokumen, setDokumen]                 = useState([])

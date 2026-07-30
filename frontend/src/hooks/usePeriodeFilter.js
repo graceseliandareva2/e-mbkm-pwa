@@ -57,6 +57,13 @@ export default function usePeriodeFilter(role) {
         if (!globalPeriode) {
           const aktif = list.find(p => p.is_active) ?? list[0] ?? null;
           if (aktif) setGlobalPeriode(aktif);
+        } else if (!list.some(p => p.id === globalPeriode.id)) {
+          // PERUBAHAN: periode yang tersimpan di store (misal dari localStorage
+          // lama) ternyata sudah tidak ada lagi di daftar terbaru dari backend
+          // (kemungkinan sudah dihapus). Jangan biarkan nyangkut selamanya --
+          // reset ke periode aktif baru kalau ada, atau null kalau list kosong.
+          const aktif = list.find(p => p.is_active) ?? list[0] ?? null;
+          setGlobalPeriode(aktif);
         }
       } finally {
         if (!cancelled) setLoading(false);

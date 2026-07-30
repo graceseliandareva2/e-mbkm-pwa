@@ -1,17 +1,3 @@
-// pages/dosen/DosenLogbook.jsx
-// PERUBAHAN: tambah cache localStorage via offlineCache.js
-//   - Saat mount: langsung tampilkan data terakhir dari cache
-//   - Saat fetch sukses: update cache
-//   - Saat offline: fetch gagal tapi data dari cache tetap muncul
-//
-// PERUBAHAN (BARU): logbook sekarang per-mahasiswa, bukan flat list semua
-// mahasiswa bimbingan digabung. Dosen pilih mahasiswa dulu (view "mahasiswa"),
-// baru masuk ke logbook mahasiswa itu saja (view "logbook") -- sama seperti
-// pola list->form di Penilaian.jsx. Endpoint backend tidak berubah:
-// GET /dosen/logbook sudah lama support filter ?mahasiswa_id=, cuma
-// sebelumnya frontend tidak pernah mengirim mahasiswa_id jadi selalu ambil
-// logbook SEMUA mahasiswa bimbingan sekaligus.
-
 import { useEffect, useState, useCallback } from 'react'
 import {
   BookOpen, CheckCircle, AlertCircle, Clock, MessageSquare, Eye, Search, X,
@@ -19,14 +5,13 @@ import {
 } from 'lucide-react'
 import api from '../../utils/api'
 import toast from 'react-hot-toast'
-import { getCache, setCache } from '../../utils/offlineCache'   // ← BARU
+import { getCache, setCache } from '../../utils/offlineCache'  
 import usePeriodeFilter from '../../hooks/usePeriodeFilter'
 import PeriodeDropdown from '../../components/common/PeriodeDropdown'
 import { FileBuktiPreview, LinkBukti } from '../../components/common/BuktiPreview'
-// ── Cache key ─────────────────────────────────────────────────────
+
 const CACHE_MHS     = 'dosen_mahasiswa'
-// Cache logbook sekarang per mahasiswa juga, bukan cuma per periode --
-// supaya masing-masing mahasiswa punya cache offline sendiri-sendiri.
+
 const CACHE_LOGBOOK = (periodeId, mahasiswaId) => `dosen_logbook_${periodeId}_${mahasiswaId}`
 
 const STATUS_CONFIG = {
@@ -48,14 +33,13 @@ const formatDurasi = (menit) => {
 export default function DosenLogbook() {
   const [mahasiswa, setMahasiswa]         = useState([])
   const [loading, setLoading]             = useState(true)
-  const [isOffline, setIsOffline]         = useState(!navigator.onLine)   // ← BARU
-
-  // ── View: pilih mahasiswa dulu, baru masuk ke logbook mahasiswa itu ──
-  const [view, setView]                   = useState('mahasiswa') // 'mahasiswa' | 'logbook'
+  const [isOffline, setIsOffline]         = useState(!navigator.onLine)  
+ 
+  const [view, setView]                   = useState('mahasiswa') 
   const [selectedMhs, setSelectedMhs]     = useState(null)
   const [mhsSearch, setMhsSearch]         = useState('')
 
-  // ── State logbook milik mahasiswa yang sedang dipilih ──
+
   const [logbooks, setLogbooks]           = useState([])
   const [loadingLogbook, setLoadingLogbook] = useState(false)
   const [expanded, setExpanded]           = useState(null)
@@ -82,8 +66,6 @@ export default function DosenLogbook() {
     }
   }, [])
 
-  // ── 1. Kalau ternyata tidak ada periode (termasuk saat offline dan
-  // fetch periode di dalam hook gagal), fallback ke cache mahasiswa ──
   useEffect(() => {
     if (loadingPeriode) return
     if (periode.length === 0) {
@@ -93,9 +75,6 @@ export default function DosenLogbook() {
     }
   }, [periode, loadingPeriode])
 
-  // ── 2. Fetch daftar mahasiswa saat periode berubah ─────────────
-  // Balik ke view "mahasiswa" setiap kali periode ganti, karena mahasiswa
-  // yang sebelumnya dipilih belum tentu ada di periode yang baru.
   useEffect(() => {
     if (!selectedPeriode) return
     setView('mahasiswa')
@@ -118,7 +97,7 @@ export default function DosenLogbook() {
       setMahasiswa(list)
       setCache(CACHE_MHS, list)
     } catch {
-      // Offline: tetap pakai state sebelumnya yang sudah di-load dari cache
+      // Offline
     } finally {
       setLoading(false)
     }
@@ -132,21 +111,18 @@ export default function DosenLogbook() {
       setLogbooks(list)
       setCache(CACHE_LOGBOOK(periodeId, mahasiswaId), list)
     } catch {
-      // Offline: tetap pakai state dari cache yang sudah diisi di atas
+      // Offline
     } finally {
       setLoadingLogbook(false)
     }
   }, [])
 
-  // ── Pilih mahasiswa -> masuk ke view logbook mahasiswa itu ──────
   const handlePilihMhs = (mhs) => {
     setSelectedMhs(mhs)
     setExpanded(null)
     setFeedback('')
     setSearchQuery('')
     setView('logbook')
-
-    // Tampilkan cache dulu sebelum fetch
     const cached = getCache(CACHE_LOGBOOK(selectedPeriode, mhs.id), null)
     setLogbooks(cached || [])
 
@@ -160,8 +136,6 @@ export default function DosenLogbook() {
     setExpanded(null)
     setFeedback('')
   }
-
-  // ── Verifikasi ────────────────────────────────────────────────
   const handleVerifikasi = async (id, status) => {
     setProcessing(true)
     try {
@@ -177,14 +151,12 @@ export default function DosenLogbook() {
     }
   }
 
-  // ── Filter mahasiswa (view "mahasiswa") ─────────────────────────
   const filteredMahasiswa = mahasiswa.filter(m => {
     if (!mhsSearch.trim()) return true
     const q = mhsSearch.toLowerCase()
     return (m.nama || '').toLowerCase().includes(q) || (m.nim || '').toLowerCase().includes(q)
   })
 
-  // ── Filter logbook (view "logbook", sudah dalam konteks 1 mahasiswa) ──
   const filteredLogbooks = logbooks.filter(log => {
     if (!searchQuery.trim()) return true
     const q = searchQuery.toLowerCase()
@@ -194,22 +166,18 @@ export default function DosenLogbook() {
     )
   })
 
-  // ── Loading awal ──────────────────────────────────────────────
+
   if (loading) return (
     <div className="flex items-center justify-center h-64">
       <div className="w-8 h-8 border-4 border-blue-600 border-t-transparent rounded-full animate-spin" />
     </div>
   )
 
-  // ══════════════════════════════════════════════════════════════
-  // VIEW: DAFTAR MAHASISWA
-  // ══════════════════════════════════════════════════════════════
   if (view === 'mahasiswa') {
     return (
       <div className="space-y-5">
         <div>
           <h1 className="text-xl font-bold text-gray-800">Logbook Mahasiswa</h1>
-          <p className="text-sm text-gray-500 mt-0.5">Pilih mahasiswa untuk lihat dan verifikasi logbook-nya</p>
         </div>
 
         {isOffline && (
@@ -289,9 +257,6 @@ export default function DosenLogbook() {
     )
   }
 
-  // ══════════════════════════════════════════════════════════════
-  // VIEW: LOGBOOK MILIK 1 MAHASISWA
-  // ══════════════════════════════════════════════════════════════
   return (
     <div className="space-y-5">
       <div className="flex items-center gap-3">
@@ -311,7 +276,6 @@ export default function DosenLogbook() {
         </div>
       )}
 
-      {/* Search dalam konteks mahasiswa ini saja */}
       <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-4">
         <div className="relative">
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400 pointer-events-none" />
@@ -329,7 +293,6 @@ export default function DosenLogbook() {
         </div>
       </div>
 
-      {/* List logbook -- khusus mahasiswa yang dipilih */}
       <div className="space-y-3">
         {loadingLogbook ? (
           <div className="flex justify-center py-10">
@@ -396,8 +359,7 @@ export default function DosenLogbook() {
                     </div>
                   )}
                   {log.bukti_link && (() => {
-                    // Sama persis dengan logic di LogbookMahasiswa.jsx: cloudinary_public_id
-                    // menandakan bukti_link berisi URL file (Cloudinary), bukan link manual.
+                   
                     const isFileUpload = !!log.cloudinary_public_id
                     return (
                       <div>

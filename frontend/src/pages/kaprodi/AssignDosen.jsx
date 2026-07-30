@@ -62,11 +62,6 @@ function JudulCapstone({ pelatihan = [] }) {
 
 export default function KaprodiAssignDosen() {
   const [pengajuanList, setPengajuanList] = useState([]);
-  // PERUBAHAN: dosen sekarang berisi roster MBKM periode terpilih (bukan
-  // seluruh master dosen), diambil dari GET /kaprodi/dosen-roster-mbkm.
-  // Setiap baris punya bentuk { roster_id, dosen_id, id_dosen, nama, ... }
-  // -- yang dipakai buat assign adalah `dosen_id` (id master dosen), karena
-  // itu yang divalidasi & disimpan backend ke bimbingan.dosen_id.
   const [dosen, setDosen] = useState([]);
   const [dosenLoading, setDosenLoading] = useState(false);
   const [loading, setLoading] = useState(true);
@@ -92,10 +87,6 @@ export default function KaprodiAssignDosen() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [selectedPeriode]);
 
-  // PERUBAHAN: dulu dosen di-fetch sekali dari /kaprodi/dosen (master list)
-  // di fetchAll(). Sekarang di-fetch ulang tiap ganti periode dari roster
-  // MBKM periode itu -- supaya dropdown assign cuma nampilin dosen yang
-  // memang tersedia di periode yang sedang dikerjakan kaprodi.
   const fetchDosenRoster = async (periodeId) => {
     setDosenLoading(true);
     try {
@@ -170,10 +161,6 @@ export default function KaprodiAssignDosen() {
         <h1 className="text-2xl font-bold text-gray-800">
           Assign Dosen Pembimbing
         </h1>
-        <p className="text-gray-500 text-sm mt-1">
-          Penugasan dosen pembimbing untuk mahasiswa yang pengajuannya telah
-          disetujui
-        </p>
       </div>
 
       <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-4 flex flex-col sm:flex-row gap-3">
@@ -418,11 +405,6 @@ export default function KaprodiAssignDosen() {
                 <label className="text-xs font-semibold text-gray-600 block mb-1.5">
                   Pilih Dosen Pembimbing <span className="text-red-500">*</span>
                 </label>
-                {/* PERUBAHAN: dropdown ini sekarang cuma menampilkan dosen
-                    yang ada di roster_dosen_mbkm untuk periode terpilih --
-                    bukan seluruh master dosen. Kalau roster kosong, tampil
-                    pesan supaya kaprodi tahu perlu minta staff mengisi
-                    roster dulu di halaman Pembimbing MBKM. */}
               <select
   value={selectedDosen}
   onChange={(e) => setSelectedDosen(e.target.value)}
@@ -439,11 +421,6 @@ export default function KaprodiAssignDosen() {
     </option>
   ))}
 </select>
-                {!dosenLoading && dosen.length === 0 && (
-                  <p className="text-xs text-amber-600 mt-1.5">
-                    Belum ada dosen di roster MBKM untuk periode ini. Minta staff akademik menambahkannya lewat halaman Pembimbing MBKM.
-                  </p>
-                )}
               </div>
               <div className="flex gap-3 pt-2">
                 <button

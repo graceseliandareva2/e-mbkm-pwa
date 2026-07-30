@@ -43,7 +43,7 @@ export default function StaffDosenMBKM() {
 
   useEffect(() => {
     if (selectedPeriode) fetchRoster(selectedPeriode)
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+  
   }, [selectedPeriode])
 
   const fetchRoster = async (periodeId) => {
@@ -105,12 +105,12 @@ export default function StaffDosenMBKM() {
         ...tambahForm,
         periode_id: selectedPeriode,
       })
-      toast.success(res.data.message || 'Dosen berhasil ditambahkan ke roster MBKM!')
+      toast.success(res.data.message || 'Dosen berhasil ditambahkan ke daftar pembimbing MBKM!')
       setShowTambah(false)
       setTambahForm(emptyTambahForm)
       fetchRoster(selectedPeriode)
     } catch (err) {
-      toast.error(err.response?.data?.message || 'Gagal menambahkan dosen ke roster MBKM!')
+      toast.error(err.response?.data?.message || 'Gagal menambahkan dosen ke daftar pembimbing MBKM!')
     } finally {
       setTambahLoading(false)
     }
@@ -175,7 +175,7 @@ export default function StaffDosenMBKM() {
       <div className="flex items-center justify-between flex-wrap gap-3">
         <div>
           <h1 className="text-2xl font-bold text-gray-800">Pembimbing MBKM</h1>
-          <p className="text-gray-500 text-sm mt-1">Kelola roster dosen pembimbing MBKM per periode</p>
+          <p className="text-gray-500 text-sm mt-1">Kelola dosen pembimbing MBKM per periode</p>
         </div>
         <div className="flex items-center gap-2">
           <button
@@ -282,7 +282,7 @@ export default function StaffDosenMBKM() {
             <div className="flex items-center justify-between p-6 border-b border-gray-100">
               <div className="flex items-center gap-2">
                 <UserPlus className="w-5 h-5 text-blue-600" />
-                <h2 className="font-bold text-gray-800">Tambah Dosen ke Roster MBKM</h2>
+                <h2 className="font-bold text-gray-800">Tambah Dosen ke daftar pembimbing MBKM</h2>
               </div>
               <button onClick={handleCloseTambah} className="p-2 hover:bg-gray-100 rounded-xl">
                 <X className="w-5 h-5 text-gray-500" />
@@ -313,9 +313,6 @@ export default function StaffDosenMBKM() {
                   placeholder="Contoh: Sistem dan Teknologi Informasi"
                   className="w-full px-3 py-2.5 border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 bg-gray-50" />
               </div>
-              <p className="text-xs text-blue-600 bg-blue-50 border border-blue-100 rounded-xl px-3 py-2">
-                Kalau ID Dosen sudah pernah terdaftar sebelumnya (misalnya lewat halaman Pembimbing Akademik), data yang sudah ada itu yang dipakai -- dosen ini langsung ditambahkan ke roster MBKM periode terpilih tanpa membuat data ganda.
-              </p>
               <div className="flex gap-3 pt-2">
                 <button onClick={handleCloseTambah}
                   className="flex-1 py-2.5 border border-gray-200 text-gray-600 rounded-xl text-sm font-semibold hover:bg-gray-50">

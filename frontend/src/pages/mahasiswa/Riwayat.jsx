@@ -62,10 +62,6 @@ const getDokumenStatusInfo = (status) => {
   }
 };
 
-// Helper tunggal untuk URL file dokumen -- backend sekarang pakai Cloudinary,
-// jadi field yang benar adalah `cloudinary_url`. Fallback ke `path_file`
-// dipertahankan buat jaga-jaga kalau masih ada dokumen lama dari sebelum
-// migrasi Cloudinary yang belum punya cloudinary_url.
 const getFileUrl = (doc) => {
   if (!doc) return null;
   return doc.cloudinary_url || doc.path_file || null;
@@ -122,13 +118,6 @@ export default function MahasiswaRiwayat() {
     };
     fetchAll();
   }, []);
-
-  // Hanya yang sudah final/diverifikasi yang masuk Riwayat.
-  // PERUBAHAN: hanya 'diverifikasi' yang benar-benar final sekarang.
-  // 'disetujui_dospem' untuk laporan_akhir BUKAN final -- masih menunggu
-  // verifikasi Kaprodi, jadi dokumennya masih aktif di halaman Dokumen,
-  // bukan di sini. 'disetujui_kaprodi' juga sudah tidak pernah tersimpan
-  // mentah lagi (approval Kaprodi otomatis jadi 'diverifikasi').
   const DOKUMEN_VERIFIED_STATUSES = ["diverifikasi"];
 
   const verifiedLogbooks = logbooks.filter((l) => l.status === "diverifikasi");
@@ -153,10 +142,6 @@ export default function MahasiswaRiwayat() {
       </div>
     );
 
-  // Backend tidak punya kolom bukti_path -- baik file upload maupun link
-  // manual sama-sama disimpan di bukti_link. Pembedanya cloudinary_public_id:
-  // terisi = hasil upload file, null = link yang diketik user.
-  // (pola sama persis dengan Logbook.jsx)
   const isLogFileUpload = !!selectedLog?.cloudinary_public_id;
 
   return (
@@ -230,7 +215,6 @@ export default function MahasiswaRiwayat() {
     <Icon className="w-3 h-3" />
     {cfg.label}
   </span>
-  {/* Badge nama pelatihan, sama seperti di halaman Logbook */}
   {item.nama_pelatihan && (
     <span className="text-xs font-medium px-2 py-0.5 rounded-full border flex-shrink-0 text-blue-600 bg-blue-50 border-blue-200">
       {item.nama_pelatihan}

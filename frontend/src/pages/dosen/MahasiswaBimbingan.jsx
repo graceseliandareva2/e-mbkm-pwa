@@ -35,7 +35,6 @@ export default function DosenMahasiswaBimbingan() {
     setLocalPeriode,
   } = usePeriodeFilter('dosen_pembimbing')
 
-  // Kalau ternyata tidak ada periode, hentikan loading & kosongkan list
   useEffect(() => {
     if (loadingPeriode) return
     if (periodeList.length === 0) {
@@ -44,11 +43,9 @@ export default function DosenMahasiswaBimbingan() {
     }
   }, [periodeList, loadingPeriode])
 
-  // Fetch data mahasiswa tiap kali selectedPeriode berubah
   useEffect(() => {
     if (!selectedPeriode) return
     fetchMahasiswa(selectedPeriode)
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [selectedPeriode])
 
   const fetchMahasiswa = async (periodeId) => {
@@ -79,10 +76,10 @@ export default function DosenMahasiswaBimbingan() {
     <div className="space-y-5">
       <div>
         <h1 className="text-xl font-bold text-gray-800">Mahasiswa Bimbingan</h1>
-        <p className="text-sm text-gray-500 mt-0.5">Daftar mahasiswa yang kamu bimbing</p>
+        <p className="text-sm text-gray-500 mt-0.5">Daftar mahasiswa bimbingan</p>
       </div>
 
-      {/* Filter — selalu tampil */}
+      {/* Filter */}
       <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-4 flex flex-col sm:flex-row gap-3">
         <div className="relative flex-1">
           <Search className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />

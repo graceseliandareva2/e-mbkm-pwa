@@ -42,8 +42,6 @@ export default function MahasiswaDashboard() {
       setPengajuan(pRes.data)
 
       const logbooks = Array.isArray(lRes.data?.data) ? lRes.data.data : []
-      // durasi_menit = kolom turunan dari jam_mulai/jam_selesai (dihitung backend).
-      // Kolom `jam` lama sudah tidak dipakai lagi (nunggu di-DROP).
       const totalMenit = logbooks.reduce((sum, l) => sum + (Number(l.durasi_menit) || 0), 0)
       setLogbookStats({ count: logbooks.length, totalMenit })
 
@@ -179,11 +177,9 @@ export default function MahasiswaDashboard() {
         <div className="bg-white rounded-2xl border border-gray-100 shadow-sm flex flex-col items-center justify-center px-5 py-8 text-center gap-1">
           <CalendarClock className="w-6 h-6 text-gray-200 mb-1" />
           <p className="text-sm font-medium text-gray-400">Tidak ada periode aktif</p>
-          <p className="text-xs text-gray-300">Hubungi kaprodi untuk informasi lebih lanjut</p>
         </div>
       )}
 
-      {/* ── Status Pengajuan + Progres Logbook: sejajar 2 kolom di bawah Periode Aktif ── */}
       <div className={`grid grid-cols-1 gap-4 ${pengajuan?.status === 'disetujui_kaprodi' ? 'sm:grid-cols-2' : ''}`}>
 
         {/* Status Pengajuan */}

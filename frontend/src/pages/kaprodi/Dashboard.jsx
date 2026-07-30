@@ -184,7 +184,7 @@ export default function KaprodiDashboard() {
     Detail
   </button>
 </td>
-                    </tr>
+         </tr>
                   )
                 })}
               </tbody>

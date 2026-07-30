@@ -55,7 +55,22 @@ export async function syncQueue(apiInstance) {
   let successCount = 0
   for (const item of queue) {
     try {
-      if (item.method === 'POST') {
+      // ✅ Kalau item punya file (mis. bukti logbook yang diupload saat
+      // offline), kirim sebagai FormData (multipart) supaya file ikut
+      // ter-upload ke Cloudinary saat sinkronisasi -- bukan JSON biasa.
+      if (item.file && item.file.blob) {
+        const formData = new FormData()
+        Object.entries(item.data || {}).forEach(([key, value]) => {
+          if (value !== undefined && value !== null) formData.append(key, value)
+        })
+        formData.append(item.file.fieldName, item.file.blob, item.file.filename)
+
+        if (item.method === 'POST') {
+          await apiInstance.post(item.url, formData, { headers: { 'Content-Type': 'multipart/form-data' } })
+        } else if (item.method === 'PUT') {
+          await apiInstance.put(item.url, formData, { headers: { 'Content-Type': 'multipart/form-data' } })
+        }
+      } else if (item.method === 'POST') {
         await apiInstance.post(item.url, item.data)
       } else if (item.method === 'PUT') {
         await apiInstance.put(item.url, item.data)

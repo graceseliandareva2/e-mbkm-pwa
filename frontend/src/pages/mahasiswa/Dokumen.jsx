@@ -6,23 +6,18 @@ import {
 import api from '../../utils/api'
 import toast from 'react-hot-toast'
 import { useSyncOnline } from '../../utils/useSyncOnline'
+import { saveToQueue } from '../../utils/offlineQueue'
 import { FileBuktiPreview } from '../../components/common/BuktiPreview'
 
-// ─── Cache keys (offline-first, sama seperti Logbook.jsx) ─────────────────────
 const LS_DOKUMEN   = 'cache_dokumen'
 const LS_PENGAJUAN = 'cache_pengajuan_dokumen'
-
-// ─── Konstanta ────────────────────────────────────────────────────────────────
 
 const JENIS_OPTIONS = [
   { value: 'laporan_akhir', label: 'Laporan Akhir' },
   { value: 'ppt',           label: 'PPT' },
 ]
 
-// ✅ Hanya PDF yang diterima untuk upload dokumen
 const ALLOWED_TYPES = ['application/pdf']
-
-// ─── Status helpers ─────────────────────────────────────────────────────────
 
 const getStatusInfo = (status) => {
   switch (status) {
@@ -32,8 +27,6 @@ const getStatusInfo = (status) => {
     case 'diverifikasi':
       return { label: 'Diverifikasi', color: 'text-green-600', bg: 'bg-green-50', border: 'border-green-200', icon: CheckCircle, canResubmit: false }
     case 'disetujui_dospem':
-      // untuk laporan_akhir ini BUKAN status final -- masih menunggu
-      // verifikasi Kaprodi (urutan baru: dospem dulu, baru kaprodi).
       return { label: 'Menunggu Verifikasi Kaprodi', color: 'text-blue-600', bg: 'bg-blue-50', border: 'border-blue-200', icon: Clock, canResubmit: false }
     case 'disetujui_kaprodi':
       return { label: 'Disetujui Kaprodi', color: 'text-purple-600', bg: 'bg-purple-50', border: 'border-purple-200', icon: CheckCircle, canResubmit: false }
@@ -42,8 +35,6 @@ const getStatusInfo = (status) => {
   }
 }
 
-// Helper tunggal untuk teks feedback -- dipakai di list, DetailModal, dan
-// ResubmitModal supaya tidak ada logic bercabang yang duplikat.
 const getFeedbackText = (doc) => {
   if (!doc) return null
   if (doc.jenis === 'laporan_akhir') {
@@ -53,11 +44,6 @@ const getFeedbackText = (doc) => {
   }
   return doc.status === 'revisi_dospem' ? doc.feedback : null
 }
-
-// Helper tunggal untuk URL file dokumen -- backend sekarang pakai Cloudinary,
-// jadi field yang benar adalah `cloudinary_url`. Fallback ke `path_file`
-// dipertahankan buat jaga-jaga kalau masih ada dokumen lama dari sebelum
-// migrasi Cloudinary yang belum punya cloudinary_url.
 const getFileUrl = (doc) => {
   if (!doc) return null
   return doc.cloudinary_url || doc.path_file || null
@@ -73,11 +59,6 @@ function StatusBadge({ status }) {
     </span>
   )
 }
-
-// ─── DetailModal ──────────────────────────────────────────────────────────────
-// Dokumen mahasiswa selalu berupa file upload (PDF) -- tidak pernah link
-// manual seperti di Logbook -- jadi preview cukup pakai FileBuktiPreview
-// dari BuktiPreview.jsx (sama persis dengan yang dipakai Logbook.jsx).
 
 function DetailModal({ doc, jenisLabel, onClose, onResubmit }) {
   if (!doc) return null
@@ -125,9 +106,6 @@ function DetailModal({ doc, jenisLabel, onClose, onResubmit }) {
             <p className="text-xs text-red-500">Dokumen ini perlu direvisi. Silakan submit ulang file yang sudah diperbaiki.</p>
           </div>
         )}
-
-        {/* Preview area -- selalu PDF (upload dokumen wajib PDF), pakai FileBuktiPreview
-            yang sama dengan Logbook.jsx supaya konsisten dan sadar Cloudinary. */}
         <div className="flex-1 overflow-hidden bg-gray-50 flex flex-col rounded-b-2xl">
           <FileBuktiPreview path={getFileUrl(doc)} filename={doc.nama_file} />
         </div>
@@ -147,8 +125,6 @@ function ResubmitModal({ doc, onClose, onSuccess }) {
   if (!doc) return null
 
   const feedbackText = getFeedbackText(doc)
-
-  // ✅ Validasi hanya PDF
   const validateFile = (f) => {
     if (f.type !== 'application/pdf') {
       toast.error('File harus berupa PDF!')
@@ -215,7 +191,7 @@ function ResubmitModal({ doc, onClose, onSuccess }) {
             className={`border-2 border-dashed rounded-xl p-6 text-center cursor-pointer transition-all
               ${dragging ? 'border-blue-500 bg-blue-50' : file ? 'border-green-400 bg-green-50' : 'border-gray-200 hover:border-blue-400 hover:bg-gray-50'}`}
           >
-            {/* ✅ accept hanya .pdf */}
+            {/*accept hanya .pdf */}
             <input ref={fileRef} type="file" accept=".pdf" className="hidden"
               onChange={e => { const f = e.target.files[0]; if (f && validateFile(f)) setFile(f) }} />
             {file ? (
@@ -266,8 +242,6 @@ export default function MahasiswaDokumen() {
   const [form, setForm]               = useState({ jenis: '', file: null })
   const fileRef = useRef(null)
 
-  // ✅ Load dari cache localStorage saat pertama mount (sebelum fetch), sama
-  // seperti pola offline-first di Logbook.jsx.
   useEffect(() => {
     try {
       const cachedDokumen   = localStorage.getItem(LS_DOKUMEN)
@@ -298,12 +272,10 @@ export default function MahasiswaDokumen() {
     finally { setLoading(false) }
   }
 
-  // Auto-sync ketika koneksi kembali online (sama seperti Logbook.jsx)
   useSyncOnline(fetchAll)
 
   useEffect(() => { fetchAll() }, [])
 
-  // ✅ Validasi hanya PDF
   const validateFile = (file) => {
     if (!file) return false
     if (!ALLOWED_TYPES.includes(file.type)) {
@@ -318,11 +290,24 @@ export default function MahasiswaDokumen() {
     if (!form.jenis) return toast.error('Pilih jenis dokumen terlebih dahulu!')
     if (!form.file)  return toast.error('File wajib dipilih!')
     if (!pengajuan?.periode_id) return toast.error('Data pengajuan tidak ditemukan!')
-
-    // Upload dokumen selalu berupa file (wajib PDF), jadi tidak bisa
-    // diantrekan secara offline seperti logbook tanpa lampiran.
     if (!navigator.onLine) {
-      return toast.error('Upload dokumen memerlukan koneksi internet.')
+      try {
+        await saveToQueue({
+          method: 'POST',
+          url: '/mahasiswa/dokumen',
+          data: {
+            jenis: form.jenis,
+            periode_id: pengajuan.periode_id,
+            pengajuan_id: pengajuan.id,
+          },
+          file: { blob: form.file, filename: form.file.name, fieldName: 'file' },
+        })
+        toast.success('Offline! Dokumen tersimpan lokal, akan otomatis terupload saat online.')
+        setForm({ jenis: '', file: null })
+      } catch {
+        toast.error('Gagal menyimpan data offline')
+      }
+      return
     }
 
     setUploading(true)
@@ -352,13 +337,6 @@ export default function MahasiswaDokumen() {
   }
 
   const isDisabled = pengajuan?.status !== 'disetujui_kaprodi'
-
-  // Status yang dianggap "sudah selesai" → pindah ke halaman Riwayat.
-  // Hanya 'diverifikasi' yang benar-benar final sekarang. 'disetujui_dospem'
-  // untuk laporan_akhir BUKAN final -- masih menunggu verifikasi Kaprodi
-  // (urutan baru: dospem dulu, baru kaprodi). Dan 'disetujui_kaprodi' sudah
-  // tidak pernah tersimpan mentah lagi, karena approval Kaprodi otomatis
-  // jadi status 'diverifikasi'.
   const VERIFIED_STATUSES = ['diverifikasi']
   const activeDokumen = dokumen.filter(d => !VERIFIED_STATUSES.includes(d.status))
 
@@ -372,7 +350,6 @@ export default function MahasiswaDokumen() {
     <div className="space-y-5">
       <div>
         <h1 className="text-xl font-bold text-gray-800">Upload Dokumen</h1>
-        <p className="text-sm text-gray-500 mt-0.5">Upload laporan dan dokumen pendukung Capstone Project</p>
       </div>
       <div className="bg-white rounded-2xl p-10 text-center border border-dashed border-gray-200 shadow-sm">
         <div className="w-14 h-14 bg-gray-100 rounded-2xl flex items-center justify-center mx-auto mb-4">
@@ -398,10 +375,10 @@ export default function MahasiswaDokumen() {
         <p className="text-sm text-gray-500 mt-0.5">Upload laporan dan dokumen pendukung Capstone Project</p>
       </div>
 
-      {/* Banner offline — sama seperti Logbook.jsx */}
+      {/* Banner offline*/}
       {!navigator.onLine && (
         <div className="bg-yellow-50 border border-yellow-200 rounded-xl px-4 py-3 text-sm text-yellow-700 font-medium">
-          ⚠️ Kamu sedang offline. Menampilkan data tersimpan terakhir. Upload/hapus dokumen memerlukan koneksi internet.
+          ⚠️ Kamu sedang offline.hapus dokumen memerlukan koneksi internet.
         </div>
       )}
 
@@ -462,7 +439,7 @@ export default function MahasiswaDokumen() {
           className="w-full py-2.5 bg-blue-600 text-white rounded-xl text-sm font-semibold hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
         >
           {uploading && <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />}
-          {uploading ? 'Mengupload...' : 'Upload Dokumen'}
+          {uploading ? 'Mengupload...' : navigator.onLine ? 'Upload Dokumen' : 'Simpan Offline'}
         </button>
       </form>
 

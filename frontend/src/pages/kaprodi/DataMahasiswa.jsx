@@ -4,13 +4,6 @@ import api from '../../utils/api'
 import toast from 'react-hot-toast'
 import usePeriodeFilter from '../../hooks/usePeriodeFilter'
 
-// PERUBAHAN (item #6): halaman ini sekarang READ-ONLY. Import, tambah, edit,
-// hapus, dan reset password mahasiswa sudah pindah ke Staff Akademik
-// (lihat pages/staff/DataMahasiswa.jsx) karena backend-nya (POST/PUT/DELETE
-// /staff/mahasiswa) cuma bisa diakses role staff_akademik. Kaprodi tetap
-// perlu lihat daftar ini buat referensi & assign dosen, jadi tabelnya
-// dipertahankan tapi tanpa kolom Aksi / tombol Tambah / Import.
-
 export default function KaprodiDataMahasiswa() {
   const [mahasiswa, setMahasiswa] = useState([])
   const [search, setSearch] = useState('')
@@ -53,9 +46,6 @@ export default function KaprodiDataMahasiswa() {
       <div className="flex items-center justify-between flex-wrap gap-3">
         <div>
           <h1 className="text-2xl font-bold text-gray-800">Data Mahasiswa</h1>
-          <p className="text-gray-500 text-sm mt-1">
-            Lihat data mahasiswa. Untuk tambah/edit/hapus/import, hubungi Staff Akademik.
-          </p>
         </div>
       </div>
 

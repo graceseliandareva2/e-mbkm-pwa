@@ -4,13 +4,6 @@ import api from '../../utils/api'
 import toast from 'react-hot-toast'
 import usePeriodeFilter from '../../hooks/usePeriodeFilter'
 
-// PERUBAHAN (item #6): halaman CRUD Data Mahasiswa ini dipindah dari
-// pages/kaprodi/DataMahasiswa.jsx -- sekarang cuma bisa diakses role
-// staff_akademik (backend POST/PUT/DELETE/PATCH /staff/mahasiswa). Halaman
-// kaprodi versi lama sudah jadi read-only (pages/kaprodi/DataMahasiswa.jsx).
-// Filter periode sekarang ikut global lewat usePeriodeFilter('staff_akademik'),
-// dengan override lokal per-halaman lewat setLocalPeriode.
-
 const emptyForm = {
   nim: '',
   nama: '',
@@ -76,28 +69,31 @@ export default function StaffDataMahasiswa() {
     }
   }
 
-  const handleImport = async (e) => {
-    const file = e.target.files[0]
-    if (!file) return
-    if (!selectedPeriode) { toast.error('Pilih periode terlebih dahulu!'); return }
-    setUploading(true)
-    try {
-      const formData = new FormData()
-      formData.append('file', file)
-      formData.append('periode_id', selectedPeriode)
-      const res = await api.post('/staff/import-mahasiswa', formData, {
-        headers: { 'Content-Type': 'multipart/form-data' }
-      })
-      console.log('IMPORT ERRORS:', res.data.errors)  
-      toast.success(res.data.message)
-      fetchMahasiswa()
-    } catch (err) {
-      toast.error(err.response?.data?.message || 'Gagal import!')
-    } finally {
-      setUploading(false)
-      e.target.value = ''
-    }
+ const handleImport = async (e) => {
+  const file = e.target.files[0]
+  if (!file) return
+
+  const periodeAktif = periode.find(p => p.is_active)
+  if (!periodeAktif) { toast.error('Tidak ada periode aktif saat ini!'); return }
+
+  setUploading(true)
+  try {
+    const formData = new FormData()
+    formData.append('file', file)
+    formData.append('periode_id', selectedPeriode)
+    const res = await api.post('/staff/import-mahasiswa', formData, {
+      headers: { 'Content-Type': 'multipart/form-data' }
+    })
+    console.log('IMPORT ERRORS:', res.data.errors)  
+    toast.success(res.data.message)
+    fetchMahasiswa()
+  } catch (err) {
+    toast.error(err.response?.data?.message || 'Gagal import!')
+  } finally {
+    setUploading(false)
+    e.target.value = ''
   }
+}
 
   const handleTambahChange = (e) => {
     const { name, value } = e.target

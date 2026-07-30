@@ -14,7 +14,6 @@ export default function KaprodiVerifikasi() {
   const [catatan, setCatatan] = useState('')
   const [processing, setProcessing] = useState(false)
 
-  // state untuk expand daftar pelatihan per baris (inline, bukan dropdown mengambang)
   const [openPelatihan, setOpenPelatihan] = useState(null)
 
   const {

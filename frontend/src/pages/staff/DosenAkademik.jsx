@@ -4,25 +4,7 @@ import api from '../../utils/api'
 import toast from 'react-hot-toast'
 import usePeriodeFilter from '../../hooks/usePeriodeFilter'
 
-// Halaman "Pembimbing Akademik".
-//
-// PERUBAHAN BESAR: sebelumnya halaman ini berbasis kolom statis
-// `dosen.is_dosen_pa` (toggle permanen). Sekarang backend sudah pindah ke
-// sistem roster per periode (tabel `roster_dosen_pa`), jadi:
-//   - Tidak ada lagi toggle/checkbox "Jadikan Dosen PA" di form manapun.
-//   - Halaman ini punya dropdown Periode di header. SEMUA operasi (tampil,
-//     cari, tambah, import, hapus) mengikuti periode yang lagi dipilih.
-//   - "Tambah" dosen di sini otomatis: (a) buat data dosen baru di master
-//     kalau ID Dosen belum pernah ada, ATAU (b) pakai data dosen yang sudah
-//     ada kalau ID Dosen sudah terdaftar -- lalu keduanya otomatis
-//     dimasukkan ke roster_dosen_pa untuk periode yang lagi dipilih.
-//   - "Edit" tetap mengedit data MASTER dosen (nama/email/prodi/status
-//     aktif) lewat PUT /staff/dosen/:id -- ini akan konsisten kelihatan
-//     juga di halaman Pembimbing MBKM karena satu dosen = satu data master.
-//   - "Hapus" cuma menghapus baris roster periode ini (DELETE
-//     /staff/roster-dosen-pa/:id), BUKAN menghapus data dosen master.
-//     Dosen tetap ada di master data dan tetap bisa
-//     ditambahkan/di-roster lagi di periode lain.
+
 
 const emptyTambahForm = {
   id_dosen: '',
@@ -64,7 +46,7 @@ export default function StaffDosenAkademik() {
 
   useEffect(() => {
     if (selectedPeriode) fetchRoster(selectedPeriode)
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+   
   }, [selectedPeriode])
 
   const fetchRoster = async (periodeId) => {
@@ -126,12 +108,12 @@ export default function StaffDosenAkademik() {
         ...tambahForm,
         periode_id: selectedPeriode,
       })
-      toast.success(res.data.message || 'Dosen berhasil ditambahkan ke roster PA!')
+      toast.success(res.data.message || 'Dosen berhasil ditambahkan ke Pembimbing Akademik!')
       setShowTambah(false)
       setTambahForm(emptyTambahForm)
       fetchRoster(selectedPeriode)
     } catch (err) {
-      toast.error(err.response?.data?.message || 'Gagal menambahkan dosen ke roster PA!')
+      toast.error(err.response?.data?.message || 'Gagal menambahkan dosen ke dosen Pembimbing Akademik!')
     } finally {
       setTambahLoading(false)
     }
@@ -191,10 +173,10 @@ export default function StaffDosenAkademik() {
     setRemovingId(row.roster_id)
     try {
       const res = await api.delete(`/staff/roster-dosen-pa/${row.roster_id}`)
-      toast.success(res.data.message || 'Dosen berhasil dihapus dari roster.')
+      toast.success(res.data.message || 'Dosen berhasil dihapus dari dafttar dosen pembimbing akademik.')
       fetchRoster(selectedPeriode)
     } catch (err) {
-      toast.error(err.response?.data?.message || 'Gagal menghapus dosen dari roster!')
+      toast.error(err.response?.data?.message || 'Gagal menghapus dosen dari daftar pembimbing akademik!')
     } finally {
       setRemovingId(null)
     }
@@ -210,7 +192,7 @@ export default function StaffDosenAkademik() {
       <div className="flex items-center justify-between flex-wrap gap-3">
         <div>
           <h1 className="text-2xl font-bold text-gray-800">Pembimbing Akademik</h1>
-          <p className="text-gray-500 text-sm mt-1">Kelola roster Dosen Pembimbing Akademik (PA) per periode</p>
+          <p className="text-gray-500 text-sm mt-1">Kelola Dosen Pembimbing Akademik (PA) per periode</p>
         </div>
         <div className="flex items-center gap-2">
           <button
@@ -328,7 +310,7 @@ export default function StaffDosenAkademik() {
             <div className="flex items-center justify-between p-6 border-b border-gray-100">
               <div className="flex items-center gap-2">
                 <UserPlus className="w-5 h-5 text-indigo-600" />
-                <h2 className="font-bold text-gray-800">Tambah Dosen ke Roster PA</h2>
+                <h2 className="font-bold text-gray-800">Tambah Dosen ke daftar dosen PA</h2>
               </div>
               <button onClick={handleCloseTambah} className="p-2 hover:bg-gray-100 rounded-xl">
                 <X className="w-5 h-5 text-gray-500" />
@@ -359,9 +341,7 @@ export default function StaffDosenAkademik() {
                   placeholder="Contoh: Sistem dan Teknologi Informasi"
                   className="w-full px-3 py-2.5 border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 bg-gray-50" />
               </div>
-              <p className="text-xs text-indigo-600 bg-indigo-50 border border-indigo-100 rounded-xl px-3 py-2">
-                Kalau ID Dosen sudah pernah terdaftar sebelumnya (misalnya lewat halaman Pembimbing MBKM), data yang sudah ada itu yang dipakai -- dosen ini langsung ditambahkan ke roster PA periode terpilih tanpa membuat data ganda.
-              </p>
+
               <div className="flex gap-3 pt-2">
                 <button onClick={handleCloseTambah}
                   className="flex-1 py-2.5 border border-gray-200 text-gray-600 rounded-xl text-sm font-semibold hover:bg-gray-50">

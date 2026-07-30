@@ -14,12 +14,11 @@ const defaultForm = {
   form_pengajuan_buka: 1, form_logbook_buka: 1, form_ppt_buka: 1, form_laporan_buka: 1, is_active: 1
 }
 
-// ✅ Fix: handle semua format tanggal dari MySQL (string ISO, Date object, dsb)
 const toInputDate = (val) => {
   if (!val) return ''
   const d = new Date(val)
   if (isNaN(d.getTime())) return ''
-  // Ambil tanggal lokal (bukan UTC) supaya tidak geser hari
+
   const yyyy = d.getFullYear()
   const mm   = String(d.getMonth() + 1).padStart(2, '0')
   const dd   = String(d.getDate()).padStart(2, '0')
@@ -108,8 +107,7 @@ export default function KaprodiPeriode() {
       toast.success('Status form berhasil diubah!')
       fetchPeriode()
     } catch (err) {
-      // ✅ Tampilkan pesan dari backend (mis. penolakan buka toggle sebelum
-      // tanggal mulai), bukan cuma pesan generik.
+     
       toast.error(err.response?.data?.message || 'Gagal mengubah status!')
     }
   }
@@ -265,8 +263,10 @@ export default function KaprodiPeriode() {
                     { label: 'Tanggal Selesai', key: 'tanggal_selesai' },
                   ].map(({ label, key }) => (
                     <div key={key}>
-                      <label className="text-xs font-medium text-gray-600 block mb-1.5">{label}</label>
-                      <input type="date" value={form[key]}
+                      <label className="text-xs font-medium text-gray-600 block mb-1.5">
+                        {label}<span className="text-red-500 ml-0.5">*</span>
+                      </label>
+                      <input type="date" value={form[key]} required
                         onChange={e => setForm({ ...form, [key]: e.target.value })}
                         className="w-full px-3 py-2.5 border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 bg-gray-50" />
                     </div>
