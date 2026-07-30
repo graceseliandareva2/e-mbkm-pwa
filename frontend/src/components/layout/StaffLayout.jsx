@@ -42,9 +42,6 @@ export default function StaffLayout() {
   const { logout } = useAuthStore()
   const navigate = useNavigate()
   const location = useLocation()
-
-  // Submenu "Data Dosen" otomatis kebuka kalau user lagi ada di salah satu
-  // halaman anaknya (misal habis refresh langsung di /staff/dosen/akademik).
   const isDosenActive = location.pathname.startsWith('/staff/dosen')
 const [dosenMenuOpen, setDosenMenuOpen] = useState(false)
 

@@ -364,7 +364,7 @@ export default function DosenPenilaian() {
             <p className="text-gray-500 font-medium">
               {search
                 ? `Tidak ada hasil untuk "${search}"`
-                : 'Belum ada mahasiswa yang dokumennya lengkap'}
+                : 'Belum ada mahasiswa'}
             </p>
           </div>
         ) : (

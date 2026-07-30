@@ -103,7 +103,7 @@ export default function StaffDashboard() {
           className="bg-orange-500 rounded-2xl p-5 text-white shadow-md cursor-pointer hover:bg-orange-600 active:scale-95 transition-all"
         >
           <div className="flex items-center justify-between mb-3">
-            <p className="text-sm font-medium opacity-90">Total Dosen</p>
+            <p className="text-sm font-medium opacity-90">Total Pembimbing MBKM</p>
             <UserCheck className="w-5 h-5 opacity-70" />
           </div>
           <p className="text-4xl font-bold">{stats.total_dosen}</p>

@@ -366,7 +366,6 @@ export default function StaffMonitoring() {
     <div className="space-y-5">
       <div>
         <h1 className="text-2xl font-bold text-gray-800">Monitoring MBKM</h1>
-        <p className="text-gray-500 text-sm mt-1">Pantau nilai dan dokumen mahasiswa (view-only)</p>
       </div>
 
       {/* Filter */}
