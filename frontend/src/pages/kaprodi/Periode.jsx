@@ -7,10 +7,11 @@ import { formatTanggal } from '../../utils/helpers'
 const defaultForm = {
   nama_periode: '', jenis: 'capstone',
   tanggal_mulai: '', tanggal_selesai: '',
-  min_jam_pengajuan: 48,
+  min_jam_pengajuan: 0,
   tanggal_mulai_pengajuan: '', tanggal_selesai_pengajuan: '',
   tanggal_mulai_logbook: '', tanggal_selesai_logbook: '',
-  tanggal_mulai_dokumen: '', tanggal_selesai_ppt: '', tanggal_selesai_laporan: '',
+  tanggal_mulai_ppt: '', tanggal_selesai_ppt: '',
+  tanggal_mulai_laporan: '', tanggal_selesai_laporan: '',
   form_pengajuan_buka: 1, form_logbook_buka: 1, form_ppt_buka: 1, form_laporan_buka: 1, is_active: 1
 }
 
@@ -59,13 +60,14 @@ export default function KaprodiPeriode() {
       jenis:                     p.jenis,
       tanggal_mulai:             toInputDate(p.tanggal_mulai),
       tanggal_selesai:           toInputDate(p.tanggal_selesai),
-      min_jam_pengajuan:         p.min_jam_pengajuan ?? 48,
+      min_jam_pengajuan:         p.min_jam_pengajuan ?? 0,
       tanggal_mulai_pengajuan:   toInputDate(p.tanggal_mulai_pengajuan),
       tanggal_selesai_pengajuan: toInputDate(p.tanggal_selesai_pengajuan),
       tanggal_mulai_logbook:     toInputDate(p.tanggal_mulai_logbook),
       tanggal_selesai_logbook:   toInputDate(p.tanggal_selesai_logbook),
-      tanggal_mulai_dokumen:     toInputDate(p.tanggal_mulai_dokumen),
+      tanggal_mulai_ppt:         toInputDate(p.tanggal_mulai_ppt),
       tanggal_selesai_ppt:       toInputDate(p.tanggal_selesai_ppt),
+      tanggal_mulai_laporan:     toInputDate(p.tanggal_mulai_laporan),
       tanggal_selesai_laporan:   toInputDate(p.tanggal_selesai_laporan),
       form_pengajuan_buka:       p.form_pengajuan_buka,
       form_logbook_buka:         p.form_logbook_buka,
@@ -178,7 +180,7 @@ export default function KaprodiPeriode() {
                   <div className="bg-gray-50 rounded-xl p-2.5">
                     <p className="text-xs text-gray-400">Min. Jam Pelatihan</p>
                     <p className="text-xs font-semibold text-gray-700 mt-0.5">
-                      {p.min_jam_pengajuan ? `${p.min_jam_pengajuan} jam` : '-'}
+                      {p.min_jam_pengajuan ?? 0} jam
                     </p>
                   </div>
                 </div>
@@ -280,9 +282,9 @@ export default function KaprodiPeriode() {
                   <label className="text-xs font-medium text-gray-600 block mb-1.5">
                     Minimal Total Jam Pelatihan/Bootcamp
                   </label>
-                  <input type="number" min="1" value={form.min_jam_pengajuan}
+                  <input type="number" min="0" value={form.min_jam_pengajuan}
                     onChange={e => setForm({ ...form, min_jam_pengajuan: e.target.value })}
-                    placeholder="48"
+                    placeholder="0"
                     className="w-full px-3 py-2.5 border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 bg-gray-50" />
                   <p className="text-xs text-gray-400 mt-1">
                     Total minimal jam pembelajaran yang harus dipenuhi mahasiswa saat mengajukan Capstone/MBKM.
@@ -311,11 +313,12 @@ export default function KaprodiPeriode() {
                 <p className="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-3">Deadline Dokumen</p>
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                   {[
-                    { label: 'Mulai Logbook',         key: 'tanggal_mulai_logbook' },
-                    { label: 'Selesai Logbook',        key: 'tanggal_selesai_logbook' },
-                    { label: 'Mulai Dokumen (PPT & Laporan)', key: 'tanggal_mulai_dokumen' },
-                    { label: 'Deadline PPT',           key: 'tanggal_selesai_ppt' },
-                    { label: 'Deadline Laporan Akhir', key: 'tanggal_selesai_laporan' },
+                    { label: 'Mulai Logbook',          key: 'tanggal_mulai_logbook' },
+                    { label: 'Selesai Logbook',         key: 'tanggal_selesai_logbook' },
+                    { label: 'Mulai PPT',               key: 'tanggal_mulai_ppt' },
+                    { label: 'Deadline PPT',            key: 'tanggal_selesai_ppt' },
+                    { label: 'Mulai Laporan Akhir',     key: 'tanggal_mulai_laporan' },
+                    { label: 'Deadline Laporan Akhir',  key: 'tanggal_selesai_laporan' },
                   ].map(({ label, key }) => (
                     <div key={key}>
                       <label className="text-xs font-medium text-gray-600 block mb-1.5">{label}</label>
