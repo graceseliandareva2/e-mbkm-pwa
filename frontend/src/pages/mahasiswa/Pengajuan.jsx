@@ -64,7 +64,7 @@ const mapResponseToForm = (data, user) => ({
   tanggal_selesai: toDateInputValue(data?.tanggal_selesai),
   nama_pelatihan: data?.nama_pelatihan || '',
   link_pelatihan: data?.link_pelatihan || '',
-  durasi_pelatihan_jam: data?.durasi_pelatihan_jam ?? '',
+  durasi_pelatihan_jam: data?.durasi_pelatihan_jam != null ? Number(data.durasi_pelatihan_jam) : '',
 })
 
 // ─────────────────────────── component ───────────────────────────

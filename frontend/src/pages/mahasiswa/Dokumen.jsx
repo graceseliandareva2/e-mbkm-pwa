@@ -1,7 +1,7 @@
 import { useEffect, useState, useRef } from 'react'
 import {
   Upload, FileText, Trash2, Eye, CheckCircle, Clock,
-  XCircle, Lock, RotateCcw, Send, X
+  XCircle, Lock, RotateCcw, Send, X, Plus
 } from 'lucide-react'
 import api from '../../utils/api'
 import toast from 'react-hot-toast'
@@ -237,6 +237,7 @@ export default function MahasiswaDokumen() {
   const [loading, setLoading]         = useState(true)
   const [uploading, setUploading]     = useState(false)
   const [dragging, setDragging]       = useState(false)
+  const [modalOpen, setModalOpen]     = useState(false)
   const [detailDoc, setDetailDoc]     = useState(null)
   const [resubmitDoc, setResubmitDoc] = useState(null)
   const [form, setForm]               = useState({ jenis: '', file: null })
@@ -276,6 +277,8 @@ export default function MahasiswaDokumen() {
 
   useEffect(() => { fetchAll() }, [])
 
+  const resetForm = () => setForm({ jenis: '', file: null })
+
   const validateFile = (file) => {
     if (!file) return false
     if (!ALLOWED_TYPES.includes(file.type)) {
@@ -303,7 +306,8 @@ export default function MahasiswaDokumen() {
           file: { blob: form.file, filename: form.file.name, fieldName: 'file' },
         })
         toast.success('Offline! Dokumen tersimpan lokal, akan otomatis terupload saat online.')
-        setForm({ jenis: '', file: null })
+        setModalOpen(false)
+        resetForm()
       } catch {
         toast.error('Gagal menyimpan data offline')
       }
@@ -319,7 +323,8 @@ export default function MahasiswaDokumen() {
       formData.append('pengajuan_id', pengajuan.id)
       await api.post('/mahasiswa/dokumen', formData, { headers: { 'Content-Type': 'multipart/form-data' } })
       toast.success('Dokumen berhasil diupload!')
-      setForm({ jenis: '', file: null })
+      setModalOpen(false)
+      resetForm()
       fetchAll()
     } catch (err) {
       toast.error(err.response?.data?.message || 'Gagal upload dokumen')
@@ -339,6 +344,55 @@ export default function MahasiswaDokumen() {
   const isDisabled = pengajuan?.status !== 'disetujui_kaprodi'
   const VERIFIED_STATUSES = ['diverifikasi']
   const activeDokumen = dokumen.filter(d => !VERIFIED_STATUSES.includes(d.status))
+  const historyDokumen = dokumen.filter(d => VERIFIED_STATUSES.includes(d.status))
+
+  const renderDokumenItem = (doc) => {
+    const info       = getStatusInfo(doc.status)
+    const jenisLabel = JENIS_OPTIONS.find(o => o.value === doc.jenis)?.label || doc.jenis
+    const canDelete  = doc.status === 'diupload'
+    const feedbackText = getFeedbackText(doc)
+
+    return (
+      <div key={doc.id} className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden">
+        <div className="p-4 flex items-start gap-3">
+          <div className="w-10 h-10 bg-red-50 rounded-xl flex items-center justify-center flex-shrink-0 mt-0.5">
+            <FileText className="w-5 h-5 text-red-500" />
+          </div>
+          <div className="flex-1 min-w-0">
+            <div className="flex items-center gap-2 flex-wrap">
+              <p className="font-semibold text-sm text-gray-800 truncate">{jenisLabel}</p>
+              <StatusBadge status={doc.status} />
+            </div>
+            <p className="text-xs text-gray-400 mt-0.5">
+              {doc.nama_file} · {new Date(doc.created_at).toLocaleDateString('id-ID')}
+            </p>
+            {info.canResubmit && feedbackText && (
+              <p className="text-xs text-red-500 mt-1 line-clamp-1">
+                💬 {feedbackText}
+              </p>
+            )}
+          </div>
+
+          <div className="flex items-center gap-1.5 flex-shrink-0">
+            <button
+              onClick={() => setDetailDoc({ doc, jenisLabel })}
+              className="p-1.5 text-blue-600 bg-blue-50 hover:bg-blue-100 rounded-lg transition-colors"
+              title="Lihat dokumen"
+            >
+              <Eye className="w-4 h-4" />
+            </button>
+
+            {canDelete && (
+              <button onClick={() => handleDelete(doc.id)}
+                className="p-1.5 text-red-500 bg-red-50 hover:bg-red-100 rounded-lg">
+                <Trash2 className="w-4 h-4" />
+              </button>
+            )}
+          </div>
+        </div>
+      </div>
+    )
+  }
 
   if (loading) return (
     <div className="flex items-center justify-center h-64">
@@ -370,136 +424,128 @@ export default function MahasiswaDokumen() {
 
   return (
     <div className="space-y-5">
-      <div>
-        <h1 className="text-xl font-bold text-gray-800">Upload Dokumen</h1>
-        <p className="text-sm text-gray-500 mt-0.5">Upload laporan dan dokumen pendukung Capstone Project</p>
+      <div className="flex items-center justify-between">
+        <div>
+          <h1 className="text-xl font-bold text-gray-800">Upload Dokumen</h1>
+          <p className="text-sm text-gray-500 mt-0.5">Upload laporan dan dokumen pendukung Capstone Project</p>
+        </div>
+        <button onClick={() => setModalOpen(true)}
+          className="flex items-center gap-2 bg-blue-600 text-white px-4 py-2.5 rounded-xl text-sm font-semibold hover:bg-blue-700">
+          <Plus className="w-4 h-4" />
+          Tambah
+        </button>
       </div>
 
       {/* Banner offline*/}
       {!navigator.onLine && (
         <div className="bg-yellow-50 border border-yellow-200 rounded-xl px-4 py-3 text-sm text-yellow-700 font-medium">
-          ⚠️ Kamu sedang offline.hapus dokumen memerlukan koneksi internet.
+          ⚠️ Kamu sedang offline. Hapus dokumen memerlukan koneksi internet.
         </div>
       )}
 
-      {/* Form upload */}
-      <form onSubmit={handleUpload} className="bg-white rounded-2xl shadow-sm border border-gray-100 p-5 space-y-4">
-        <h2 className="font-semibold text-gray-800 border-b pb-3">Upload Dokumen Baru</h2>
-
-        <div>
-          <label className="block text-xs font-semibold text-gray-500 uppercase tracking-wide mb-1.5">Jenis Dokumen *</label>
-          <select
-            value={form.jenis}
-            onChange={e => setForm(f => ({ ...f, jenis: e.target.value }))}
-            className="w-full border border-gray-200 rounded-xl px-3.5 py-2.5 text-sm focus:outline-none focus:border-blue-500 bg-white text-gray-800"
-          >
-            <option value="">-- Pilih Jenis Dokumen --</option>
-            {JENIS_OPTIONS.map(opt => <option key={opt.value} value={opt.value}>{opt.label}</option>)}
-          </select>
-        </div>
-
-        <div
-          onDragOver={e => { e.preventDefault(); setDragging(true) }}
-          onDragLeave={() => setDragging(false)}
-          onDrop={e => {
-            e.preventDefault(); setDragging(false)
-            const f = e.dataTransfer.files[0]
-            if (f && validateFile(f)) setForm(prev => ({ ...prev, file: f }))
-          }}
-          onClick={() => fileRef.current.click()}
-          className={`border-2 border-dashed rounded-xl p-8 text-center cursor-pointer transition-all
-            ${dragging ? 'border-blue-500 bg-blue-50' : form.file ? 'border-green-400 bg-green-50' : 'border-gray-200 hover:border-blue-400 hover:bg-gray-50'}`}
-        >
-          {/* ✅ accept hanya .pdf */}
-          <input ref={fileRef} type="file" accept=".pdf"
-            onChange={e => { const f = e.target.files[0]; if (f && validateFile(f)) setForm(prev => ({ ...prev, file: f })) }}
-            className="hidden" />
-          {form.file ? (
-            <div>
-              <p className="text-2xl mb-1">✅</p>
-              <p className="font-semibold text-green-700 text-sm">{form.file.name}</p>
-              <p className="text-xs text-gray-400 mt-1">{(form.file.size / 1024).toFixed(1)} KB</p>
-              <button type="button" onClick={e => { e.stopPropagation(); setForm(f => ({ ...f, file: null })) }}
-                className="mt-2 text-xs text-red-500 hover:underline">Hapus file</button>
-            </div>
-          ) : (
-            <div>
-              <Upload className="w-8 h-8 text-gray-400 mx-auto mb-2" />
-              <p className="font-medium text-gray-600 text-sm">
-                {dragging ? 'Lepaskan file di sini' : 'Drag & drop atau klik untuk pilih file'}
-              </p>
-              <p className="text-xs text-gray-400 mt-1">PDF</p>
-            </div>
-          )}
-        </div>
-
-        <button
-          type="submit"
-          disabled={uploading || !form.file || !form.jenis}
-          className="w-full py-2.5 bg-blue-600 text-white rounded-xl text-sm font-semibold hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
-        >
-          {uploading && <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />}
-          {uploading ? 'Mengupload...' : navigator.onLine ? 'Upload Dokumen' : 'Simpan Offline'}
-        </button>
-      </form>
-
-      {/* List dokumen */}
+      {/* List dokumen aktif */}
       <div className="space-y-3">
-        <h2 className="font-semibold text-gray-700">Dokumen Terupload ({activeDokumen.length})</h2>
         {activeDokumen.length === 0 ? (
-          <div className="bg-white rounded-2xl p-8 text-center border border-dashed border-gray-200">
-            <FileText className="w-8 h-8 text-gray-300 mx-auto mb-2" />
-            <p className="text-gray-500 text-sm">Belum ada dokumen menunggu review</p>
-            <p className="text-xs text-gray-400 mt-1">Dokumen yang sudah diverifikasi ada di halaman Riwayat</p>
+          <div className="bg-white rounded-2xl p-10 text-center border border-dashed border-gray-200">
+            <FileText className="w-10 h-10 text-gray-300 mx-auto mb-2" />
+            <p className="text-gray-500 font-medium">Belum ada dokumen</p>
+            <p className="text-sm text-gray-400 mt-1">Upload laporan akhir atau PPT kamu di sini</p>
           </div>
-        ) : activeDokumen.map(doc => {
-          const info       = getStatusInfo(doc.status)
-          const jenisLabel = JENIS_OPTIONS.find(o => o.value === doc.jenis)?.label || doc.jenis
-          const canDelete  = doc.status === 'diupload'
-          const feedbackText = getFeedbackText(doc)
-
-          return (
-            <div key={doc.id} className="bg-white rounded-xl shadow-sm border border-gray-100 overflow-hidden">
-              <div className="p-4 flex items-start gap-3">
-                <div className="w-10 h-10 bg-red-50 rounded-xl flex items-center justify-center flex-shrink-0 mt-0.5">
-                  <FileText className="w-5 h-5 text-red-500" />
-                </div>
-                <div className="flex-1 min-w-0">
-                  <div className="flex items-center gap-2 flex-wrap">
-                    <p className="font-semibold text-sm text-gray-800 truncate">{jenisLabel}</p>
-                    <StatusBadge status={doc.status} />
-                  </div>
-                  <p className="text-xs text-gray-400 mt-0.5">
-                    {doc.nama_file} · {new Date(doc.created_at).toLocaleDateString('id-ID')}
-                  </p>
-                  {info.canResubmit && feedbackText && (
-                    <p className="text-xs text-red-500 mt-1 line-clamp-1">
-                      💬 {feedbackText}
-                    </p>
-                  )}
-                </div>
-
-                <div className="flex items-center gap-1.5 flex-shrink-0">
-                  <button
-                    onClick={() => setDetailDoc({ doc, jenisLabel })}
-                    className="p-1.5 text-blue-600 bg-blue-50 hover:bg-blue-100 rounded-lg transition-colors"
-                    title="Lihat dokumen"
-                  >
-                    <Eye className="w-4 h-4" />
-                  </button>
-
-                  {canDelete && (
-                    <button onClick={() => handleDelete(doc.id)}
-                      className="p-1.5 text-red-500 bg-red-50 hover:bg-red-100 rounded-lg">
-                      <Trash2 className="w-4 h-4" />
-                    </button>
-                  )}
-                </div>
-              </div>
-            </div>
-          )
-        })}
+        ) : activeDokumen.map(renderDokumenItem)}
       </div>
+
+      {/* Riwayat / sudah diverifikasi */}
+      {historyDokumen.length > 0 && (
+        <>
+          <div className="flex items-center gap-3 pt-2">
+            <div className="flex-1 h-px bg-gray-200" />
+            <p className="text-xs font-semibold text-gray-400 uppercase tracking-wide">Riwayat · Terverifikasi</p>
+            <div className="flex-1 h-px bg-gray-200" />
+          </div>
+          <div className="space-y-3">
+            {historyDokumen.map(renderDokumenItem)}
+          </div>
+        </>
+      )}
+
+      {/* Modal Upload */}
+      {modalOpen && (
+        <div className="fixed inset-0 bg-black/40 z-50 flex items-center justify-center p-4">
+          <div className="bg-white rounded-2xl w-full max-w-md shadow-2xl max-h-[90vh] overflow-y-auto">
+            <div className="flex items-center justify-between p-5 border-b sticky top-0 bg-white z-10">
+              <h2 className="font-bold text-gray-800">Upload Dokumen</h2>
+              <button onClick={() => { setModalOpen(false); resetForm() }} className="text-gray-400 hover:text-gray-600 text-xl">✕</button>
+            </div>
+            <form onSubmit={handleUpload} className="p-5 space-y-4">
+              {!navigator.onLine && (
+                <div className="bg-yellow-50 border border-yellow-200 rounded-xl px-3.5 py-2.5 text-xs text-yellow-700 font-medium">
+                  ⚠️ Offline — upload dokumen memerlukan koneksi internet.
+                </div>
+              )}
+
+              <div>
+                <label className="block text-xs font-semibold text-gray-500 uppercase tracking-wide mb-1.5">Jenis Dokumen *</label>
+                <select
+                  value={form.jenis}
+                  onChange={e => setForm(f => ({ ...f, jenis: e.target.value }))}
+                  className="w-full border border-gray-200 rounded-xl px-3.5 py-2.5 text-sm focus:outline-none focus:border-blue-500 bg-white text-gray-800"
+                >
+                  <option value="">-- Pilih Jenis Dokumen --</option>
+                  {JENIS_OPTIONS.map(opt => <option key={opt.value} value={opt.value}>{opt.label}</option>)}
+                </select>
+              </div>
+
+              <div
+                onDragOver={e => { e.preventDefault(); setDragging(true) }}
+                onDragLeave={() => setDragging(false)}
+                onDrop={e => {
+                  e.preventDefault(); setDragging(false)
+                  const f = e.dataTransfer.files[0]
+                  if (f && validateFile(f)) setForm(prev => ({ ...prev, file: f }))
+                }}
+                onClick={() => fileRef.current.click()}
+                className={`border-2 border-dashed rounded-xl p-8 text-center cursor-pointer transition-all
+                  ${dragging ? 'border-blue-500 bg-blue-50' : form.file ? 'border-green-400 bg-green-50' : 'border-gray-200 hover:border-blue-400 hover:bg-gray-50'}`}
+              >
+                {/* accept hanya .pdf */}
+                <input ref={fileRef} type="file" accept=".pdf"
+                  onChange={e => { const f = e.target.files[0]; if (f && validateFile(f)) setForm(prev => ({ ...prev, file: f })) }}
+                  className="hidden" />
+                {form.file ? (
+                  <div>
+                    <p className="text-2xl mb-1">✅</p>
+                    <p className="font-semibold text-green-700 text-sm">{form.file.name}</p>
+                    <p className="text-xs text-gray-400 mt-1">{(form.file.size / 1024).toFixed(1)} KB</p>
+                    <button type="button" onClick={e => { e.stopPropagation(); setForm(f => ({ ...f, file: null })) }}
+                      className="mt-2 text-xs text-red-500 hover:underline">Hapus file</button>
+                  </div>
+                ) : (
+                  <div>
+                    <Upload className="w-8 h-8 text-gray-400 mx-auto mb-2" />
+                    <p className="font-medium text-gray-600 text-sm">
+                      {dragging ? 'Lepaskan file di sini' : 'Drag & drop atau klik untuk pilih file'}
+                    </p>
+                    <p className="text-xs text-gray-400 mt-1">PDF</p>
+                  </div>
+                )}
+              </div>
+
+              <div className="flex gap-3 pt-1">
+                <button type="button" onClick={() => { setModalOpen(false); resetForm() }}
+                  className="flex-1 py-2.5 rounded-xl border border-gray-200 text-sm font-semibold text-gray-600 hover:bg-gray-50">Batal</button>
+                <button
+                  type="submit"
+                  disabled={uploading || !form.file || !form.jenis}
+                  className="flex-1 py-2.5 bg-blue-600 text-white rounded-xl text-sm font-semibold hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
+                >
+                  {uploading && <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />}
+                  {uploading ? 'Mengupload...' : navigator.onLine ? 'Upload Dokumen' : 'Simpan Offline'}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
 
       {detailDoc && (
         <DetailModal

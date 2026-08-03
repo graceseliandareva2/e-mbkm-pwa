@@ -2,7 +2,7 @@ import { Outlet, NavLink, useNavigate } from 'react-router-dom'
 import { useState } from 'react'
 import {
   LayoutDashboard, FileText, BookOpen, Upload,
-  History, LogOut, Menu, X, User
+  LogOut, Menu, X, User
 } from 'lucide-react'
 import useAuthStore from '../../store/authStore'
 import toast from 'react-hot-toast'
@@ -13,8 +13,7 @@ const navItems = [
   { to: '/mahasiswa/dashboard', icon: LayoutDashboard, label: 'Dashboard' },
   { to: '/mahasiswa/pengajuan', icon: FileText,         label: 'Pengajuan Capstone' },
   { to: '/mahasiswa/logbook',   icon: BookOpen,         label: 'Logbook' },
-  { to: '/mahasiswa/dokumen',   icon: Upload,           label: 'Upload Dokumen' },
-  { to: '/mahasiswa/riwayat',   icon: History,          label: 'Riwayat' },
+  { to: '/mahasiswa/dokumen',   icon: Upload,           label: 'Dokumen' },
   { to: '/mahasiswa/biodata',   icon: User,             label: 'Biodata' },
 ]
 

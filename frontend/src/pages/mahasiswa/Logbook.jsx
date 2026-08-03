@@ -279,16 +279,151 @@ export default function MahasiswaLogbook() {
       fetchAll()
     } catch { toast.error('Gagal menghapus logbook') }
   }
-  const logbooksByPelatihan = logbooks
 
   const isDisabled = pengajuan?.status !== 'disetujui_kaprodi'
 
-  const activeLogbooks = logbooksByPelatihan.filter(l => l.status !== 'diverifikasi')
+  const activeLogbooks = logbooks.filter(l => l.status !== 'diverifikasi')
+  const historyLogbooks = logbooks.filter(l => l.status === 'diverifikasi')
 
   const previewDurasi = () => {
     const totalMenit = hitungDurasiMenit(form.jam_mulai, form.jam_selesai)
     if (!totalMenit) return null
     return formatDurasi(totalMenit)
+  }
+
+  const renderLogItem = (log) => {
+    const statusCfg = STATUS_CONFIG[log.status] || STATUS_CONFIG.disubmit
+    const isExpanded = expanded === log.id
+    const isFileUpload = !!log.cloudinary_public_id
+    const isLinkOnly = !isFileUpload && !!log.bukti_link
+
+    return (
+      <div key={log.id} className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden">
+        <div className="flex items-center justify-between p-4 cursor-pointer hover:bg-gray-50"
+          onClick={() => setExpanded(isExpanded ? null : log.id)}>
+          <div className="flex items-center gap-3 min-w-0">
+            <div className="w-10 h-10 bg-blue-50 rounded-xl flex items-center justify-center flex-shrink-0">
+              <BookOpen className="w-4 h-4 text-blue-600" />
+            </div>
+            <div className="min-w-0">
+              <div className="flex items-center gap-2 flex-wrap">
+                <p className="font-semibold text-gray-800 text-sm line-clamp-1">{log.kegiatan}</p>
+                <span className={`text-xs font-medium px-2 py-0.5 rounded-full border flex-shrink-0 ${statusCfg.color} ${statusCfg.bg} ${statusCfg.border}`}>
+                  {statusCfg.label}
+                </span>
+                {pelatihanList.length > 1 && log.nama_pelatihan && (
+                  <span className="text-xs font-medium px-2 py-0.5 rounded-full border flex-shrink-0 text-blue-600 bg-blue-50 border-blue-200">
+                    {log.nama_pelatihan}
+                  </span>
+                )}
+              </div>
+              <p className="text-xs text-gray-400 mt-0.5">
+                {new Date(log.tanggal).toLocaleDateString('id-ID', { day: 'numeric', month: 'long', year: 'numeric' })}
+                {' · '}{log.jam_mulai?.slice(0, 5)}–{log.jam_selesai?.slice(0, 5)}
+              </p>
+            </div>
+          </div>
+          <div className="flex items-center gap-2 flex-shrink-0 ml-2">
+            {log.status === 'draft' && (
+              <button onClick={e => { e.stopPropagation(); handleDelete(log.id) }}
+                className="p-1.5 text-red-500 bg-red-50 hover:bg-red-100 rounded-lg">
+                <Trash2 className="w-4 h-4" />
+              </button>
+            )}
+            {log.status === 'revisi' && (
+              <button onClick={e => {
+                e.stopPropagation()
+                setEditLog(log)
+                setEditForm({
+                  kegiatan: log.kegiatan,
+                  deskripsi: log.deskripsi || '',
+                  jam_mulai: log.jam_mulai ? log.jam_mulai.slice(0, 5) : '',
+                  jam_selesai: log.jam_selesai ? log.jam_selesai.slice(0, 5) : '',
+                  bukti: null,
+                  hapusBukti: false,
+                })
+                setEditBuktiType(log.cloudinary_public_id ? 'file' : (log.bukti_link ? 'link' : 'file'))
+                setEditBuktiLink(log.cloudinary_public_id ? '' : (log.bukti_link || ''))
+              }} className="p-1.5 text-blue-600 bg-blue-50 rounded-lg">
+                <Pencil className="w-4 h-4" />
+              </button>
+            )}
+            <button onClick={e => { e.stopPropagation(); setExpanded(isExpanded ? null : log.id) }}
+              className={`p-1.5 rounded-lg ${isExpanded ? 'text-blue-600 bg-blue-100' : 'text-blue-600 bg-blue-50'}`}>
+              <Eye className="w-4 h-4" />
+            </button>
+          </div>
+        </div>
+
+        {isExpanded && (
+          <div className="border-t border-gray-100">
+            <div className="px-6 py-4 space-y-4 max-w-4xl mx-auto">
+              {log.deskripsi && (
+                <div>
+                  <p className="text-xs font-semibold text-gray-400 uppercase tracking-wide mb-0.5">Deskripsi</p>
+                  <p className="text-sm text-gray-700 text-justify">{log.deskripsi}</p>
+                </div>
+              )}
+              {log.hasil && (
+                <div>
+                  <p className="text-xs font-semibold text-gray-400 uppercase tracking-wide mb-0.5">Hasil</p>
+                  <p className="text-sm text-gray-700">{log.hasil}</p>
+                </div>
+              )}
+              {log.kendala && (
+                <div>
+                  <p className="text-xs font-semibold text-gray-400 uppercase tracking-wide mb-0.5">Kendala</p>
+                  <p className="text-sm text-gray-700">{log.kendala}</p>
+                </div>
+              )}
+              {log.bukti_link && (
+                <div>
+                  <p className="text-xs font-semibold text-gray-400 uppercase tracking-wide mb-2">
+                    Bukti
+                  </p>
+
+                  <div
+                    className={`rounded-xl overflow-hidden border border-gray-200 ${
+                      isLinkOnly ? '' : 'h-[420px]'
+                    }`}
+                  >
+                    <BuktiPreview
+                      path={isFileUpload ? log.bukti_link : null}
+                      link={isFileUpload ? null : log.bukti_link}
+                      filename={log.kegiatan}
+                    />
+                  </div>
+                </div>
+              )}
+              {log.feedback_dosen && (
+                <div>
+                  <div className="flex items-center gap-2 mb-2">
+                    <div className="w-6 h-6 bg-purple-100 rounded-full flex items-center justify-center flex-shrink-0">
+                      <MessageSquare className="w-3.5 h-3.5 text-purple-600" />
+                    </div>
+                    <p className="text-xs font-semibold text-purple-700">Feedback Dosen Pembimbing</p>
+                    {log.verified_at && (
+                      <p className="text-xs text-gray-400 ml-auto">
+                        {new Date(log.verified_at).toLocaleDateString('id-ID', { day: 'numeric', month: 'short', year: 'numeric' })}
+                      </p>
+                    )}
+                  </div>
+                  <div className="bg-purple-50 border border-purple-100 rounded-xl px-3.5 py-3">
+                    <p className="text-sm text-purple-900 leading-relaxed">{log.feedback_dosen}</p>
+                  </div>
+                </div>
+              )}
+              {log.status === 'diverifikasi' && (
+                <div className="flex items-center gap-2 text-green-600">
+                  <CheckCircle className="w-4 h-4 flex-shrink-0" />
+                  <p className="text-xs font-medium">Logbook telah diverifikasi oleh dosen pembimbing</p>
+                </div>
+              )}
+            </div>
+          </div>
+        )}
+      </div>
+    )
   }
 
   if (loading) return (
@@ -341,151 +476,30 @@ export default function MahasiswaLogbook() {
         </div>
       )}
 
-      {/* List */}
+      {/* List aktif */}
       <div className="space-y-3">
-       {activeLogbooks.length === 0 ? (
+        {activeLogbooks.length === 0 ? (
           <div className="bg-white rounded-2xl p-10 text-center border border-dashed border-gray-200">
             <BookOpen className="w-10 h-10 text-gray-300 mx-auto mb-2" />
             <p className="text-gray-500 font-medium">Belum ada logbook</p>
-            <p className="text-sm text-gray-400 mt-1">
-              Logbook yang sudah diverifikasi bisa dilihat di halaman Riwayat
-            </p>
+            <p className="text-sm text-gray-400 mt-1">Tambahkan kegiatan harian Capstone Project kamu</p>
           </div>
-        ) : activeLogbooks.map((log) => {
-          const statusCfg = STATUS_CONFIG[log.status] || STATUS_CONFIG.disubmit
-const isExpanded = expanded === log.id
-const isFileUpload = !!log.cloudinary_public_id
-const isLinkOnly = !isFileUpload && !!log.bukti_link
-
-return (
-            <div key={log.id} className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden">
-              <div className="flex items-center justify-between p-4 cursor-pointer hover:bg-gray-50"
-                onClick={() => setExpanded(isExpanded ? null : log.id)}>
-                <div className="flex items-center gap-3 min-w-0">
-                  <div className="w-10 h-10 bg-blue-50 rounded-xl flex items-center justify-center flex-shrink-0">
-                    <BookOpen className="w-4 h-4 text-blue-600" />
-                  </div>
-                  <div className="min-w-0">
-                    <div className="flex items-center gap-2 flex-wrap">
-                      <p className="font-semibold text-gray-800 text-sm line-clamp-1">{log.kegiatan}</p>
-                      <span className={`text-xs font-medium px-2 py-0.5 rounded-full border flex-shrink-0 ${statusCfg.color} ${statusCfg.bg} ${statusCfg.border}`}>
-                        {statusCfg.label}
-                      </span>
-                      {pelatihanList.length > 1 && log.nama_pelatihan && (
-                        <span className="text-xs font-medium px-2 py-0.5 rounded-full border flex-shrink-0 text-blue-600 bg-blue-50 border-blue-200">
-                          {log.nama_pelatihan}
-                        </span>
-                      )}
-                    </div>
-                    <p className="text-xs text-gray-400 mt-0.5">
-                      {new Date(log.tanggal).toLocaleDateString('id-ID', { day: 'numeric', month: 'long', year: 'numeric' })}
-                      {' · '}{log.jam_mulai?.slice(0, 5)}–{log.jam_selesai?.slice(0, 5)} ({formatDurasi(log.durasi_menit)})
-                    </p>
-                  </div>
-                </div>
-                <div className="flex items-center gap-2 flex-shrink-0 ml-2">
-                  {log.status === 'draft' && (
-                    <button onClick={e => { e.stopPropagation(); handleDelete(log.id) }}
-                      className="p-1.5 text-red-500 bg-red-50 hover:bg-red-100 rounded-lg">
-                      <Trash2 className="w-4 h-4" />
-                    </button>
-                  )}
-                  {log.status === 'revisi' && (
-                    <button onClick={e => {
-                      e.stopPropagation()
-                      setEditLog(log)
-                      setEditForm({
-                        kegiatan: log.kegiatan,
-                        deskripsi: log.deskripsi || '',
-                        jam_mulai: log.jam_mulai ? log.jam_mulai.slice(0, 5) : '',
-                        jam_selesai: log.jam_selesai ? log.jam_selesai.slice(0, 5) : '',
-                        bukti: null,
-                        hapusBukti: false,
-                      })
-             setEditBuktiType(log.cloudinary_public_id ? 'file' : (log.bukti_link ? 'link' : 'file'))
-                      setEditBuktiLink(log.cloudinary_public_id ? '' : (log.bukti_link || ''))
-                    }} className="p-1.5 text-blue-600 bg-blue-50 rounded-lg">
-                      <Pencil className="w-4 h-4" />
-                    </button>
-                  )}
-                  <button onClick={e => { e.stopPropagation(); setExpanded(isExpanded ? null : log.id) }}
-                    className={`p-1.5 rounded-lg ${isExpanded ? 'text-blue-600 bg-blue-100' : 'text-blue-600 bg-blue-50'}`}>
-                    <Eye className="w-4 h-4" />
-                  </button>
-                </div>
-              </div>
-
-              {isExpanded && (
-                <div className="border-t border-gray-100">
-                  <div className="px-6 py-4 space-y-4 max-w-4xl mx-auto">
-                    {log.deskripsi && (
-                      <div>
-                        <p className="text-xs font-semibold text-gray-400 uppercase tracking-wide mb-0.5">Deskripsi</p>
-                        <p className="text-sm text-gray-700 text-justify">{log.deskripsi}</p>
-                      </div>
-                    )}
-                    {log.hasil && (
-                      <div>
-                        <p className="text-xs font-semibold text-gray-400 uppercase tracking-wide mb-0.5">Hasil</p>
-                        <p className="text-sm text-gray-700">{log.hasil}</p>
-                      </div>
-                    )}
-                    {log.kendala && (
-                      <div>
-                        <p className="text-xs font-semibold text-gray-400 uppercase tracking-wide mb-0.5">Kendala</p>
-                        <p className="text-sm text-gray-700">{log.kendala}</p>
-                      </div>
-                    )}
-                {log.bukti_link && (
-  <div>
-    <p className="text-xs font-semibold text-gray-400 uppercase tracking-wide mb-2">
-  Bukti
-</p>
-
-<div
-  className={`rounded-xl overflow-hidden border border-gray-200 ${
-    isLinkOnly ? '' : 'h-[420px]'
-  }`}
->
-  <BuktiPreview
-    path={isFileUpload ? log.bukti_link : null}
-    link={isFileUpload ? null : log.bukti_link}
-    filename={log.kegiatan}
-  />
-</div>
-  </div>
-)}    
-                    {log.feedback_dosen && (
-                      <div>
-                        <div className="flex items-center gap-2 mb-2">
-                          <div className="w-6 h-6 bg-purple-100 rounded-full flex items-center justify-center flex-shrink-0">
-                            <MessageSquare className="w-3.5 h-3.5 text-purple-600" />
-                          </div>
-                          <p className="text-xs font-semibold text-purple-700">Feedback Dosen Pembimbing</p>
-                          {log.verified_at && (
-                            <p className="text-xs text-gray-400 ml-auto">
-                              {new Date(log.verified_at).toLocaleDateString('id-ID', { day: 'numeric', month: 'short', year: 'numeric' })}
-                            </p>
-                          )}
-                        </div>
-                        <div className="bg-purple-50 border border-purple-100 rounded-xl px-3.5 py-3">
-                          <p className="text-sm text-purple-900 leading-relaxed">{log.feedback_dosen}</p>
-                        </div>
-                      </div>
-                    )}
-                    {log.status === 'diverifikasi' && (
-                      <div className="flex items-center gap-2 text-green-600">
-                        <CheckCircle className="w-4 h-4 flex-shrink-0" />
-                        <p className="text-xs font-medium">Logbook telah diverifikasi oleh dosen pembimbing</p>
-                      </div>
-                    )}
-                  </div>
-                </div>
-              )}
-            </div>
-          )
-        })}
+        ) : activeLogbooks.map(renderLogItem)}
       </div>
+
+      {/* Riwayat / sudah diverifikasi */}
+      {historyLogbooks.length > 0 && (
+        <>
+          <div className="flex items-center gap-3 pt-2">
+            <div className="flex-1 h-px bg-gray-200" />
+            <p className="text-xs font-semibold text-gray-400 uppercase tracking-wide">Riwayat · Terverifikasi</p>
+            <div className="flex-1 h-px bg-gray-200" />
+          </div>
+          <div className="space-y-3">
+            {historyLogbooks.map(renderLogItem)}
+          </div>
+        </>
+      )}
 
       {/* Modal Tambah */}
       {modalOpen && (
@@ -502,20 +516,20 @@ return (
                 </div>
               )}
               {pelatihanList.length > 1 && (
-  <div>
-    <label className="block text-xs font-semibold text-gray-500 uppercase tracking-wide mb-1.5">Pelatihan *</label>
-    <select
-      value={selectedPelatihanId || ''}
-      onChange={e => setSelectedPelatihanId(e.target.value)}
-      required
-      className="w-full border border-gray-200 rounded-xl px-3.5 py-2.5 text-sm focus:outline-none focus:border-blue-500"
-    >
-      {pelatihanList.map(p => (
-        <option key={p.id} value={p.id}>{p.nama}</option>
-      ))}
-    </select>
-  </div>
-)}
+                <div>
+                  <label className="block text-xs font-semibold text-gray-500 uppercase tracking-wide mb-1.5">Pelatihan *</label>
+                  <select
+                    value={selectedPelatihanId || ''}
+                    onChange={e => setSelectedPelatihanId(e.target.value)}
+                    required
+                    className="w-full border border-gray-200 rounded-xl px-3.5 py-2.5 text-sm focus:outline-none focus:border-blue-500"
+                  >
+                    {pelatihanList.map(p => (
+                      <option key={p.id} value={p.id}>{p.nama}</option>
+                    ))}
+                  </select>
+                </div>
+              )}
 
               <div>
                 <label className="block text-xs font-semibold text-gray-500 uppercase tracking-wide mb-1.5">Tanggal *</label>
@@ -555,69 +569,69 @@ return (
               </div>
 
               <div>
-                  <label className="block text-xs font-semibold text-gray-500 uppercase tracking-wide mb-1.5">
-                    Bukti Kegiatan *
-                  </label>
-                  <div className="flex gap-2 mb-3">
+                <label className="block text-xs font-semibold text-gray-500 uppercase tracking-wide mb-1.5">
+                  Bukti Kegiatan *
+                </label>
+                <div className="flex gap-2 mb-3">
                   <button
-  type="button"
-  onClick={() => setBuktiType('file')}
-  className={`flex-1 flex items-center justify-center gap-2 py-2 rounded-xl text-xs font-semibold border transition-all
-    ${
-      buktiType === 'file'
-        ? 'bg-blue-600 text-white border-blue-600'
-        : 'bg-white text-gray-500 border-gray-200 hover:border-blue-400'
-    }`}
->
-  <Upload className="w-4 h-4" />
-  <span>Upload File</span>
-</button>
-                    <button
-  type="button"
-  onClick={() => setBuktiType('link')}
-  className={`flex-1 flex items-center justify-center gap-2 py-2 rounded-xl text-xs font-semibold border transition-all
-    ${
-      buktiType === 'link'
-        ? 'bg-blue-600 text-white border-blue-600'
-        : 'bg-white text-gray-500 border-gray-200 hover:border-blue-400'
-    }`}
->
-  <ExternalLink className="w-4 h-4" />
-  <span>Link URL</span>
-</button>
-                  </div>
-                  {buktiType === 'file' ? (
-                    <div
-                      onDragOver={e => { e.preventDefault(); setDragging(true) }}
-                      onDragLeave={() => setDragging(false)}
-                      onDrop={e => { e.preventDefault(); setDragging(false); handleFileChange(e.dataTransfer.files[0]) }}
-                      onClick={() => fileRef.current.click()}
-                      className={`border-2 border-dashed rounded-xl p-5 text-center cursor-pointer transition-all
-                        ${dragging ? 'border-blue-500 bg-blue-50' : form.bukti ? 'border-green-400 bg-green-50' : 'border-gray-200 hover:border-blue-400 hover:bg-gray-50'}`}>
-                      <input ref={fileRef} type="file" accept=".pdf,.jpg,.jpeg,.png" onChange={e => handleFileChange(e.target.files[0])} className="hidden" />
-                      {form.bukti ? (
-                        <div>
-                         <CheckCircle className="w-6 h-6 text-green-600 mx-auto mb-1" />
-                          <p className="font-semibold text-green-700 text-sm">{form.bukti.name}</p>
-                          <p className="text-xs text-gray-400 mt-1">{(form.bukti.size / 1024 / 1024).toFixed(2)} MB</p>
-                          <button type="button" onClick={e => { e.stopPropagation(); setForm(f => ({ ...f, bukti: null })) }}
-                            className="mt-2 text-xs text-red-500 hover:underline">Hapus file</button>
-                        </div>
-                      ) : (
-                        <div>
-                          <Upload className="w-6 h-6 text-gray-400 mx-auto mb-1.5" />
-                          <p className="text-sm text-gray-500">{dragging ? 'Lepaskan file di sini' : 'Drag & drop atau klik untuk pilih file'}</p>
-                          <p className="text-xs text-gray-400 mt-1">PDF / JPG / PNG · Maks 20 MB</p>
-                        </div>
-                      )}
-                    </div>
-                  ) : (
-                    <input type="text" value={buktiLink} onChange={e => setBuktiLink(e.target.value)}
-                      onBlur={e => setBuktiLink(normalizeUrl(e.target.value))}
-                      placeholder="paste link here"
-                      className="w-full border border-gray-200 rounded-xl px-3.5 py-2.5 text-sm focus:outline-none focus:border-blue-500" />
-                  )}
+                    type="button"
+                    onClick={() => setBuktiType('file')}
+                    className={`flex-1 flex items-center justify-center gap-2 py-2 rounded-xl text-xs font-semibold border transition-all
+                      ${
+                        buktiType === 'file'
+                          ? 'bg-blue-600 text-white border-blue-600'
+                          : 'bg-white text-gray-500 border-gray-200 hover:border-blue-400'
+                      }`}
+                  >
+                    <Upload className="w-4 h-4" />
+                    <span>Upload File</span>
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setBuktiType('link')}
+                    className={`flex-1 flex items-center justify-center gap-2 py-2 rounded-xl text-xs font-semibold border transition-all
+                      ${
+                        buktiType === 'link'
+                          ? 'bg-blue-600 text-white border-blue-600'
+                          : 'bg-white text-gray-500 border-gray-200 hover:border-blue-400'
+                      }`}
+                  >
+                    <ExternalLink className="w-4 h-4" />
+                    <span>Link URL</span>
+                  </button>
                 </div>
+                {buktiType === 'file' ? (
+                  <div
+                    onDragOver={e => { e.preventDefault(); setDragging(true) }}
+                    onDragLeave={() => setDragging(false)}
+                    onDrop={e => { e.preventDefault(); setDragging(false); handleFileChange(e.dataTransfer.files[0]) }}
+                    onClick={() => fileRef.current.click()}
+                    className={`border-2 border-dashed rounded-xl p-5 text-center cursor-pointer transition-all
+                      ${dragging ? 'border-blue-500 bg-blue-50' : form.bukti ? 'border-green-400 bg-green-50' : 'border-gray-200 hover:border-blue-400 hover:bg-gray-50'}`}>
+                    <input ref={fileRef} type="file" accept=".pdf,.jpg,.jpeg,.png" onChange={e => handleFileChange(e.target.files[0])} className="hidden" />
+                    {form.bukti ? (
+                      <div>
+                        <CheckCircle className="w-6 h-6 text-green-600 mx-auto mb-1" />
+                        <p className="font-semibold text-green-700 text-sm">{form.bukti.name}</p>
+                        <p className="text-xs text-gray-400 mt-1">{(form.bukti.size / 1024 / 1024).toFixed(2)} MB</p>
+                        <button type="button" onClick={e => { e.stopPropagation(); setForm(f => ({ ...f, bukti: null })) }}
+                          className="mt-2 text-xs text-red-500 hover:underline">Hapus file</button>
+                      </div>
+                    ) : (
+                      <div>
+                        <Upload className="w-6 h-6 text-gray-400 mx-auto mb-1.5" />
+                        <p className="text-sm text-gray-500">{dragging ? 'Lepaskan file di sini' : 'Drag & drop atau klik untuk pilih file'}</p>
+                        <p className="text-xs text-gray-400 mt-1">PDF / JPG / PNG · Maks 20 MB</p>
+                      </div>
+                    )}
+                  </div>
+                ) : (
+                  <input type="text" value={buktiLink} onChange={e => setBuktiLink(e.target.value)}
+                    onBlur={e => setBuktiLink(normalizeUrl(e.target.value))}
+                    placeholder="paste link here"
+                    className="w-full border border-gray-200 rounded-xl px-3.5 py-2.5 text-sm focus:outline-none focus:border-blue-500" />
+                )}
+              </div>
 
               <div className="flex gap-3 pt-1">
                 <button type="button" onClick={() => { setModalOpen(false); resetForm() }}

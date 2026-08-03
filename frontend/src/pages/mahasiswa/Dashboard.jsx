@@ -83,7 +83,7 @@ export default function MahasiswaDashboard() {
     },
   ].filter(d => d.selesai) : []
 
-  const TARGET_MENIT = 48 * 60
+  const TARGET_MENIT = 30 * 60
   const logbookPct = Math.min((logbookStats.totalMenit / TARGET_MENIT) * 100, 100)
   const sisaMenit = Math.max(0, TARGET_MENIT - logbookStats.totalMenit)
 
@@ -249,7 +249,7 @@ export default function MahasiswaDashboard() {
               <div>
                 <div className="flex items-baseline gap-1.5">
                   <span className="text-2xl font-bold text-gray-800">{formatDurasi(logbookStats.totalMenit)}</span>
-                  <span className="text-sm text-gray-400">/ 48 jam</span>
+                  <span className="text-sm text-gray-400">/ 30 jam</span>
                 </div>
                 <div className="flex items-center gap-2 mt-1.5">
                   <div className="flex-1 bg-gray-100 rounded-full h-1.5">

@@ -33,7 +33,6 @@ const MahasiswaDashboard  = lazy(() => import('./pages/mahasiswa/Dashboard'))
 const MahasiswaPengajuan  = lazy(() => import('./pages/mahasiswa/Pengajuan'))
 const MahasiswaLogbook    = lazy(() => import('./pages/mahasiswa/Logbook'))
 const MahasiswaDokumen    = lazy(() => import('./pages/mahasiswa/Dokumen'))
-const MahasiswaRiwayat    = lazy(() => import('./pages/mahasiswa/Riwayat'))
 
 const DosenDashboard  = lazy(() => import('./pages/dosen/Dashboard'))
 const DosenMahasiswa  = lazy(() => import('./pages/dosen/MahasiswaBimbingan'))
@@ -125,7 +124,6 @@ export default function App() {
             <Route path="pengajuan" element={<MahasiswaPengajuan />} />
             <Route path="logbook"   element={<MahasiswaLogbook />} />
             <Route path="dokumen"   element={<MahasiswaDokumen />} />
-            <Route path="riwayat"   element={<MahasiswaRiwayat />} />
             <Route path="biodata"   element={<BiodataPage />} />
           </Route>
 
