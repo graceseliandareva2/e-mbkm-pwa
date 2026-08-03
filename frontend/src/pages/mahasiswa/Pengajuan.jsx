@@ -1,6 +1,6 @@
 // pages/mahasiswa/MahasiswaPengajuan.jsx
 import { useEffect, useState, useCallback } from 'react'
-import { CheckCircle, Clock, XCircle, AlertCircle, Plus, Trash2, Eye } from 'lucide-react'
+import { CheckCircle, Clock, XCircle, AlertCircle, Eye } from 'lucide-react'
 import api from '../../utils/api'
 import toast from 'react-hot-toast'
 import { saveToQueue } from '../../utils/offlineQueue'
@@ -10,7 +10,7 @@ import useAuthStore from '../../store/authStore'
 
 // ─────────────────────────── constants ───────────────────────────
 const CACHE_KEY = 'pengajuan'
-const DEFAULT_MIN_JAM = 48   
+const DEFAULT_MIN_JAM = 48
 
 const STATUS_CONFIG = {
   menunggu:          { label: 'Menunggu Review',  color: 'text-yellow-600', bg: 'bg-yellow-50',  border: 'border-yellow-200', icon: Clock },
@@ -50,43 +50,35 @@ const Field = ({ label, children, required }) => (
   </div>
 )
 
-const getPelatihanArray = (pelatihan) => {
-  try {
-    if (!pelatihan) return []
-    return typeof pelatihan === 'string' ? JSON.parse(pelatihan) : pelatihan
-  } catch { return [] }
-}
-
 const toDateInputValue = (val) => (val ? String(val).slice(0, 10) : '')
+
 const mapResponseToForm = (data, user) => ({
   email: data?.email || user?.email || '',
   nim: data?.nim || user?.nim || '',
   nama_lengkap: data?.nama_lengkap || user?.nama || '',
-  dosen_pembimbing_akademik: data?.dosen_pembimbing_akademik || '',
-  dosen_pembimbing_akademik_id: data?.dosen_pembimbing_akademik_id || '',
+  dosen_pa_id: data?.dosen_pa_id || '',
   judul: data?.judul || '',
   penyelenggara: data?.penyelenggara || '',
   tanggal_mulai: toDateInputValue(data?.tanggal_mulai),
   tanggal_selesai: toDateInputValue(data?.tanggal_selesai),
-  pelatihan: (() => {
-    const pel = getPelatihanArray(data?.pelatihan)
-    return pel.length ? pel : [{ nama: '', link: '', durasi_jam: '' }]
-  })(),
+  nama_pelatihan: data?.nama_pelatihan || '',
+  link_pelatihan: data?.link_pelatihan || '',
+  durasi_pelatihan_jam: data?.durasi_pelatihan_jam ?? '',
 })
 
 // ─────────────────────────── component ───────────────────────────
 export default function MahasiswaPengajuan() {
   const { user } = useAuthStore()
 
-  const [pengajuan, setPengajuan]   = useState(null)
-  const [loading, setLoading]       = useState(true)
-  const [submitting, setSubmitting] = useState(false)
-  const [showDetail, setShowDetail] = useState(false)
-  const [isEdit, setIsEdit]         = useState(false)
-  const [form, setForm]             = useState(() => mapResponseToForm(null, user))
-  const [linkErrors, setLinkErrors] = useState({})
-  const [minJam, setMinJam]         = useState(DEFAULT_MIN_JAM)  
-  const [dosenPAList, setDosenPAList] = useState([])              
+  const [pengajuan, setPengajuan]     = useState(null)
+  const [loading, setLoading]         = useState(true)
+  const [submitting, setSubmitting]   = useState(false)
+  const [showDetail, setShowDetail]   = useState(false)
+  const [isEdit, setIsEdit]           = useState(false)
+  const [form, setForm]               = useState(() => mapResponseToForm(null, user))
+  const [linkError, setLinkError]     = useState(false)
+  const [minJam, setMinJam]           = useState(DEFAULT_MIN_JAM)
+  const [dosenPAList, setDosenPAList] = useState([])
 
   // ── Load cache dulu sebelum fetch ──────────────────────────────
   useEffect(() => {
@@ -108,7 +100,7 @@ export default function MahasiswaPengajuan() {
       .catch(() => {})
   }, [])
 
-  // ── Ambil daftar Dosen PA buat dropdown ────────────────────────
+  // ── Ambil daftar Dosen PA buat dropdown (users role='dosen', periode aktif) ──
   useEffect(() => {
     api.get('/mahasiswa/dosen-pa')
       .then(res => setDosenPAList(res.data?.data || []))
@@ -134,66 +126,38 @@ export default function MahasiswaPengajuan() {
 
   useSyncOnline(fetchPengajuan)
 
-  // ── Pelatihan helpers ─────────────────────────────────────────
-  const addPelatihan = () => {
-    if (form.pelatihan.length >= 3) return
-    setForm({ ...form, pelatihan: [...form.pelatihan, { nama: '', link: '', durasi_jam: '' }] })
-  }
-
-  const removePelatihan = (idx) => {
-    setForm({ ...form, pelatihan: form.pelatihan.filter((_, i) => i !== idx) })
-    setLinkErrors(prev => {
-      const next = { ...prev }
-      delete next[idx]
-      return next
-    })
-  }
-
-  const updatePelatihan = (idx, field, value) => {
-    setForm({ ...form, pelatihan: form.pelatihan.map((p, i) => i === idx ? { ...p, [field]: value } : p) })
-    if (field === 'link' && linkErrors[idx]) {
-      setLinkErrors(prev => ({ ...prev, [idx]: false }))
-    }
-  }
-
-  const handleLinkBlur = (idx, value) => {
+  const handleLinkBlur = (value) => {
     const filled = value.trim().length > 0
-    setLinkErrors(prev => ({ ...prev, [idx]: filled && !isValidUrl(value) }))
+    setLinkError(filled && !isValidUrl(value))
   }
 
   const validate = () => {
-    if (!form.judul.trim())                    return 'Judul Capstone Project wajib diisi'
-    if (!form.penyelenggara.trim())            return 'Penyelenggara wajib diisi'
-
-    const totalJam = form.pelatihan.reduce((sum, p) => sum + (Number(p.durasi_jam) || 0), 0)
-    if (totalJam < minJam)
-      return `Total waktu pembelajaran harus minimal ${minJam} jam (saat ini ${totalJam} jam)`
-    const pelatihan1 = form.pelatihan[0]
-    if (!pelatihan1?.nama?.trim() || !pelatihan1?.link?.trim() || !pelatihan1?.durasi_jam)
-      return 'Pelatihan pertama (nama, link, dan durasi) wajib diisi'
-
-    const newLinkErrors = {}
-    let linkInvalid = false
-    form.pelatihan.forEach((p, idx) => {
-      if (p.link?.trim()) {
-        const valid = isValidUrl(p.link)
-        newLinkErrors[idx] = !valid
-        if (!valid) linkInvalid = true
-      }
-    })
-    setLinkErrors(newLinkErrors)
-    if (linkInvalid)
+    if (!form.judul.trim())             return 'Judul Capstone Project wajib diisi'
+    if (!form.penyelenggara.trim())     return 'Penyelenggara wajib diisi'
+    if (!form.nama_pelatihan.trim())    return 'Nama pelatihan wajib diisi'
+    if (!form.link_pelatihan.trim())    return 'Link pelatihan wajib diisi'
+    if (!isValidUrl(form.link_pelatihan)) {
+      setLinkError(true)
       return 'Link pelatihan harus berupa URL yang valid (contoh: https://www.coursera.org/...)'
+    }
+    setLinkError(false)
+
+    const durasiJam = Number(form.durasi_pelatihan_jam) || 0
+    if (durasiJam < minJam)
+      return `Durasi pelatihan harus minimal ${minJam} jam (saat ini ${durasiJam} jam)`
 
     return null
   }
+
   const buildPayload = () => ({
     judul: form.judul,
     penyelenggara: form.penyelenggara,
-    pelatihan: form.pelatihan,
+    nama_pelatihan: form.nama_pelatihan,
+    link_pelatihan: form.link_pelatihan,
+    durasi_pelatihan_jam: Number(form.durasi_pelatihan_jam) || 0,
     tanggal_mulai: form.tanggal_mulai || null,
     tanggal_selesai: form.tanggal_selesai || null,
-    dosen_pembimbing_akademik_id: form.dosen_pembimbing_akademik_id || null,
+    dosen_pa_id: form.dosen_pa_id || null,
   })
 
   const handleSubmit = async (e) => {
@@ -240,10 +204,10 @@ export default function MahasiswaPengajuan() {
   }
 
   // ── Render helpers ────────────────────────────────────────────
-  const totalJam   = form.pelatihan.reduce((sum, p) => sum + (Number(p.durasi_jam) || 0), 0)
   const statusCfg  = pengajuan ? (STATUS_CONFIG[pengajuan.status] || STATUS_CONFIG.menunggu) : null
   const StatusIcon = statusCfg?.icon
   const canEdit    = pengajuan?.status === 'revisi' || pengajuan?.status === 'ditolak'
+  const durasiJam  = Number(form.durasi_pelatihan_jam) || 0
 
   const renderForm = (disabled = false) => (
     <div className="space-y-4">
@@ -261,12 +225,16 @@ export default function MahasiswaPengajuan() {
 
       <Field label="Dosen Pembimbing Akademik">
         {disabled ? (
-          <input className={inputClass} value={form.dosen_pembimbing_akademik || '-'} disabled readOnly />
+          <input
+            className={inputClass}
+            value={dosenPAList.find(d => d.id === form.dosen_pa_id)?.nama || pengajuan?.nama_dosen_pa || '-'}
+            disabled readOnly
+          />
         ) : (
           <select
             className={inputClass}
-            value={form.dosen_pembimbing_akademik_id}
-            onChange={e => setForm({ ...form, dosen_pembimbing_akademik_id: e.target.value })}
+            value={form.dosen_pa_id}
+            onChange={e => setForm({ ...form, dosen_pa_id: e.target.value })}
           >
             <option value="">-- Pilih Dosen PA (opsional) --</option>
             {dosenPAList.map(d => (
@@ -298,65 +266,49 @@ export default function MahasiswaPengajuan() {
         </Field>
       </div>
 
+      {/* Pelatihan -- skema baru: 1 pengajuan = 1 pelatihan (field tunggal) */}
       <div className="space-y-3">
-        <div className="flex items-center justify-between">
-          <label className="block text-xs font-semibold text-gray-500 uppercase tracking-wide">
-            Pelatihan / Bootcamp <span className="text-red-500 ml-0.5">*</span>
-          </label>
-          {!disabled && form.pelatihan.length < 3 && (
-            <button type="button" onClick={addPelatihan}
-              className="flex items-center gap-1 text-xs font-semibold text-blue-600 hover:text-blue-800">
-              <Plus className="w-3.5 h-3.5" /> Tambah Pelatihan
-            </button>
-          )}
-        </div>
+        <label className="block text-xs font-semibold text-gray-500 uppercase tracking-wide">
+          Pelatihan / Bootcamp <span className="text-red-500 ml-0.5">*</span>
+        </label>
         <p className="text-xs text-gray-500 -mt-1">
-          Minimal total waktu pembelajaran <span className="font-semibold text-gray-700">{minJam} jam</span>.
+          Minimal durasi pelatihan <span className="font-semibold text-gray-700">{minJam} jam</span>.
         </p>
 
-        {form.pelatihan.map((p, idx) => (
-          <div key={idx} className="border border-gray-100 rounded-xl p-4 space-y-3 bg-gray-50/50">
-            <div className="flex items-center justify-between mb-1">
-              <span className="text-xs font-bold text-gray-600">
-                Pelatihan {idx + 1}{idx === 0 ? ' (Utama)' : ' (Tambahan)'}
-              </span>
-              {!disabled && idx > 0 && (
-                <button type="button" onClick={() => removePelatihan(idx)} className="text-red-400 hover:text-red-600">
-                  <Trash2 className="w-4 h-4" />
-                </button>
+        <div className="border border-gray-100 rounded-xl p-4 space-y-3 bg-gray-50/50">
+          <Field label="Nama Pelatihan / Bootcamp" required>
+            <input className={inputClass} value={form.nama_pelatihan}
+              onChange={e => setForm({ ...form, nama_pelatihan: e.target.value })} disabled={disabled} />
+          </Field>
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+            <Field label="Link Pelatihan" required>
+              <input
+                className={linkError ? inputErrorClass : inputClass}
+                type="url"
+                placeholder="https://www.contoh.com/kursus"
+                value={form.link_pelatihan}
+                onChange={e => {
+                  setForm({ ...form, link_pelatihan: e.target.value })
+                  if (linkError) setLinkError(false)
+                }}
+                onBlur={e => handleLinkBlur(e.target.value)}
+                disabled={disabled}
+              />
+              {linkError && (
+                <p className="text-xs text-red-500 mt-1">Link tidak valid. Gunakan URL lengkap, contoh: https://...</p>
               )}
-            </div>
-            <Field label="Nama Pelatihan / Bootcamp" required={idx === 0}>
-              <input className={inputClass} value={p.nama}
-                onChange={e => updatePelatihan(idx, 'nama', e.target.value)} disabled={disabled} />
             </Field>
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-              <Field label="Link Pelatihan" required={idx === 0}>
-                <input
-                  className={linkErrors[idx] ? inputErrorClass : inputClass}
-                  type="url"
-                  placeholder="https://www.contoh.com/kursus"
-                  value={p.link}
-                  onChange={e => updatePelatihan(idx, 'link', e.target.value)}
-                  onBlur={e => handleLinkBlur(idx, e.target.value)}
-                  disabled={disabled}
-                />
-                {linkErrors[idx] && (
-                  <p className="text-xs text-red-500 mt-1">Link tidak valid. Gunakan URL lengkap, contoh: https://...</p>
-                )}
-              </Field>
-              <Field label="Durasi (jam)" required={idx === 0}>
-                <input className={inputClass} type="number" min="1" value={p.durasi_jam}
-                  onChange={e => updatePelatihan(idx, 'durasi_jam', e.target.value)} disabled={disabled} />
-              </Field>
-            </div>
+            <Field label="Durasi (jam)" required>
+              <input className={inputClass} type="number" min="1" value={form.durasi_pelatihan_jam}
+                onChange={e => setForm({ ...form, durasi_pelatihan_jam: e.target.value })} disabled={disabled} />
+            </Field>
           </div>
-        ))}
+        </div>
 
         <div className={`flex items-center justify-between px-4 py-2.5 rounded-xl border text-sm font-semibold
-          ${totalJam >= minJam ? 'bg-green-50 border-green-200 text-green-700' : 'bg-orange-50 border-orange-200 text-orange-700'}`}>
-          <span>Total Waktu Pembelajaran</span>
-          <span>{totalJam} jam {totalJam >= minJam ? '✓' : `(kurang ${minJam - totalJam} jam)`}</span>
+          ${durasiJam >= minJam ? 'bg-green-50 border-green-200 text-green-700' : 'bg-orange-50 border-orange-200 text-orange-700'}`}>
+          <span>Durasi Pelatihan</span>
+          <span>{durasiJam} jam {durasiJam >= minJam ? '✓' : `(kurang ${minJam - durasiJam} jam)`}</span>
         </div>
       </div>
     </div>
@@ -415,7 +367,6 @@ export default function MahasiswaPengajuan() {
       <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-4">
         <div className="flex items-center justify-between gap-3">
           <div className="flex items-center gap-2 flex-wrap min-w-0">
-            {/* menampilkan pengajuan.judul (judul capstone sebenarnya) */}
             <p className="font-semibold text-gray-800 truncate">
               {pengajuan.judul || '-'}
             </p>
@@ -436,12 +387,6 @@ export default function MahasiswaPengajuan() {
             <p className="text-sm text-purple-800">{pengajuan.catatan_kaprodi}</p>
           </div>
         )}
-        {pengajuan.catatan_dosen && (
-          <div className="mt-3 p-3 bg-blue-50 rounded-xl border border-blue-100">
-            <p className="text-xs font-semibold text-blue-500 mb-1">Catatan dari Dosen Pembimbing:</p>
-            <p className="text-sm text-blue-800">{pengajuan.catatan_dosen}</p>
-          </div>
-        )}
       </div>
 
       {/* Detail Panel */}
@@ -456,7 +401,7 @@ export default function MahasiswaPengajuan() {
               </button>
             )}
             {isEdit && (
-              <button onClick={() => { setIsEdit(false); setForm(mapResponseToForm(pengajuan, user)); setLinkErrors({}) }}
+              <button onClick={() => { setIsEdit(false); setForm(mapResponseToForm(pengajuan, user)); setLinkError(false) }}
                 className="text-sm font-semibold text-gray-500 hover:text-gray-700">
                 Batal
               </button>

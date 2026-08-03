@@ -2,72 +2,81 @@ const { v4: uuidv4 } = require("uuid");
 const db = require("../config/db");
 const { sendPushToUser } = require("../utils/pushSender");
 
+const enforceRentangCap = async (periodeId = null) => {
+  const params = [];
+  let where = "tanggal_selesai IS NOT NULL AND tanggal_selesai < CURDATE()";
+  if (periodeId) {
+    where += " AND id_periode = ?";
+    params.push(periodeId);
+  }
+  await db.query(
+    `UPDATE periode SET
+      form_pengajuan_buka = IF(manual_open_pengajuan = 1, form_pengajuan_buka, 0),
+      auto_closed_pengajuan_at = IF(manual_open_pengajuan = 1, auto_closed_pengajuan_at, COALESCE(auto_closed_pengajuan_at, NOW())),
+      form_logbook_buka = IF(manual_open_logbook = 1, form_logbook_buka, 0),
+      auto_closed_logbook_at = IF(manual_open_logbook = 1, auto_closed_logbook_at, COALESCE(auto_closed_logbook_at, NOW())),
+      form_ppt_buka = IF(manual_open_ppt = 1, form_ppt_buka, 0),
+      auto_closed_ppt_at = IF(manual_open_ppt = 1, auto_closed_ppt_at, COALESCE(auto_closed_ppt_at, NOW())),
+      form_laporan_buka = IF(manual_open_laporan = 1, form_laporan_buka, 0),
+      auto_closed_laporan_at = IF(manual_open_laporan = 1, auto_closed_laporan_at, COALESCE(auto_closed_laporan_at, NOW()))
+     WHERE ${where}`,
+    params
+  );
+};
 
 const getPeriode = async (req, res) => {
   try {
-    const [rows] = await db.query(
-      "SELECT * FROM periode ORDER BY created_at DESC"
-    );
+    await enforceRentangCap();
+    const [rows] = await db.query("SELECT * FROM periode ORDER BY created_at DESC");
     res.json({ data: rows });
   } catch (error) {
     res.status(500).json({ message: "Terjadi kesalahan server." });
   }
 };
 
+// jenis sudah dihapus dari periode (gak ada lagi beda mbkm/studi independen/keduanya).
+// tanggal_mulai_ppt & tanggal_mulai_laporan TIDAK PERNAH ADA sebagai kolom terpisah --
+// yang ada cuma satu kolom gabungan tanggal_mulai_dokumen dipakai bareng PPT & Laporan Akhir.
 const tambahPeriode = async (req, res) => {
   try {
     const {
-      nama_periode, jenis,
+      nama_periode,
       tanggal_mulai, tanggal_selesai,
       min_jam_pengajuan,
       tanggal_mulai_pengajuan, tanggal_selesai_pengajuan,
       tanggal_mulai_logbook, tanggal_selesai_logbook,
-      tanggal_mulai_dokumen, tanggal_selesai_ppt, tanggal_selesai_laporan,
+      tanggal_mulai_dokumen,
+      tanggal_selesai_ppt, tanggal_selesai_laporan,
       is_active,
     } = req.body;
 
-    if (!nama_periode || !jenis) {
-      return res.status(400).json({ message: "Nama periode dan jenis wajib diisi." });
+    if (!nama_periode) {
+      return res.status(400).json({ message: "Nama periode wajib diisi." });
     }
-
-    // PENTING: is_active WAJIB diisi eksplisit di sini. Kalau kolom ini
-    // dihilangkan dari INSERT, MySQL akan pakai DEFAULT kolom -- dan kalau
-    // defaultnya 1, setiap periode baru otomatis jadi aktif tanpa
-    // menonaktifkan periode lain (bug lama). Sekarang default eksplisit ke 0,
-    // dan hanya diaktifkan lewat langkah terpisah di bawah jika diminta.
+    if (!tanggal_mulai || !tanggal_selesai) {
+      return res.status(400).json({ message: "Tanggal mulai dan tanggal selesai periode wajib diisi." });
+    }
     const jadiAktif = Number(is_active) === 1;
 
-    // PERUBAHAN: form_dokumen_buka (gabungan PPT + Laporan) dipecah jadi
-    // form_ppt_buka & form_laporan_buka -- keduanya independen, punya
-    // tanggal selesai sendiri (tanggal_selesai_ppt / tanggal_selesai_laporan)
-    // dan bisa auto-close di waktu yang berbeda (lihat periodeCron.js).
     const [result] = await db.query(
-      `INSERT INTO periode (nama_periode, jenis, tanggal_mulai, tanggal_selesai, min_jam_pengajuan,
+      `INSERT INTO periode (nama_periode, tanggal_mulai, tanggal_selesai, min_jam_pengajuan,
       tanggal_mulai_pengajuan, tanggal_selesai_pengajuan,
       tanggal_mulai_logbook, tanggal_selesai_logbook,
       tanggal_mulai_dokumen, tanggal_selesai_ppt, tanggal_selesai_laporan,
       form_pengajuan_buka, form_logbook_buka, form_ppt_buka, form_laporan_buka, is_active)
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 0, 0, 0, 0, ?)`,
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 0, 0, 0, 0, ?)`,
       [
-        nama_periode, jenis,
+        nama_periode,
         tanggal_mulai || null, tanggal_selesai || null,
-        Number(min_jam_pengajuan) || 48,
-        tanggal_mulai_pengajuan, tanggal_selesai_pengajuan,
-        tanggal_mulai_logbook, tanggal_selesai_logbook,
-        tanggal_mulai_dokumen || null, tanggal_selesai_ppt, tanggal_selesai_laporan,
+        Number(min_jam_pengajuan) || 0,
+        tanggal_mulai_pengajuan || null, tanggal_selesai_pengajuan || null,
+        tanggal_mulai_logbook || null, tanggal_selesai_logbook || null,
+        tanggal_mulai_dokumen || null, tanggal_selesai_ppt || null, tanggal_selesai_laporan || null,
         jadiAktif ? 1 : 0,
       ]
     );
-
-    // Kalau periode baru ini memang diminta jadi aktif, nonaktifkan semua
-    // periode lain (berdasarkan id hasil INSERT, bukan nama) supaya invariant
-    // "hanya satu periode aktif" tetap terjaga -- aman walau ada nama_periode
-    // yang sama persis.
     if (jadiAktif) {
-      await db.query(
-        "UPDATE periode SET is_active = 0 WHERE id != ?",
-        [result.insertId]
-      );
+      await db.query("UPDATE periode SET is_active = 0 WHERE id_periode != ?", [result.insertId]);
     }
 
     res.status(201).json({ message: "Periode berhasil ditambahkan." });
@@ -81,17 +90,18 @@ const updatePeriode = async (req, res) => {
   try {
     const { id } = req.params;
     const {
-      nama_periode, jenis,
+      nama_periode,
       tanggal_mulai, tanggal_selesai,
       min_jam_pengajuan,
       tanggal_mulai_pengajuan, tanggal_selesai_pengajuan,
       tanggal_mulai_logbook, tanggal_selesai_logbook,
-      tanggal_mulai_dokumen, tanggal_selesai_ppt, tanggal_selesai_laporan,
+      tanggal_mulai_dokumen,
+      tanggal_selesai_ppt, tanggal_selesai_laporan,
       form_pengajuan_buka, form_logbook_buka, form_ppt_buka, form_laporan_buka,
       is_active,
     } = req.body;
 
-    const [[lama]] = await db.query("SELECT * FROM periode WHERE id = ?", [id]);
+    const [[lama]] = await db.query("SELECT * FROM periode WHERE id_periode = ?", [id]);
     if (!lama) return res.status(404).json({ message: "Periode tidak ditemukan." });
 
     const toDateStr = (val) => {
@@ -102,23 +112,19 @@ const updatePeriode = async (req, res) => {
     };
 
     if (Number(is_active) === 1) {
-      await db.query("UPDATE periode SET is_active = 0 WHERE id != ?", [id]);
+      await db.query("UPDATE periode SET is_active = 0 WHERE id_periode != ?", [id]);
     }
 
     const today = new Date().toISOString().slice(0, 10);
 
-    const mulaiPengajuanBerubah   = toDateStr(lama.tanggal_mulai_pengajuan)   !== toDateStr(tanggal_mulai_pengajuan);
-    // BARU: logbook & dokumen sekarang juga auto-open berdasarkan tanggal
-    // mulai masing-masing (lihat periodeCron.js) -- jadi sama seperti
-    // mulaiPengajuanBerubah, kalau tanggal mulainya diubah, form terkait
-    // ditutup dulu dan auto_opened_..._at di-reset supaya cron bisa
-    // membukanya lagi otomatis begitu tanggal barunya tiba.
-    const mulaiLogbookBerubah    = toDateStr(lama.tanggal_mulai_logbook)      !== toDateStr(tanggal_mulai_logbook);
-    const mulaiDokumenBerubah    = toDateStr(lama.tanggal_mulai_dokumen)      !== toDateStr(tanggal_mulai_dokumen);
-    const selesaiPengajuanBerubah = toDateStr(lama.tanggal_selesai_pengajuan) !== toDateStr(tanggal_selesai_pengajuan);
-    const selesaiLogbookBerubah   = toDateStr(lama.tanggal_selesai_logbook)   !== toDateStr(tanggal_selesai_logbook);
-    const selesaiPptBerubah       = toDateStr(lama.tanggal_selesai_ppt)       !== toDateStr(tanggal_selesai_ppt);
-    const selesaiLaporanBerubah   = toDateStr(lama.tanggal_selesai_laporan)   !== toDateStr(tanggal_selesai_laporan);
+    const mulaiPengajuanBerubah    = toDateStr(lama.tanggal_mulai_pengajuan)  !== toDateStr(tanggal_mulai_pengajuan);
+    const mulaiLogbookBerubah      = toDateStr(lama.tanggal_mulai_logbook)    !== toDateStr(tanggal_mulai_logbook);
+    // satu kolom gabungan -- perubahannya reset status buka PPT & Laporan sekaligus.
+    const mulaiDokumenBerubah      = toDateStr(lama.tanggal_mulai_dokumen)    !== toDateStr(tanggal_mulai_dokumen);
+    const selesaiPengajuanBerubah  = toDateStr(lama.tanggal_selesai_pengajuan) !== toDateStr(tanggal_selesai_pengajuan);
+    const selesaiLogbookBerubah    = toDateStr(lama.tanggal_selesai_logbook)   !== toDateStr(tanggal_selesai_logbook);
+    const selesaiPptBerubah        = toDateStr(lama.tanggal_selesai_ppt)       !== toDateStr(tanggal_selesai_ppt);
+    const selesaiLaporanBerubah    = toDateStr(lama.tanggal_selesai_laporan)   !== toDateStr(tanggal_selesai_laporan);
 
     const pengajuanSudahLewat = toDateStr(tanggal_selesai_pengajuan) && toDateStr(tanggal_selesai_pengajuan) < today;
     const logbookSudahLewat   = toDateStr(tanggal_selesai_logbook)   && toDateStr(tanggal_selesai_logbook)   < today;
@@ -130,64 +136,44 @@ const updatePeriode = async (req, res) => {
     if (mulaiPengajuanBerubah) {
       extraClauses.push('auto_opened_at = NULL', 'form_pengajuan_buka = 0');
     }
-
-    // BARU
     if (mulaiLogbookBerubah) {
       extraClauses.push('auto_opened_logbook_at = NULL', 'form_logbook_buka = 0');
     }
-
-    // BARU
     if (mulaiDokumenBerubah) {
-      extraClauses.push(
-        'auto_opened_ppt_at = NULL', 'form_ppt_buka = 0',
-        'auto_opened_laporan_at = NULL', 'form_laporan_buka = 0'
-      );
+      extraClauses.push('auto_opened_ppt_at = NULL', 'form_ppt_buka = 0');
+      extraClauses.push('auto_opened_laporan_at = NULL', 'form_laporan_buka = 0');
     }
 
     if (selesaiPengajuanBerubah) {
       extraClauses.push('auto_closed_pengajuan_at = NULL', 'manual_open_pengajuan = 0');
-      if (pengajuanSudahLewat) {
-        extraClauses.push('form_pengajuan_buka = 0', 'auto_closed_pengajuan_at = NOW()');
-      } else {
-        extraClauses.push('form_pengajuan_buka = 1');
-      }
+      extraClauses.push(pengajuanSudahLewat
+        ? "form_pengajuan_buka = 0, auto_closed_pengajuan_at = NOW()"
+        : "form_pengajuan_buka = 1");
     }
-
     if (selesaiLogbookBerubah) {
       extraClauses.push('auto_closed_logbook_at = NULL', 'manual_open_logbook = 0');
-      if (logbookSudahLewat) {
-        extraClauses.push('form_logbook_buka = 0', 'auto_closed_logbook_at = NOW()');
-      } else {
-        extraClauses.push('form_logbook_buka = 1');
-      }
+      extraClauses.push(logbookSudahLewat
+        ? "form_logbook_buka = 0, auto_closed_logbook_at = NOW()"
+        : "form_logbook_buka = 1");
     }
-
-    // PERUBAHAN: dipecah dari blok gabungan (selesaiPptBerubah || selesaiLaporanBerubah)
-    // menjadi 2 blok terpisah -- PPT dan Laporan Akhir sekarang punya form,
-    // status auto_closed, dan manual_open masing-masing sendiri.
     if (selesaiPptBerubah) {
       extraClauses.push('auto_closed_ppt_at = NULL', 'manual_open_ppt = 0');
-      if (pptSudahLewat) {
-        extraClauses.push('form_ppt_buka = 0', 'auto_closed_ppt_at = NOW()');
-      } else {
-        extraClauses.push('form_ppt_buka = 1');
-      }
+      extraClauses.push(pptSudahLewat
+        ? "form_ppt_buka = 0, auto_closed_ppt_at = NOW()"
+        : "form_ppt_buka = 1");
     }
-
     if (selesaiLaporanBerubah) {
       extraClauses.push('auto_closed_laporan_at = NULL', 'manual_open_laporan = 0');
-      if (laporanSudahLewat) {
-        extraClauses.push('form_laporan_buka = 0', 'auto_closed_laporan_at = NOW()');
-      } else {
-        extraClauses.push('form_laporan_buka = 1');
-      }
+      extraClauses.push(laporanSudahLewat
+        ? "form_laporan_buka = 0, auto_closed_laporan_at = NOW()"
+        : "form_laporan_buka = 1");
     }
 
     const extraSQL = extraClauses.length ? ', ' + extraClauses.join(', ') : '';
 
     await db.query(
       `UPDATE periode SET
-        nama_periode=?, jenis=?,
+        nama_periode=?,
         tanggal_mulai=?, tanggal_selesai=?, min_jam_pengajuan=?,
         tanggal_mulai_pengajuan=?, tanggal_selesai_pengajuan=?,
         tanggal_mulai_logbook=?, tanggal_selesai_logbook=?,
@@ -195,10 +181,10 @@ const updatePeriode = async (req, res) => {
         form_pengajuan_buka=?, form_logbook_buka=?, form_ppt_buka=?, form_laporan_buka=?,
         is_active=?
         ${extraSQL}
-      WHERE id=?`,
+      WHERE id_periode=?`,
       [
-        nama_periode, jenis,
-        tanggal_mulai || null, tanggal_selesai || null, Number(min_jam_pengajuan) || 48,
+        nama_periode,
+        tanggal_mulai || null, tanggal_selesai || null, Number(min_jam_pengajuan) || 0,
         tanggal_mulai_pengajuan, tanggal_selesai_pengajuan,
         tanggal_mulai_logbook, tanggal_selesai_logbook,
         tanggal_mulai_dokumen || null, tanggal_selesai_ppt, tanggal_selesai_laporan,
@@ -207,6 +193,8 @@ const updatePeriode = async (req, res) => {
         is_active, id,
       ]
     );
+
+    await enforceRentangCap(id);
 
     res.json({ message: "Periode berhasil diupdate." });
   } catch (error) {
@@ -218,20 +206,15 @@ const updatePeriode = async (req, res) => {
 const toggleForm = async (req, res) => {
   try {
     const { id } = req.params;
+    await enforceRentangCap(id);
 
     const [[periode]] = await db.query(
       `SELECT form_pengajuan_buka, form_logbook_buka, form_ppt_buka, form_laporan_buka,
               tanggal_mulai_pengajuan, tanggal_mulai_logbook, tanggal_mulai_dokumen
-       FROM periode WHERE id = ?`,
+       FROM periode WHERE id_periode = ?`,
       [id]
     );
     if (!periode) return res.status(404).json({ message: "Periode tidak ditemukan." });
-
-    // PERUBAHAN: field yang tidak dikirim di body sekarang mempertahankan nilai
-    // yang sudah ada di DB (bukan fallback ke 1 lagi) -- sebelumnya toggle
-    // pengajuan/logbook saja bisa tidak sengaja membuka kembali form PPT &
-    // Laporan karena form_ppt_buka/form_laporan_buka yang tidak dikirim selalu
-    // jatuh ke default 1.
     const form_pengajuan_buka = req.body.form_pengajuan_buka ?? periode.form_pengajuan_buka;
     const form_logbook_buka   = req.body.form_logbook_buka   ?? periode.form_logbook_buka;
     const pptVal              = req.body.form_ppt_buka       ?? periode.form_ppt_buka;
@@ -245,13 +228,8 @@ const toggleForm = async (req, res) => {
     const today = new Date().toISOString().slice(0, 10);
     const mulaiPengajuan = toDateStr(periode.tanggal_mulai_pengajuan);
     const mulaiLogbook   = toDateStr(periode.tanggal_mulai_logbook);
-    const mulaiDokumen   = toDateStr(periode.tanggal_mulai_dokumen);
+    const mulaiDokumen   = toDateStr(periode.tanggal_mulai_dokumen); // shared: PPT & Laporan
 
-    // BARU: toggle manual ini cuma untuk MEMBUKA KEMBALI form yang sudah
-    // auto-close (mis. deadline lewat), bukan untuk membuka lebih awal dari
-    // tanggal mulai yang sudah ditetapkan -- itu tugas auto-open di
-    // periodeCron.js. Kalau kaprodi coba paksa buka sebelum tanggal mulai,
-    // tolak dengan pesan jelas.
     if (form_pengajuan_buka == 1 && mulaiPengajuan && mulaiPengajuan > today) {
       return res.status(400).json({ message: `Form pengajuan belum bisa dibuka -- tanggal mulai pengajuan masih ${mulaiPengajuan}.` });
     }
@@ -272,19 +250,16 @@ const toggleForm = async (req, res) => {
     } else {
       resetFields.push('manual_open_pengajuan = 0', 'auto_closed_pengajuan_at = COALESCE(auto_closed_pengajuan_at, NOW())');
     }
-
     if (form_logbook_buka == 1) {
       resetFields.push('auto_closed_logbook_at = NULL', 'manual_open_logbook = 1');
     } else {
       resetFields.push('manual_open_logbook = 0', 'auto_closed_logbook_at = COALESCE(auto_closed_logbook_at, NOW())');
     }
-
     if (pptVal == 1) {
       resetFields.push('auto_closed_ppt_at = NULL', 'manual_open_ppt = 1');
     } else {
       resetFields.push('manual_open_ppt = 0', 'auto_closed_ppt_at = COALESCE(auto_closed_ppt_at, NOW())');
     }
-
     if (laporanVal == 1) {
       resetFields.push('auto_closed_laporan_at = NULL', 'manual_open_laporan = 1');
     } else {
@@ -296,7 +271,7 @@ const toggleForm = async (req, res) => {
     await db.query(
       `UPDATE periode
        SET form_pengajuan_buka=?, form_logbook_buka=?, form_ppt_buka=?, form_laporan_buka=? ${resetClause}
-       WHERE id=?`,
+       WHERE id_periode=?`,
       [form_pengajuan_buka, form_logbook_buka, pptVal, laporanVal, id]
     );
 
@@ -307,24 +282,19 @@ const toggleForm = async (req, res) => {
   }
 };
 
-// ========== DAFTAR DOSEN ROSTER MBKM (BARU) ==========
-// Sumber dropdown untuk assignDosen di bawah -- BUKAN dosen.is_dosen_pa
-// (kolom itu sudah dihapus) dan BUKAN semua dosen master (staffController
-// punya getDaftarDosen sendiri untuk itu). Roster hanya daftar dosen yang
-// tersedia MBKM di periode_id tertentu; identitas dosen tetap dosen.id.
-// periode_id wajib dikirim (kaprodi bisa assign untuk periode yang sedang
-// diverifikasi, tidak selalu periode aktif).
+// roster_dosen_mbkm & roster_dosen_pa sudah dihapus -- keduanya sekarang sumbernya sama:
+// users yang di-import untuk periode tsb (current_periode_id). Kedua endpoint di bawah
+// sekarang identik -- dipertahankan sebagai 2 fungsi biar route lama gak perlu diubah,
+// tapi worth dipertimbangkan buat digabung jadi satu endpoint aja ke depannya.
 const getDosenRosterMBKM = async (req, res) => {
   try {
     const { periode_id } = req.query;
     if (!periode_id) return res.status(400).json({ message: "periode_id wajib diisi." });
 
     const [rows] = await db.query(
-      `SELECT d.id, d.nama
-       FROM roster_dosen_mbkm r
-       JOIN dosen d ON d.id = r.dosen_id
-       WHERE r.periode_id = ?
-       ORDER BY d.nama ASC`,
+      `SELECT id_users AS id, nama FROM users
+       WHERE role = 'dosen' AND current_periode_id = ?
+       ORDER BY nama ASC`,
       [periode_id]
     );
     res.json({ data: rows });
@@ -334,21 +304,15 @@ const getDosenRosterMBKM = async (req, res) => {
   }
 };
 
-// ========== DAFTAR DOSEN ROSTER PA (BARU) ==========
-// Sama pola dengan getDosenRosterMBKM di atas, tapi ke roster_dosen_pa.
-// periode_id wajib dikirim -- sumber dropdown/listing PA yang benar-benar
-// di-scope periode, bukan getDaftarDosen (semua master dosen).
 const getDosenRosterPA = async (req, res) => {
   try {
     const { periode_id } = req.query;
     if (!periode_id) return res.status(400).json({ message: "periode_id wajib diisi." });
 
     const [rows] = await db.query(
-      `SELECT d.id, d.nama
-       FROM roster_dosen_pa r
-       JOIN dosen d ON d.id = r.dosen_id
-       WHERE r.periode_id = ?
-       ORDER BY d.nama ASC`,
+      `SELECT id_users AS id, nama FROM users
+       WHERE role = 'dosen' AND current_periode_id = ?
+       ORDER BY nama ASC`,
       [periode_id]
     );
     res.json({ data: rows });
@@ -358,21 +322,8 @@ const getDosenRosterPA = async (req, res) => {
   }
 };
 
-// ========== ASSIGN DOSEN ==========
-// PERUBAHAN: `bimbingan` sekarang keyed ke `pengajuan_id`, bukan
-// mahasiswa_id+periode_id -> harus cari pengajuan_id dulu.
-// TIDAK ADA integrasi storage file di sini sama sekali -- dosen akses
-// logbook/dokumentasi/PPT/laporan lewat aplikasi e-MBKM (query DB biasa),
-// bukan lewat share folder di storage backend. Ini sekaligus alasan kenapa
-// gak ada penggantian "grant/revoke access" versi Cloudinary: Cloudinary
-// gak punya konsep share-per-folder kayak Drive, dan memang gak dibutuhkan.
-//
-// BARU: dosen yang boleh di-assign HARUS terdaftar di roster_dosen_mbkm
-// untuk periode_id ini. Roster bukan relasi pembimbing -- cuma daftar dosen
-// yang tersedia -- jadi validasi ini dilakukan sebelum menyentuh `bimbingan`
-// sama sekali, dan `bimbingan.dosen_id` tetap mengarah ke `dosen.id` seperti
-// sebelumnya.
-
+// Sekarang jadi SATU-SATUNYA jalur approve: assign dosen = otomatis approve pengajuan
+// (sesuai gate resmi status='disetujui_kaprodi' AND dosen_id IS NOT NULL).
 const assignDosen = async (req, res) => {
   try {
     const { mahasiswa_id, dosen_id, periode_id } = req.body;
@@ -382,50 +333,44 @@ const assignDosen = async (req, res) => {
     }
 
     const [pengajuanRows] = await db.query(
-      `SELECT id FROM pengajuan WHERE mahasiswa_id = ? AND periode_id = ?`,
+      `SELECT id_pengajuan FROM pengajuan WHERE mahasiswa_id = ? AND periode_id = ?`,
       [mahasiswa_id, periode_id]
     );
     if (!pengajuanRows.length) {
       return res.status(404).json({ message: "Pengajuan mahasiswa ini di periode tersebut tidak ditemukan." });
     }
-    const pengajuanId = pengajuanRows[0].id;
+    const pengajuanId = pengajuanRows[0].id_pengajuan;
 
-    const [dosenRows] = await db.query("SELECT id, email FROM dosen WHERE id = ?", [dosen_id]);
-    if (!dosenRows.length) {
-      return res.status(404).json({ message: "Dosen tidak ditemukan." });
-    }
-
-    const [rosterRows] = await db.query(
-      `SELECT id FROM roster_dosen_mbkm WHERE dosen_id = ? AND periode_id = ?`,
+    const [dosenRows] = await db.query(
+      "SELECT id_users FROM users WHERE id_users = ? AND role = 'dosen' AND current_periode_id = ?",
       [dosen_id, periode_id]
     );
-    if (!rosterRows.length) {
-      return res.status(400).json({ message: "Dosen ini tidak terdaftar di roster MBKM periode tersebut." });
+    if (!dosenRows.length) {
+      return res.status(400).json({ message: "Dosen tidak ditemukan atau tidak terdaftar untuk periode ini." });
     }
 
-    const [existing] = await db.query(
-      `SELECT b.id, b.dosen_id AS dosen_lama_id
-       FROM bimbingan b
-       WHERE b.pengajuan_id = ?`,
-      [pengajuanId]
+    await db.query(
+      "UPDATE pengajuan SET dosen_id = ?, status = 'disetujui_kaprodi' WHERE id_pengajuan = ?",
+      [dosen_id, pengajuanId]
     );
 
-    if (existing.length > 0) {
-      await db.query("UPDATE bimbingan SET dosen_id = ? WHERE pengajuan_id = ?", [dosen_id, pengajuanId]);
-    } else {
-      await db.query(
-        "INSERT INTO bimbingan (id, dosen_id, pengajuan_id) VALUES (?, ?, ?)",
-        [uuidv4(), dosen_id, pengajuanId]
-      );
-    }
+    const pesan = "Pengajuan capstone kamu telah disetujui oleh Kaprodi dan dosen pembimbing sudah ditentukan.";
+    await db.query(
+      "INSERT INTO notifikasi (id_notifikasi, user_id, judul, pesan, tipe) VALUES (?, ?, ?, ?, ?)",
+      [uuidv4(), mahasiswa_id, "Status Pengajuan Capstone", pesan, "sukses"]
+    );
+    await sendPushToUser(mahasiswa_id, {
+      title: "Pengajuan Disetujui",
+      body: pesan,
+      url: "/mahasiswa/pengajuan",
+    });
 
-    res.json({ message: "Dosen pembimbing berhasil di-assign." });
+    res.json({ message: "Dosen pembimbing berhasil di-assign dan pengajuan disetujui." });
   } catch (error) {
     console.error('assignDosen error:', error);
     res.status(500).json({ message: "Terjadi kesalahan server." });
   }
 };
-
 
 const getVerifikasiPengajuan = async (req, res) => {
   try {
@@ -433,25 +378,28 @@ const getVerifikasiPengajuan = async (req, res) => {
 
     if (!periode_id) {
       const [[periodeRow]] = await db.query(
-        `SELECT id, nama_periode FROM periode WHERE is_active = 1 ORDER BY created_at ASC LIMIT 1`
+        `SELECT id_periode AS id FROM periode WHERE is_active = 1 ORDER BY created_at ASC LIMIT 1`
       );
       if (!periodeRow) return res.json({ data: [] });
       periode_id = periodeRow.id;
     }
 
+    // dosen_pembimbing_akademik lama sudah gak punya kolom penyimpanan (dropdown "Dosen PA"
+    // sekarang cuma buat tampilan pilihan, gak disimpan) -- yang ditampilkan sekarang cuma
+    // p.dosen_id, yang NULL sampai kaprodi assign lewat assignDosen().
     const [rows] = await db.query(
       `SELECT
-        p.id, p.mahasiswa_id, p.periode_id, p.status,
-        p.catatan_dosen, p.catatan_kaprodi,
+        p.id_pengajuan AS id, p.mahasiswa_id, p.periode_id, p.status,
+        p.catatan_kaprodi,
         p.created_at, p.updated_at, p.archived_at, p.archived_by,
-        dp.pelatihan, dp.judul, dp.penyelenggara, dp.waktu_studi_independen, dp.deskripsi,
+        dp.nama_pelatihan, dp.judul, dp.penyelenggara, dp.waktu_studi_independen, dp.deskripsi,
         dp.lokasi, dp.tanggal_mulai, dp.tanggal_selesai,
-        m.nim, m.nama as nama_mahasiswa, m.email,
-        dpa.nama as dosen_pembimbing_akademik
+        u.nim, u.nama as nama_mahasiswa, u.email,
+        p.dosen_id, d.nama as nama_dosen
        FROM pengajuan p
-       JOIN mahasiswa m ON p.mahasiswa_id = m.id
-       LEFT JOIN detail_pengajuan dp ON dp.pengajuan_id = p.id
-       LEFT JOIN dosen dpa ON dpa.id = m.dosen_pembimbing_akademik_id
+       JOIN users u ON p.mahasiswa_id = u.id_users
+       LEFT JOIN detail_pengajuan dp ON dp.pengajuan_id = p.id_pengajuan
+       LEFT JOIN users d ON d.id_users = p.dosen_id
        WHERE p.periode_id = ?
        ORDER BY p.created_at DESC`,
       [periode_id]
@@ -463,57 +411,39 @@ const getVerifikasiPengajuan = async (req, res) => {
   }
 };
 
-// PERUBAHAN: gak ada lagi langkah "bikin struktur folder" di sini -- Cloudinary
-// otomatis bikin folder dari path string pas file pertama diupload (lihat
-// cloudinaryService.js), jadi gak perlu idempotent-create + simpan folder id
-// kayak versi Drive dulu.
-
+// Sekarang cuma buat menolak/minta revisi. Approve WAJIB lewat assignDosen()
+// karena status='disetujui_kaprodi' selalu berbarengan dengan pengisian dosen_id.
 const verifikasiPengajuan = async (req, res) => {
   try {
     const { id } = req.params;
     const { status, catatan_kaprodi } = req.body;
 
-    if (!["disetujui_kaprodi", "ditolak", "revisi"].includes(status)) {
-      return res.status(400).json({ message: "Status tidak valid." });
+    if (!["ditolak", "revisi"].includes(status)) {
+      return res.status(400).json({ message: "Status tidak valid. Gunakan endpoint assign dosen untuk menyetujui pengajuan." });
     }
 
     await db.query(
-      "UPDATE pengajuan SET status = ?, catatan_kaprodi = ? WHERE id = ?",
+      "UPDATE pengajuan SET status = ?, catatan_kaprodi = ? WHERE id_pengajuan = ?",
       [status, catatan_kaprodi, id]
     );
 
     const [pengajuan] = await db.query(
-      `SELECT p.mahasiswa_id, m.user_id, m.nim, m.nama
-       FROM pengajuan p JOIN mahasiswa m ON p.mahasiswa_id = m.id WHERE p.id = ?`,
+      `SELECT mahasiswa_id FROM pengajuan WHERE id_pengajuan = ?`,
       [id]
     );
 
     if (pengajuan.length > 0) {
-      const pj = pengajuan[0];
+      const userId = pengajuan[0].mahasiswa_id; // mahasiswa_id == users.id_users
 
       const pesan =
-        status === "disetujui_kaprodi"
-          ? "Pengajuan capstone kamu telah disetujui oleh Kaprodi."
-          : status === "revisi"
+        status === "revisi"
           ? `Pengajuan capstone kamu perlu direvisi. Catatan: ${catatan_kaprodi}`
           : `Pengajuan capstone kamu ditolak. Catatan: ${catatan_kaprodi}`;
 
       await db.query(
-        "INSERT INTO notifikasi (id, user_id, judul, pesan, tipe) VALUES (?, ?, ?, ?, ?)",
-        [
-          uuidv4(), pj.user_id,
-          "Status Pengajuan Capstone", pesan,
-          status === "disetujui_kaprodi" ? "sukses" : "peringatan",
-        ]
+        "INSERT INTO notifikasi (id_notifikasi, user_id, judul, pesan, tipe) VALUES (?, ?, ?, ?, ?)",
+        [uuidv4(), userId, "Status Pengajuan Capstone", pesan, "peringatan"]
       );
-
-      if (status === "disetujui_kaprodi") {
-        await sendPushToUser(pj.user_id, {
-          title: "Pengajuan Disetujui",
-          body: pesan,
-          url: "/mahasiswa/pengajuan",
-        });
-      }
     }
 
     res.json({ message: "Status pengajuan berhasil diupdate." });
@@ -523,30 +453,24 @@ const verifikasiPengajuan = async (req, res) => {
   }
 };
 
-// PERUBAHAN: cukup hapus notifikasi + pengajuan; cascade otomatis membereskan
-// detail_pengajuan, logbook, dokumen, bimbingan, feedback, penilaian.
-
 const hapusPengajuan = async (req, res) => {
   const conn = await db.getConnection();
   try {
     const { id } = req.params;
 
-    const [pengajuan] = await conn.query(
-      "SELECT * FROM pengajuan WHERE id = ?", [id]
-    );
+    const [pengajuan] = await conn.query("SELECT * FROM pengajuan WHERE id_pengajuan = ?", [id]);
     if (!pengajuan.length) {
       conn.release();
       return res.status(404).json({ message: "Pengajuan tidak ditemukan." });
     }
 
     await conn.beginTransaction();
-    await conn.query(
-      "DELETE FROM notifikasi WHERE user_id IN (SELECT user_id FROM mahasiswa WHERE id = ?)",
-      [pengajuan[0].mahasiswa_id]
-    );
-    // detail_pengajuan, logbook, dokumen, bimbingan, feedback, penilaian
-    // otomatis terhapus lewat ON DELETE CASCADE (semua nempel ke pengajuan_id)
-    await conn.query("DELETE FROM pengajuan WHERE id = ?", [id]);
+
+    // mahasiswa_id sudah langsung = users.id_users, gak perlu subquery lagi ke tabel mahasiswa.
+    await conn.query("DELETE FROM notifikasi WHERE user_id = ?", [pengajuan[0].mahasiswa_id]);
+
+    // detail_pengajuan/dokumen/logbook/feedback/penilaian ikut kehapus otomatis (ON DELETE CASCADE).
+    await conn.query("DELETE FROM pengajuan WHERE id_pengajuan = ?", [id]);
 
     await conn.commit();
     res.json({ message: "Pengajuan berhasil dihapus." });
@@ -559,8 +483,6 @@ const hapusPengajuan = async (req, res) => {
   }
 };
 
-// PERUBAHAN: dokumen tidak lagi punya mahasiswa_id -> ambil lewat join pengajuan.
-
 const verifikasiDokumen = async (req, res) => {
   try {
     const { id } = req.params;
@@ -571,8 +493,8 @@ const verifikasiDokumen = async (req, res) => {
 
     const [dok] = await db.query(
       `SELECT d.*, p.mahasiswa_id
-       FROM dokumen d JOIN pengajuan p ON p.id = d.pengajuan_id
-       WHERE d.id = ?`,
+       FROM dokumen d JOIN pengajuan p ON p.id_pengajuan = d.pengajuan_id
+       WHERE d.id_dokumen = ?`,
       [id]
     );
     if (!dok.length)
@@ -582,35 +504,26 @@ const verifikasiDokumen = async (req, res) => {
       return res.status(403).json({ message: "Kaprodi hanya dapat memverifikasi Laporan Akhir." });
     }
 
-    // PERUBAHAN: urutan verifikasi laporan akhir sekarang Dospem DULU,
-    // baru Kaprodi. Kaprodi hanya boleh bertindak setelah Dospem
-    // menyatakan disetujui_dospem.
     if (dok[0].status !== 'disetujui_dospem') {
       return res.status(400).json({ message: "Laporan Akhir harus disetujui Dosen Pembimbing terlebih dahulu sebelum dapat diverifikasi Kaprodi." });
     }
 
-    // Kaprodi adalah tahap verifikasi terakhir: approve = final (diverifikasi).
     const statusAkhir = status === "disetujui_kaprodi" ? "diverifikasi" : status;
 
     await db.query(
-      `UPDATE dokumen SET status=?, feedback_kaprodi=?, verified_kaprodi_by=?, verified_kaprodi_at=NOW() WHERE id=?`,
+      `UPDATE dokumen SET status=?, feedback_kaprodi=?, verified_kaprodi_by=?, verified_kaprodi_at=NOW() WHERE id_dokumen=?`,
       [statusAkhir, feedback || null, req.user.id, id]
     );
 
-    const [mhsData] = await db.query(
-      `SELECT m.user_id FROM mahasiswa m WHERE m.id = ?`,
-      [dok[0].mahasiswa_id]
+    // dok[0].mahasiswa_id sudah = users.id_users, gak perlu query tambahan.
+    const pesan = statusAkhir === "diverifikasi"
+      ? "Laporan Akhir kamu telah diverifikasi oleh Dosen Pembimbing dan Kaprodi."
+      : `Laporan Akhir kamu perlu direvisi oleh Kaprodi. Catatan: ${feedback || "-"}`;
+    await db.query(
+      "INSERT INTO notifikasi (id_notifikasi, user_id, judul, pesan, tipe) VALUES (?, ?, ?, ?, ?)",
+      [uuidv4(), dok[0].mahasiswa_id, "Status Dokumen", pesan,
+        statusAkhir === "diverifikasi" ? "sukses" : "peringatan"]
     );
-    if (mhsData.length) {
-      const pesan = statusAkhir === "diverifikasi"
-        ? "Laporan Akhir kamu telah diverifikasi oleh Dosen Pembimbing dan Kaprodi."
-        : `Laporan Akhir kamu perlu direvisi oleh Kaprodi. Catatan: ${feedback || "-"}`;
-      await db.query(
-        "INSERT INTO notifikasi (id, user_id, judul, pesan, tipe) VALUES (?, ?, ?, ?, ?)",
-        [uuidv4(), mhsData[0].user_id, "Status Dokumen", pesan,
-          statusAkhir === "diverifikasi" ? "sukses" : "peringatan"]
-      );
-    }
 
     res.json({ message: "Status dokumen berhasil diupdate." });
   } catch (error) {
@@ -619,49 +532,37 @@ const verifikasiDokumen = async (req, res) => {
   }
 };
 
-// PERUBAHAN: dokumen & logbook di-join lewat pengajuan (bukan mahasiswa_id
-// langsung), dan SUM(lb.jam) -> SUM(lb.durasi_menit)/60 karena kolom `jam`
-// sudah tidak dipakai lagi (nunggu di-drop di migration step 2).
-//
-// PERUBAHAN (kolom Nilai di tabel Monitoring): ditambahkan scalar subquery
-// nilai_akhir dari `penilaian`, DIBATASI `finalized_at IS NOT NULL` (nilai
-// draft dosen tidak boleh bocor ke Kaprodi/Staff sebelum difinalisasi).
-// Sengaja pakai subquery (bukan LEFT JOIN penilaian) supaya konsisten dengan
-// pola total_jam_terverifikasi di bawah -- LEFT JOIN penilaian akan ikut
-// dikalikan oleh cross join dokumen+logbook yang sudah ada di query ini
-// (makanya kolom dokumen juga pakai MAX(CASE...) untuk menghindari duplikasi
-// baris), jadi subquery scalar lebih aman & tidak mengubah jumlah baris.
-
 const getMonitoringDokumen = async (req, res) => {
   try {
     const { periode_id } = req.query;
     const [rows] = await db.query(
       `SELECT m.nim, m.nama,
-        p.id as pengajuan_id,
+        p.id_pengajuan as pengajuan_id,
         p.status as status_pengajuan,
-        COUNT(DISTINCT l.id) as jumlah_logbook,
+        COUNT(DISTINCT l.id_logbook) as jumlah_logbook,
         COALESCE((
           SELECT SUM(lb.durasi_menit) / 60 FROM logbook lb
-          WHERE lb.pengajuan_id = p.id AND lb.status = 'diverifikasi'
+          WHERE lb.pengajuan_id = p.id_pengajuan AND lb.status = 'diverifikasi'
         ), 0) as total_jam_terverifikasi,
         (
           SELECT pn.nilai_akhir FROM penilaian pn
-          WHERE pn.pengajuan_id = p.id AND pn.finalized_at IS NOT NULL
+          WHERE pn.pengajuan_id = p.id_pengajuan AND pn.finalized_at IS NOT NULL
           LIMIT 1
         ) as nilai_akhir,
         MAX(CASE WHEN dok.jenis = 'laporan_akhir' THEN dok.status END) as status_laporan,
         MAX(CASE WHEN dok.jenis = 'ppt' THEN dok.status END) as status_ppt,
-        MAX(CASE WHEN dok.jenis = 'laporan_akhir' THEN dok.id END) as laporan_id,
+        MAX(CASE WHEN dok.jenis = 'laporan_akhir' THEN dok.id_dokumen END) as laporan_id,
         MAX(CASE WHEN dok.jenis = 'laporan_akhir' THEN dok.cloudinary_url END) as laporan_path,
         MAX(CASE WHEN dok.jenis = 'laporan_akhir' THEN dok.nama_file END) as laporan_nama,
-        MAX(CASE WHEN dok.jenis = 'ppt' THEN dok.id END) as ppt_id,
+        MAX(CASE WHEN dok.jenis = 'ppt' THEN dok.id_dokumen END) as ppt_id,
         MAX(CASE WHEN dok.jenis = 'ppt' THEN dok.cloudinary_url END) as ppt_path,
         MAX(CASE WHEN dok.jenis = 'ppt' THEN dok.nama_file END) as ppt_nama
-      FROM mahasiswa m
-      INNER JOIN pengajuan p ON m.id = p.mahasiswa_id AND p.periode_id = ?
-      LEFT JOIN dokumen dok ON dok.pengajuan_id = p.id
-      LEFT JOIN logbook l ON l.pengajuan_id = p.id
-      GROUP BY m.id, m.nim, m.nama, p.id, p.status
+      FROM users m
+      INNER JOIN pengajuan p ON m.id_users = p.mahasiswa_id AND p.periode_id = ?
+      LEFT JOIN dokumen dok ON dok.pengajuan_id = p.id_pengajuan
+      LEFT JOIN logbook l ON l.pengajuan_id = p.id_pengajuan
+      WHERE m.role = 'mahasiswa'
+      GROUP BY m.id_users, m.nim, m.nama, p.id_pengajuan, p.status
       ORDER BY m.nama ASC`,
       [periode_id]
     );
@@ -693,25 +594,6 @@ const getMonitoringDokumen = async (req, res) => {
   }
 };
 
-// ========== DASHBOARD STATS ==========
-// PERUBAHAN: `pengajuan_capstone` (sudah di-drop) -> `pengajuan`.
-//
-// PERUBAHAN (Total Dosen): dulu COUNT(*) dari tabel `dosen` (semua master
-// data dosen, tanpa scope periode). Sekarang di-scope ke roster_dosen_mbkm
-// pada periode_id yang sedang dipakai (COUNT DISTINCT dosen_id), supaya
-// konsisten dengan pola yang sama di staffController.getDashboardStats
-// (di sana disebut "Total Pembimbing MBKM"). periode_id di titik ini sudah
-// pasti ke-resolve (dari query string atau fallback periode aktif/terbaru
-// di blok if/else di atas), jadi tidak perlu helper _getPeriodeAktifId
-// terpisah seperti di staffController.
-//
-// PERUBAHAN (Total Mahasiswa): dulu COUNT(DISTINCT m.id) dari
-// INNER JOIN pengajuan -- ini cuma menghitung mahasiswa yang SUDAH SUBMIT
-// pengajuan di periode itu, bukan semua mahasiswa yang berhak ikut MBKM
-// periode itu (roster). Sekarang disamakan dengan pola getDaftarMahasiswa
-// (staffController) & getDashboardStats (staffController): di-scope ke
-// roster_mahasiswa_mbkm, supaya angka di dashboard konsisten dengan yang
-// tampil di halaman Data Mahasiswa.
 const getDashboardStats = async (req, res) => {
   try {
     let periode_id = req.query.periode_id || null;
@@ -719,45 +601,29 @@ const getDashboardStats = async (req, res) => {
 
     if (!periode_id) {
       const [[periodeRow]] = await db.query(
-        `SELECT id, nama_periode
-         FROM periode
-         ORDER BY is_active DESC, created_at DESC
-         LIMIT 1`
+        `SELECT id_periode AS id, nama_periode FROM periode ORDER BY is_active DESC, created_at DESC LIMIT 1`
       );
 
       if (!periodeRow) {
         return res.json({
-          data: {
-            total_mahasiswa: 0,
-            total_dosen: 0,
-            total_pengajuan: 0,
-            dokumen_lengkap: 0,
-            periode_aktif: null,
-          },
+          data: { total_mahasiswa: 0, total_dosen: 0, total_pengajuan: 0, dokumen_lengkap: 0, periode_aktif: null },
         });
       }
 
       periode_id = periodeRow.id;
       nama_periode = periodeRow.nama_periode;
     } else {
-      const [[periodeRow]] = await db.query(
-        "SELECT nama_periode FROM periode WHERE id = ?",
-        [periode_id]
-      );
+      const [[periodeRow]] = await db.query("SELECT nama_periode FROM periode WHERE id_periode = ?", [periode_id]);
       nama_periode = periodeRow?.nama_periode || "";
     }
 
+    // roster_mahasiswa_mbkm/roster_dosen_mbkm sudah dihapus -- diganti users.current_periode_id.
     const [[{ total_mahasiswa }]] = await db.query(
-      `SELECT COUNT(DISTINCT r.mahasiswa_id) AS total_mahasiswa
-       FROM roster_mahasiswa_mbkm r
-       WHERE r.periode_id = ?`,
+      `SELECT COUNT(*) AS total_mahasiswa FROM users WHERE role = 'mahasiswa' AND current_periode_id = ?`,
       [periode_id]
     );
-
     const [[{ total_dosen }]] = await db.query(
-      `SELECT COUNT(DISTINCT dosen_id) AS total_dosen
-       FROM roster_dosen_mbkm
-       WHERE periode_id = ?`,
+      `SELECT COUNT(*) AS total_dosen FROM users WHERE role = 'dosen' AND current_periode_id = ?`,
       [periode_id]
     );
 
@@ -766,19 +632,15 @@ const getDashboardStats = async (req, res) => {
       [periode_id]
     );
 
-    // Ambil min_jam_pengajuan periode ini dulu
-    const [[periodeInfo]] = await db.query(
-      "SELECT min_jam_pengajuan FROM periode WHERE id = ?",
-      [periode_id]
-    );
-    const minJam = periodeInfo?.min_jam_pengajuan || 48;
+    const [[periodeInfo]] = await db.query("SELECT min_jam_pengajuan FROM periode WHERE id_periode = ?", [periode_id]);
+    const minJam = periodeInfo?.min_jam_pengajuan ?? 0;
 
     const [[{ dokumen_lengkap }]] = await db.query(
       `SELECT COUNT(*) AS dokumen_lengkap
        FROM (
          SELECT dok.pengajuan_id
          FROM dokumen dok
-         JOIN pengajuan p ON p.id = dok.pengajuan_id
+         JOIN pengajuan p ON p.id_pengajuan = dok.pengajuan_id
          WHERE p.periode_id = ?
          GROUP BY dok.pengajuan_id
          HAVING SUM(CASE WHEN dok.jenis = 'laporan_akhir' AND dok.status = 'diverifikasi' THEN 1 ELSE 0 END) > 0
@@ -792,14 +654,7 @@ const getDashboardStats = async (req, res) => {
     );
 
     res.json({
-      data: {
-        total_mahasiswa,
-        total_dosen,
-        total_pengajuan,
-        dokumen_lengkap,
-        periode_id,
-        nama_periode,
-      },
+      data: { total_mahasiswa, total_dosen, total_pengajuan, dokumen_lengkap, periode_id, nama_periode },
     });
   } catch (error) {
     console.error("Dashboard stats error:", error);
@@ -807,9 +662,8 @@ const getDashboardStats = async (req, res) => {
   }
 };
 
-// ========== PENGAJUAN UNTUK ASSIGN DOSEN ==========
-// PERUBAHAN: bimbingan join lewat pengajuan_id (bukan mahasiswa_id+periode_id).
-
+// dp.pelatihan (array JSON) sudah gak ada -- sekarang field tunggal dp.nama_pelatihan,
+// jadi seluruh logic parsing JSON dibuang.
 const getPengajuanDisetujui = async (req, res) => {
   try {
     const { periode_id } = req.query;
@@ -822,37 +676,18 @@ const getPengajuanDisetujui = async (req, res) => {
     }
 
     const [rows] = await db.query(
-      `SELECT p.id, p.mahasiswa_id, p.status, p.periode_id, dp.pelatihan,
-        m.nim, m.nama, m.program_studi,
-        b.dosen_id, d.nama AS nama_dosen
+      `SELECT p.id_pengajuan AS id, p.mahasiswa_id, p.status, p.periode_id,
+        dp.nama_pelatihan,
+        u.nim, u.nama, u.program_studi,
+        p.dosen_id, d.nama AS nama_dosen
       FROM pengajuan p
-      JOIN mahasiswa m ON p.mahasiswa_id = m.id
-      LEFT JOIN detail_pengajuan dp ON dp.pengajuan_id = p.id
-      LEFT JOIN bimbingan b ON b.pengajuan_id = p.id
-      LEFT JOIN dosen d ON b.dosen_id = d.id
+      JOIN users u ON p.mahasiswa_id = u.id_users
+      LEFT JOIN detail_pengajuan dp ON dp.pengajuan_id = p.id_pengajuan
+      LEFT JOIN users d ON d.id_users = p.dosen_id
       ${whereClause}
-      ORDER BY m.nama ASC`,
+      ORDER BY u.nama ASC`,
       params
     );
-
-    rows.forEach((r) => {
-      try {
-        const raw = r.pelatihan;
-        if (!raw) { r.pelatihan = []; return; }
-        const parsed = JSON.parse(raw);
-        if (Array.isArray(parsed) && (parsed.length === 0 || typeof parsed[0] === "string")) {
-          r.pelatihan = parsed; return;
-        }
-        if (Array.isArray(parsed) && typeof parsed[0] === "object") {
-          r.pelatihan = parsed.map((p) => p.judul_pelatihan || p.judul || p.nama || p.title || JSON.stringify(p));
-          return;
-        }
-        if (typeof parsed === "string") { r.pelatihan = [parsed]; return; }
-        r.pelatihan = [];
-      } catch {
-        r.pelatihan = r.pelatihan ? [String(r.pelatihan)] : [];
-      }
-    });
 
     res.json({ data: rows });
   } catch (error) {
@@ -860,11 +695,6 @@ const getPengajuanDisetujui = async (req, res) => {
     res.status(500).json({ message: "Terjadi kesalahan server." });
   }
 };
-
-// ========== REKAP NILAI ==========
-// Cuma nilai yang sudah difinalisasi dosen (finalized_at IS NOT NULL) yang
-// boleh tampil ke Kaprodi -- sebelum final, nilai masih draft dan cuma dosen
-// pembimbing yang boleh lihat/ubah.
 
 const getRekapNilai = async (req, res) => {
   try {
@@ -878,19 +708,19 @@ const getRekapNilai = async (req, res) => {
 
     const [rows] = await db.query(
       `SELECT
-        pn.id, pn.pengajuan_id, pn.finalized_at,
+        pn.id_penilaian AS id, pn.pengajuan_id, pn.finalized_at,
         pn.nilai_kesesuaian, pn.nilai_proyek, pn.nilai_evaluasi,
         pn.nilai_laporan, pn.nilai_presentasi, pn.nilai_akhir, pn.grade, pn.catatan,
-        m.nim, m.nama, m.program_studi,
+        u.nim, u.nama, u.program_studi,
         per.nama_periode,
         d.nama as nama_dosen
       FROM penilaian pn
-      JOIN pengajuan p ON p.id = pn.pengajuan_id
-      JOIN mahasiswa m ON p.mahasiswa_id = m.id
-      JOIN periode per ON p.periode_id = per.id
-      LEFT JOIN dosen d ON d.id = pn.dosen_id
+      JOIN pengajuan p ON p.id_pengajuan = pn.pengajuan_id
+      JOIN users u ON p.mahasiswa_id = u.id_users
+      JOIN periode per ON p.periode_id = per.id_periode
+      LEFT JOIN users d ON d.id_users = pn.dosen_id
       ${where}
-      ORDER BY m.nama ASC`,
+      ORDER BY u.nama ASC`,
       params
     );
 
@@ -901,42 +731,35 @@ const getRekapNilai = async (req, res) => {
   }
 };
 
-// ========== DETAIL MONITORING (BARU) ==========
-// Data lengkap 1 mahasiswa untuk tombol "Lihat" di halaman Monitoring:
-// info mahasiswa, progress (pengajuan/logbook/dokumen), seluruh entri
-// logbook milik pengajuan ini saja, dan nilai_akhir (kalau sudah final).
-// Tidak menyentuh/duplikasi getMonitoringDokumen (list tetap seperti semula).
-
 const getDetailMonitoring = async (req, res) => {
   try {
     const { pengajuan_id } = req.params;
 
     const [info] = await db.query(
       `SELECT
-        m.nim, m.nama, m.email,
-        p.id as pengajuan_id, p.status as status_pengajuan, p.periode_id,
-        dp.judul as program_mbkm, dp.penyelenggara as instansi,
+        u.nim, u.nama, u.email,
+        p.id_pengajuan as pengajuan_id, p.status as status_pengajuan, p.periode_id,
+        dp.judul as program_mbkm, dp.penyelenggara as instansi, dp.nama_pelatihan,
         d.nama as dosen_pembimbing
       FROM pengajuan p
-      JOIN mahasiswa m ON m.id = p.mahasiswa_id
-      LEFT JOIN detail_pengajuan dp ON dp.pengajuan_id = p.id
-      LEFT JOIN bimbingan b ON b.pengajuan_id = p.id
-      LEFT JOIN dosen d ON d.id = b.dosen_id
-      WHERE p.id = ?`,
+      JOIN users u ON u.id_users = p.mahasiswa_id
+      LEFT JOIN detail_pengajuan dp ON dp.pengajuan_id = p.id_pengajuan
+      LEFT JOIN users d ON d.id_users = p.dosen_id
+      WHERE p.id_pengajuan = ?`,
       [pengajuan_id]
     );
     if (!info.length) return res.status(404).json({ message: "Pengajuan tidak ditemukan." });
 
+    // pelatihan_id di logbook & tabel pelatihan sudah dihapus -- 1 pengajuan = 1 pelatihan,
+    // nama_pelatihan sudah ada di info[0] di atas.
     const [logbook] = await db.query(
-      `SELECT l.id, l.tanggal, l.jam_mulai, l.jam_selesai, l.kegiatan, l.durasi_menit, l.status, l.bukti_link, l.cloudinary_public_id, pl.nama AS nama_pelatihan
-       FROM logbook l
-       LEFT JOIN pelatihan pl ON pl.id = l.pelatihan_id
-       WHERE l.pengajuan_id = ? ORDER BY l.tanggal DESC`,
+      `SELECT id_logbook AS id, tanggal, jam_mulai, jam_selesai, kegiatan, durasi_menit, status, bukti_link, cloudinary_public_id
+       FROM logbook WHERE pengajuan_id = ? ORDER BY tanggal DESC`,
       [pengajuan_id]
     );
 
     const [dokumen] = await db.query(
-      `SELECT id, jenis, nama_file, cloudinary_url, status FROM dokumen WHERE pengajuan_id = ?`,
+      `SELECT id_dokumen AS id, jenis, nama_file, cloudinary_url, status FROM dokumen WHERE pengajuan_id = ?`,
       [pengajuan_id]
     );
     const dokumenLaporan = dokumen.find(d => d.jenis === "laporan_akhir") || null;
@@ -965,10 +788,10 @@ const getDetailMonitoring = async (req, res) => {
 
 module.exports = {
   getPeriode, tambahPeriode, updatePeriode, toggleForm,
-  getDosenRosterMBKM,
-   getDosenRosterPA,
+  getDosenRosterMBKM, getDosenRosterPA,
   assignDosen,
   getVerifikasiPengajuan, verifikasiPengajuan, hapusPengajuan,
   verifikasiDokumen, getMonitoringDokumen, getDetailMonitoring, getDashboardStats, getPengajuanDisetujui,
   getRekapNilai,
+  enforceRentangCap,
 };

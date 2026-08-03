@@ -1,6 +1,4 @@
 const db = require("../config/db");
-
-// Simpan atau update subscription push dari browser
 const subscribe = async (req, res) => {
   try {
     const { endpoint, keys } = req.body;
@@ -25,8 +23,6 @@ const subscribe = async (req, res) => {
     res.status(500).json({ message: "Terjadi kesalahan server." });
   }
 };
-
-// Hapus subscription (misalnya saat user logout atau matikan notifikasi)
 const unsubscribe = async (req, res) => {
   try {
     const { endpoint } = req.body;

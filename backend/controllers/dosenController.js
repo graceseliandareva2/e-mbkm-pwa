@@ -5,13 +5,18 @@ const { sendEmail } = require("../utils/mailer");
 const { sendPushToUser } = require("../utils/pushSender");
 
 async function getDosenProfile(userId) {
-  const [rows] = await db.query("SELECT id, nama FROM dosen WHERE user_id = ?", [userId]);
+  const [rows] = await db.query(
+    "SELECT id_users AS id, nama FROM users WHERE id_users = ? AND role IN ('dosen', 'kaprodi')",
+    [userId]
+  );
   return rows[0] || null;
 }
 
-/** Cek dosen yang login memang pembimbing untuk pengajuan_id ini */
 async function isDosenPembimbingPengajuan(dosenId, pengajuanId) {
-  const [rows] = await db.query("SELECT id FROM bimbingan WHERE dosen_id = ? AND pengajuan_id = ?", [dosenId, pengajuanId]);
+  const [rows] = await db.query(
+    "SELECT id_pengajuan FROM pengajuan WHERE dosen_id = ? AND id_pengajuan = ?",
+    [dosenId, pengajuanId]
+  );
   return rows.length > 0;
 }
 
@@ -24,23 +29,20 @@ const getMahasiswaBimbingan = async (req, res) => {
     const [rows] = await db.query(
       `
       SELECT 
-        m.id, m.user_id, m.nim, m.nama, m.email, m.program_studi,
+        m.id_users as id, m.id_users as user_id, m.nim, m.nama, m.email, m.program_studi,
         pc.periode_id, per.nama_periode,
-        pc.id as pengajuan_id, dp.judul, pc.status as status_pengajuan,
-        dp.pelatihan, m.email as email_pengajuan,
-        dpa.nama as dosen_pembimbing_akademik, pc.catatan_kaprodi,
-        COUNT(DISTINCT l.id) as jumlah_logbook
-      FROM bimbingan b
-      JOIN pengajuan pc ON pc.id = b.pengajuan_id
-      JOIN mahasiswa m ON pc.mahasiswa_id = m.id
-      JOIN periode per ON pc.periode_id = per.id
-      LEFT JOIN detail_pengajuan dp ON dp.pengajuan_id = pc.id
-      LEFT JOIN dosen dpa ON dpa.id = m.dosen_pembimbing_akademik_id
-      LEFT JOIN logbook l ON l.pengajuan_id = pc.id
-      WHERE b.dosen_id = ? ${periode_id ? "AND pc.periode_id = ?" : ""}
-      GROUP BY m.id, m.user_id, m.nim, m.nama, m.email, m.program_studi,
-        pc.periode_id, per.nama_periode, pc.id, dp.judul, pc.status,
-        dp.pelatihan, dpa.nama, pc.catatan_kaprodi
+        pc.id_pengajuan as pengajuan_id, dp.judul, pc.status as status_pengajuan,
+        dp.nama_pelatihan, pc.catatan_kaprodi,
+        COUNT(DISTINCT l.id_logbook) as jumlah_logbook
+      FROM pengajuan pc
+      JOIN users m ON pc.mahasiswa_id = m.id_users
+      JOIN periode per ON pc.periode_id = per.id_periode
+      LEFT JOIN detail_pengajuan dp ON dp.pengajuan_id = pc.id_pengajuan
+      LEFT JOIN logbook l ON l.pengajuan_id = pc.id_pengajuan
+      WHERE pc.dosen_id = ? ${periode_id ? "AND pc.periode_id = ?" : ""}
+      GROUP BY m.id_users, m.nim, m.nama, m.email, m.program_studi,
+        pc.periode_id, per.nama_periode, pc.id_pengajuan, dp.judul, pc.status,
+        dp.nama_pelatihan, pc.catatan_kaprodi
       ORDER BY m.nama ASC
     `,
       periode_id ? [dsn.id, periode_id] : [dsn.id]
@@ -62,30 +64,29 @@ const getMahasiswaSiapDinilai = async (req, res) => {
     const [rows] = await db.query(
       `
       SELECT 
-        m.id, m.nim, m.nama, m.program_studi,
-        pc.id as pengajuan_id, pc.periode_id, per.nama_periode,
-        dp.judul, dp.pelatihan,
+        m.id_users as id, m.nim, m.nama, m.program_studi,
+        pc.id_pengajuan as pengajuan_id, pc.periode_id, per.nama_periode,
+        dp.judul, dp.nama_pelatihan,
         SUM(CASE WHEN d.jenis = 'ppt' AND d.status = 'diverifikasi' THEN 1 ELSE 0 END) as punya_ppt,
         SUM(CASE WHEN d.jenis = 'laporan_akhir' AND d.status = 'diverifikasi' THEN 1 ELSE 0 END) as punya_laporan,
         COALESCE((
           SELECT SUM(l.durasi_menit) / 60 FROM logbook l
-          WHERE l.pengajuan_id = pc.id AND l.status = 'diverifikasi'
+          WHERE l.pengajuan_id = pc.id_pengajuan AND l.status = 'diverifikasi'
         ), 0) as total_jam_logbook,
-        pn.id as penilaian_id,
+        pn.id_penilaian as penilaian_id,
         pn.nilai_kesesuaian, pn.nilai_proyek, pn.nilai_evaluasi,
         pn.nilai_laporan, pn.nilai_presentasi,
         pn.nilai_akhir, pn.grade, pn.catatan, pn.finalized_at
-      FROM bimbingan b
-      JOIN pengajuan pc ON pc.id = b.pengajuan_id
-      JOIN mahasiswa m ON pc.mahasiswa_id = m.id
-      JOIN periode per ON pc.periode_id = per.id
-      LEFT JOIN detail_pengajuan dp ON dp.pengajuan_id = pc.id
-      LEFT JOIN dokumen d ON d.pengajuan_id = pc.id
-      LEFT JOIN penilaian pn ON pn.pengajuan_id = pc.id
-      WHERE b.dosen_id = ? ${periode_id ? "AND pc.periode_id = ?" : ""}
-      GROUP BY m.id, m.nim, m.nama, m.program_studi,
-        pc.id, pc.periode_id, per.nama_periode, dp.judul, dp.pelatihan,
-        pn.id, pn.nilai_kesesuaian, pn.nilai_proyek, pn.nilai_evaluasi,
+      FROM pengajuan pc
+      JOIN users m ON pc.mahasiswa_id = m.id_users
+      JOIN periode per ON pc.periode_id = per.id_periode
+      LEFT JOIN detail_pengajuan dp ON dp.pengajuan_id = pc.id_pengajuan
+      LEFT JOIN dokumen d ON d.pengajuan_id = pc.id_pengajuan
+      LEFT JOIN penilaian pn ON pn.pengajuan_id = pc.id_pengajuan
+      WHERE pc.dosen_id = ? ${periode_id ? "AND pc.periode_id = ?" : ""}
+      GROUP BY m.id_users, m.nim, m.nama, m.program_studi,
+        pc.id_pengajuan, pc.periode_id, per.nama_periode, dp.judul, dp.nama_pelatihan,
+        pn.id_penilaian, pn.nilai_kesesuaian, pn.nilai_proyek, pn.nilai_evaluasi,
         pn.nilai_laporan, pn.nilai_presentasi, pn.nilai_akhir, pn.grade, pn.catatan, pn.finalized_at
       HAVING punya_ppt >= 1 AND punya_laporan >= 1
       ORDER BY m.nama ASC
@@ -130,7 +131,7 @@ const berikanPenilaian = async (req, res) => {
     else if (nilai_akhir >= 65) grade = "C";
     else if (nilai_akhir >= 55) grade = "D";
 
-    const [existing] = await db.query("SELECT id, finalized_at FROM penilaian WHERE pengajuan_id = ?", [pengajuan_id]);
+    const [existing] = await db.query("SELECT id_penilaian, finalized_at FROM penilaian WHERE pengajuan_id = ?", [pengajuan_id]);
 
     if (existing.length && existing[0].finalized_at) {
       return res.status(403).json({ message: "Nilai sudah difinalisasi dan tidak bisa diubah lagi." });
@@ -138,25 +139,24 @@ const berikanPenilaian = async (req, res) => {
 
     if (existing.length) {
       await db.query(
-        `UPDATE penilaian SET nilai_kesesuaian=?, nilai_proyek=?, nilai_evaluasi=?, nilai_laporan=?, nilai_presentasi=?, nilai_akhir=?, grade=?, catatan=? WHERE id=?`,
-        [nilai_kesesuaian, nilai_proyek, nilai_evaluasi, nilai_laporan, nilai_presentasi, nilai_akhir, grade, catatan, existing[0].id]
+        `UPDATE penilaian SET nilai_kesesuaian=?, nilai_proyek=?, nilai_evaluasi=?, nilai_laporan=?, nilai_presentasi=?, nilai_akhir=?, grade=?, catatan=? WHERE id_penilaian=?`,
+        [nilai_kesesuaian, nilai_proyek, nilai_evaluasi, nilai_laporan, nilai_presentasi, nilai_akhir, grade, catatan, existing[0].id_penilaian]
       );
     } else {
       await db.query(
-        `INSERT INTO penilaian (id, pengajuan_id, dosen_id, nilai_kesesuaian, nilai_proyek, nilai_evaluasi, nilai_laporan, nilai_presentasi, nilai_akhir, grade, catatan)
+        `INSERT INTO penilaian (id_penilaian, pengajuan_id, dosen_id, nilai_kesesuaian, nilai_proyek, nilai_evaluasi, nilai_laporan, nilai_presentasi, nilai_akhir, grade, catatan)
          VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
         [uuidv4(), pengajuan_id, dsn.id, nilai_kesesuaian, nilai_proyek, nilai_evaluasi, nilai_laporan, nilai_presentasi, nilai_akhir, grade, catatan]
       );
     }
 
-    const [mhs] = await db.query(
-      `SELECT m.user_id, m.nama, m.email FROM pengajuan p JOIN mahasiswa m ON m.id = p.mahasiswa_id WHERE p.id = ?`,
-      [pengajuan_id]
-    );
-    if (mhs.length) {
+    // mahasiswa_id di pengajuan sudah langsung = users.id_users, gak perlu JOIN ke tabel lain.
+    const [pengajuanRow] = await db.query("SELECT mahasiswa_id FROM pengajuan WHERE id_pengajuan = ?", [pengajuan_id]);
+    if (pengajuanRow.length) {
+      const userId = pengajuanRow[0].mahasiswa_id;
       const pesan = `Dosen pembimbing telah memberikan nilai akhir kamu. Nilai: ${nilai_akhir} (${grade})`;
-      await db.query("INSERT INTO notifikasi (id, user_id, judul, pesan, tipe) VALUES (?, ?, ?, ?, ?)", [uuidv4(), mhs[0].user_id, "Nilai Akhir", pesan, "sukses"]);
-      await sendPushToUser(mhs[0].user_id, { title: "Nilai Akhir", body: `Nilai akhir kamu: ${nilai_akhir} (${grade})`, url: "/mahasiswa/penilaian" });
+      await db.query("INSERT INTO notifikasi (id_notifikasi, user_id, judul, pesan, tipe) VALUES (?, ?, ?, ?, ?)", [uuidv4(), userId, "Nilai Akhir", pesan, "sukses"]);
+      await sendPushToUser(userId, { title: "Nilai Akhir", body: `Nilai akhir kamu: ${nilai_akhir} (${grade})`, url: "/mahasiswa/penilaian" });
     }
 
     res.json({ message: "Penilaian berhasil disimpan.", nilai_akhir, grade });
@@ -177,11 +177,11 @@ const finalisasiNilai = async (req, res) => {
     const authorized = await isDosenPembimbingPengajuan(dsn.id, pengajuan_id);
     if (!authorized) return res.status(403).json({ message: "Kamu bukan dosen pembimbing untuk pengajuan ini." });
 
-    const [existing] = await db.query("SELECT id, finalized_at FROM penilaian WHERE pengajuan_id = ?", [pengajuan_id]);
+    const [existing] = await db.query("SELECT id_penilaian, finalized_at FROM penilaian WHERE pengajuan_id = ?", [pengajuan_id]);
     if (!existing.length) return res.status(400).json({ message: "Nilai belum diisi, tidak bisa difinalisasi." });
     if (existing[0].finalized_at) return res.status(400).json({ message: "Nilai sudah difinalisasi sebelumnya." });
 
-    await db.query("UPDATE penilaian SET finalized_at = NOW() WHERE id = ?", [existing[0].id]);
+    await db.query("UPDATE penilaian SET finalized_at = NOW() WHERE id_penilaian = ?", [existing[0].id_penilaian]);
 
     res.json({ message: "Nilai berhasil difinalisasi." });
   } catch (error) {
@@ -199,10 +199,10 @@ const eksporPenilaianPDF = async (req, res) => {
       SELECT pn.*, m.nama, m.nim, m.program_studi,
              pr.nama_periode, d.nama as nama_dosen
       FROM penilaian pn
-      JOIN pengajuan p ON p.id = pn.pengajuan_id
-      JOIN mahasiswa m ON p.mahasiswa_id = m.id
-      JOIN periode pr ON p.periode_id = pr.id
-      JOIN dosen d ON pn.dosen_id = d.id
+      JOIN pengajuan p ON p.id_pengajuan = pn.pengajuan_id
+      JOIN users m ON p.mahasiswa_id = m.id_users
+      JOIN periode pr ON p.periode_id = pr.id_periode
+      JOIN users d ON pn.dosen_id = d.id_users
       WHERE pn.pengajuan_id = ?
     `,
       [pengajuan_id]
@@ -310,9 +310,9 @@ const eksporSemuaPenilaianPDF = async (req, res) => {
       `
       SELECT pn.*, m.nama, m.nim, m.program_studi, pr.nama_periode
       FROM penilaian pn
-      JOIN pengajuan p ON p.id = pn.pengajuan_id
-      JOIN mahasiswa m ON p.mahasiswa_id = m.id
-      JOIN periode pr ON p.periode_id = pr.id
+      JOIN pengajuan p ON p.id_pengajuan = pn.pengajuan_id
+      JOIN users m ON p.mahasiswa_id = m.id_users
+      JOIN periode pr ON p.periode_id = pr.id_periode
       WHERE pn.dosen_id = ? ${periode_id ? "AND p.periode_id = ?" : ""}
       ORDER BY m.nama ASC
     `,
@@ -370,6 +370,9 @@ const eksporSemuaPenilaianPDF = async (req, res) => {
   }
 };
 
+// pelatihan_id & tabel pelatihan sudah dihapus -- 1 pengajuan = 1 pelatihan (di detail_pengajuan),
+// jadi join ke pl dibuang. SELECT l.* otomatis cuma balikin kolom yang masih ada
+// (gak ada lagi hasil/kendala di hasilnya).
 const getLogbookMahasiswa = async (req, res) => {
   try {
     const dsn = await getDosenProfile(req.user.id);
@@ -382,13 +385,11 @@ const getLogbookMahasiswa = async (req, res) => {
 
       const [rows] = await db.query(
         `
-        SELECT l.*, m.nama as nama_mahasiswa, m.nim, pl.nama AS nama_pelatihan
+        SELECT l.*, m.nama as nama_mahasiswa, m.nim
         FROM logbook l
-        JOIN pengajuan pc ON pc.id = l.pengajuan_id
-        JOIN mahasiswa m ON pc.mahasiswa_id = m.id
-        JOIN bimbingan b ON b.pengajuan_id = pc.id
-        LEFT JOIN pelatihan pl ON pl.id = l.pelatihan_id
-        WHERE b.dosen_id = ? AND pc.periode_id = ?
+        JOIN pengajuan pc ON pc.id_pengajuan = l.pengajuan_id
+        JOIN users m ON pc.mahasiswa_id = m.id_users
+        WHERE pc.dosen_id = ? AND pc.periode_id = ?
         ORDER BY m.nama ASC, l.tanggal DESC
       `,
         [dsn.id, periode_id]
@@ -399,11 +400,10 @@ const getLogbookMahasiswa = async (req, res) => {
 
     const [rows] = await db.query(
       `
-      SELECT l.*, m.nama as nama_mahasiswa, m.nim, pl.nama AS nama_pelatihan
+      SELECT l.*, m.nama as nama_mahasiswa, m.nim
       FROM logbook l
-      JOIN pengajuan pc ON pc.id = l.pengajuan_id
-      JOIN mahasiswa m ON pc.mahasiswa_id = m.id
-      LEFT JOIN pelatihan pl ON pl.id = l.pelatihan_id
+      JOIN pengajuan pc ON pc.id_pengajuan = l.pengajuan_id
+      JOIN users m ON pc.mahasiswa_id = m.id_users
       WHERE pc.mahasiswa_id = ? ${periode_id ? "AND pc.periode_id = ?" : ""}
       ORDER BY l.tanggal DESC
     `,
@@ -428,20 +428,20 @@ const verifikasiLogbook = async (req, res) => {
       return res.status(400).json({ message: "Status tidak valid." });
     }
 
-    const [logbookCheck] = await db.query("SELECT pengajuan_id FROM logbook WHERE id = ?", [id]);
+    const [logbookCheck] = await db.query("SELECT pengajuan_id FROM logbook WHERE id_logbook = ?", [id]);
     if (!logbookCheck.length) return res.status(404).json({ message: "Logbook tidak ditemukan." });
 
     const authorized = await isDosenPembimbingPengajuan(dsn.id, logbookCheck[0].pengajuan_id);
     if (!authorized) return res.status(403).json({ message: "Kamu bukan dosen pembimbing untuk pengajuan ini." });
 
-    await db.query("UPDATE logbook SET status = ?, feedback_dosen = ?, verified_at = NOW() WHERE id = ?", [status, feedback_dosen, id]);
+    await db.query("UPDATE logbook SET status = ?, feedback_dosen = ?, verified_at = NOW() WHERE id_logbook = ?", [status, feedback_dosen, id]);
 
     const [logbook] = await db.query(
-      `SELECT l.kegiatan, m.user_id, m.nama, m.email
+      `SELECT l.kegiatan, p.mahasiswa_id AS user_id, u.nama, u.email
        FROM logbook l
-       JOIN pengajuan p ON p.id = l.pengajuan_id
-       JOIN mahasiswa m ON p.mahasiswa_id = m.id
-       WHERE l.id = ?`,
+       JOIN pengajuan p ON p.id_pengajuan = l.pengajuan_id
+       JOIN users u ON p.mahasiswa_id = u.id_users
+       WHERE l.id_logbook = ?`,
       [id]
     );
 
@@ -449,7 +449,7 @@ const verifikasiLogbook = async (req, res) => {
       const mhs = logbook[0];
       const pesan = status === "diverifikasi" ? "Logbook kamu telah diverifikasi oleh dosen pembimbing." : `Logbook kamu perlu direvisi. Feedback: ${feedback_dosen}`;
 
-      await db.query("INSERT INTO notifikasi (id, user_id, judul, pesan, tipe) VALUES (?, ?, ?, ?, ?)", [uuidv4(), mhs.user_id, "Status Logbook", pesan, status === "diverifikasi" ? "sukses" : "peringatan"]);
+      await db.query("INSERT INTO notifikasi (id_notifikasi, user_id, judul, pesan, tipe) VALUES (?, ?, ?, ?, ?)", [uuidv4(), mhs.user_id, "Status Logbook", pesan, status === "diverifikasi" ? "sukses" : "peringatan"]);
 
       await sendPushToUser(mhs.user_id, { title: "Status Logbook", body: pesan, url: "/mahasiswa/logbook" });
 
@@ -504,10 +504,9 @@ const getDokumenMahasiswa = async (req, res) => {
         `
         SELECT d.*, m.nama as nama_mahasiswa, m.nim
         FROM dokumen d
-        JOIN pengajuan pc ON pc.id = d.pengajuan_id
-        JOIN mahasiswa m ON pc.mahasiswa_id = m.id
-        JOIN bimbingan b ON b.pengajuan_id = pc.id
-        WHERE b.dosen_id = ? AND pc.periode_id = ?
+        JOIN pengajuan pc ON pc.id_pengajuan = d.pengajuan_id
+        JOIN users m ON pc.mahasiswa_id = m.id_users
+        WHERE pc.dosen_id = ? AND pc.periode_id = ?
         ORDER BY m.nama ASC, d.created_at DESC
       `,
         [dsn.id, periode_id]
@@ -520,8 +519,8 @@ const getDokumenMahasiswa = async (req, res) => {
       `
       SELECT d.*, m.nama as nama_mahasiswa, m.nim
       FROM dokumen d
-      JOIN pengajuan pc ON pc.id = d.pengajuan_id
-      JOIN mahasiswa m ON pc.mahasiswa_id = m.id
+      JOIN pengajuan pc ON pc.id_pengajuan = d.pengajuan_id
+      JOIN users m ON pc.mahasiswa_id = m.id_users
       WHERE pc.mahasiswa_id = ? ${periode_id ? "AND pc.periode_id = ?" : ""}
       ORDER BY d.created_at DESC
     `,
@@ -546,16 +545,11 @@ const verifikasiDokumen = async (req, res) => {
     const validStatus = ["revisi_dospem", "disetujui_dospem"];
     if (!validStatus.includes(status)) return res.status(400).json({ message: "Status tidak valid." });
 
-    const [dok] = await db.query("SELECT * FROM dokumen WHERE id = ?", [id]);
+    const [dok] = await db.query("SELECT * FROM dokumen WHERE id_dokumen = ?", [id]);
     if (!dok.length) return res.status(404).json({ message: "Dokumen tidak ditemukan." });
 
     const authorized = await isDosenPembimbingPengajuan(dsn.id, dok[0].pengajuan_id);
     if (!authorized) return res.status(403).json({ message: "Kamu bukan dosen pembimbing untuk pengajuan ini." });
-
-    // PERUBAHAN: urutan verifikasi laporan akhir sekarang Dospem DULU,
-    // baru Kaprodi. Dospem tidak lagi menunggu Kaprodi; sebaliknya,
-    // guard di bawah mencegah Dospem verifikasi ulang dokumen yang
-    // sudah melewati tahap dospem (sudah disetujui_dospem/diverifikasi).
     if (dok[0].jenis === "laporan_akhir" && ["disetujui_dospem", "diverifikasi"].includes(dok[0].status)) {
       return res.status(400).json({ message: "Laporan Akhir sudah diverifikasi Dosen Pembimbing, menunggu Kaprodi." });
     }
@@ -566,33 +560,26 @@ const verifikasiDokumen = async (req, res) => {
 
     let statusAkhir = status;
     if (status === "disetujui_dospem" && dok[0].jenis !== "laporan_akhir") {
-      // Single-reviewer (ppt/dokumen_pendukung): approve dospem = final.
       statusAkhir = "diverifikasi";
     }
-    // Untuk laporan_akhir, "disetujui_dospem" TIDAK langsung final —
-    // masih menunggu verifikasi Kaprodi sebagai tahap kedua.
 
-    // PERUBAHAN: percabangan kolom verifikasi berdasarkan jenis dokumen.
-    // laporan_akhir = dual-reviewer (kaprodi + dospem), pakai kolom
-    // feedback_dospem/verified_dospem_by/verified_dospem_at.
-    // ppt (dan dokumen_pendukung) = dospem saja, pakai kolom generik
-    // feedback/verified_by/verified_at agar tidak tertukar dengan jalur
-    // dual-reviewer laporan akhir.
     if (dok[0].jenis === "laporan_akhir") {
       await db.query(
-        `UPDATE dokumen SET status = ?, feedback_dospem = ?, verified_dospem_by = ?, verified_dospem_at = NOW() WHERE id = ?`,
+        `UPDATE dokumen SET status = ?, feedback_dospem = ?, verified_dospem_by = ?, verified_dospem_at = NOW() WHERE id_dokumen = ?`,
         [statusAkhir, feedback || null, req.user.id, id]
       );
     } else {
       await db.query(
-        `UPDATE dokumen SET status = ?, feedback = ?, verified_by = ?, verified_at = NOW() WHERE id = ?`,
+        `UPDATE dokumen SET status = ?, feedback = ?, verified_by = ?, verified_at = NOW() WHERE id_dokumen = ?`,
         [statusAkhir, feedback || null, req.user.id, id]
       );
     }
 
-    const [mhs] = await db.query(`SELECT m.user_id FROM pengajuan p JOIN mahasiswa m ON m.id = p.mahasiswa_id WHERE p.id = ?`, [dok[0].pengajuan_id]);
+    // mahasiswa_id di pengajuan sudah = users.id_users langsung.
+    const [pengajuanRow] = await db.query("SELECT mahasiswa_id FROM pengajuan WHERE id_pengajuan = ?", [dok[0].pengajuan_id]);
 
-    if (mhs.length) {
+    if (pengajuanRow.length) {
+      const userId = pengajuanRow[0].mahasiswa_id;
       let pesan;
       if (statusAkhir === "diverifikasi") {
         pesan = dok[0].jenis === "ppt" ? "PPT kamu telah diverifikasi oleh Dosen Pembimbing." : "Laporan Akhir kamu telah diverifikasi oleh Kaprodi dan Dosen Pembimbing.";
@@ -602,8 +589,8 @@ const verifikasiDokumen = async (req, res) => {
         pesan = `Dokumen ${dok[0].jenis === "ppt" ? "PPT" : "Laporan Akhir"} kamu perlu direvisi. Catatan: ${feedback || "-"}`;
       }
 
-      await db.query("INSERT INTO notifikasi (id, user_id, judul, pesan, tipe) VALUES (?, ?, ?, ?, ?)", [uuidv4(), mhs[0].user_id, "Status Dokumen", pesan, (statusAkhir === "diverifikasi" || statusAkhir === "disetujui_dospem") ? "sukses" : "peringatan"]);
-      await sendPushToUser(mhs[0].user_id, { title: "Status Dokumen", body: pesan, url: "/mahasiswa/dokumen" });
+      await db.query("INSERT INTO notifikasi (id_notifikasi, user_id, judul, pesan, tipe) VALUES (?, ?, ?, ?, ?)", [uuidv4(), userId, "Status Dokumen", pesan, (statusAkhir === "diverifikasi" || statusAkhir === "disetujui_dospem") ? "sukses" : "peringatan"]);
+      await sendPushToUser(userId, { title: "Status Dokumen", body: pesan, url: "/mahasiswa/dokumen" });
     }
 
     res.json({ message: "Dokumen berhasil diverifikasi." });
@@ -627,15 +614,16 @@ const berikanFeedback = async (req, res) => {
     if (!authorized) return res.status(403).json({ message: "Kamu bukan dosen pembimbing untuk pengajuan ini." });
 
     await db.query(
-      `INSERT INTO feedback (id, pengajuan_id, dosen_id, referensi_id, referensi_tipe, isi_feedback)
+      `INSERT INTO feedback (id_feedback, pengajuan_id, dosen_id, referensi_id, referensi_tipe, isi_feedback)
        VALUES (?, ?, ?, ?, ?, ?)`,
       [uuidv4(), pengajuan_id, dsn.id, referensi_id || null, referensi_tipe || "logbook", isi_feedback]
     );
 
-    const [mhs] = await db.query(`SELECT m.user_id FROM pengajuan p JOIN mahasiswa m ON m.id = p.mahasiswa_id WHERE p.id = ?`, [pengajuan_id]);
-    if (mhs.length) {
-      await db.query("INSERT INTO notifikasi (id, user_id, judul, pesan, tipe) VALUES (?, ?, ?, ?, ?)", [uuidv4(), mhs[0].user_id, "Feedback Baru", `Dosen pembimbing memberikan feedback: ${isi_feedback}`, "info"]);
-      await sendPushToUser(mhs[0].user_id, { title: "Feedback Baru", body: isi_feedback, url: "/mahasiswa/bimbingan" });
+    const [pengajuanRow] = await db.query("SELECT mahasiswa_id FROM pengajuan WHERE id_pengajuan = ?", [pengajuan_id]);
+    if (pengajuanRow.length) {
+      const userId = pengajuanRow[0].mahasiswa_id;
+      await db.query("INSERT INTO notifikasi (id_notifikasi, user_id, judul, pesan, tipe) VALUES (?, ?, ?, ?, ?)", [uuidv4(), userId, "Feedback Baru", `Dosen pembimbing memberikan feedback: ${isi_feedback}`, "info"]);
+      await sendPushToUser(userId, { title: "Feedback Baru", body: isi_feedback, url: "/mahasiswa/bimbingan" });
     }
     res.status(201).json({ message: "Feedback berhasil dikirim." });
   } catch (error) {
@@ -655,13 +643,12 @@ const getAktivitasTerbaru = async (req, res) => {
 
     const [logbooks] = await db.query(
       `
-      SELECT 'logbook' as tipe, l.id, m.nama as nama_mahasiswa, m.nim,
+      SELECT 'logbook' as tipe, l.id_logbook AS id, m.nama as nama_mahasiswa, m.nim,
         l.created_at, l.status, l.kegiatan as deskripsi
       FROM logbook l
-      JOIN pengajuan pc ON pc.id = l.pengajuan_id
-      JOIN mahasiswa m ON pc.mahasiswa_id = m.id
-      JOIN bimbingan b ON b.pengajuan_id = pc.id AND b.dosen_id = ?
-      WHERE 1=1 ${periodeFilter}
+      JOIN pengajuan pc ON pc.id_pengajuan = l.pengajuan_id
+      JOIN users m ON pc.mahasiswa_id = m.id_users
+      WHERE pc.dosen_id = ? ${periodeFilter}
       ORDER BY l.created_at DESC LIMIT 5
     `,
       params
@@ -669,13 +656,12 @@ const getAktivitasTerbaru = async (req, res) => {
 
     const [dokumen] = await db.query(
       `
-      SELECT 'dokumen' as tipe, d.id, m.nama as nama_mahasiswa, m.nim,
+      SELECT 'dokumen' as tipe, d.id_dokumen AS id, m.nama as nama_mahasiswa, m.nim,
         d.created_at, d.status, d.nama_file as deskripsi
       FROM dokumen d
-      JOIN pengajuan pc ON pc.id = d.pengajuan_id
-      JOIN mahasiswa m ON pc.mahasiswa_id = m.id
-      JOIN bimbingan b ON b.pengajuan_id = pc.id AND b.dosen_id = ?
-      WHERE 1=1 ${periodeFilter}
+      JOIN pengajuan pc ON pc.id_pengajuan = d.pengajuan_id
+      JOIN users m ON pc.mahasiswa_id = m.id_users
+      WHERE pc.dosen_id = ? ${periodeFilter}
       ORDER BY d.created_at DESC LIMIT 5
     `,
       params
