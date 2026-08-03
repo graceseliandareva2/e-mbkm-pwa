@@ -151,9 +151,7 @@ export default function App() {
             <Route path="periode"      element={<KaprodiPeriode />} />
             <Route path="mahasiswa"    element={<KaprodiDataMahasiswa />} />
             <Route path="assign-dosen" element={<KaprodiAssignDosen />} />
-            <Route path="dosen"        element={<KaprodiDosen />} />
-            <Route path="monitoring"   element={<KaprodiMonitoring />} />
-            <Route path="verifikasi"   element={<KaprodiVerifikasi />} />
+            <Route path="dosen"        element={<KaprodiDosen/>}/>
             <Route path="biodata"      element={<KaprodiBiodata />} />
           </Route>
 
@@ -163,12 +161,7 @@ export default function App() {
             <Route path="dashboard"  element={<StaffDashboard />} />
             <Route path="pengajuan"  element={<StaffPengajuan />} />
             <Route path="mahasiswa"  element={<StaffDataMahasiswa />} />
-            {/* PERUBAHAN: route dosen balik jadi 1 halaman tunggal.
-                Redirect dari path lama (/staff/dosen/mbkm, /staff/dosen/akademik)
-                dijaga untuk kompatibilitas kalau ada link/bookmark lama. */}
-            <Route path="dosen"           element={<StaffDosen />} />
-            <Route path="dosen/mbkm"      element={<Navigate to="/staff/dosen" replace />} />
-            <Route path="dosen/akademik"  element={<Navigate to="/staff/dosen" replace />} />
+            <Route path="dosen"      element={<staffDosen />} />
             <Route path="biodata"    element={<BiodataPage />} />
             <Route path="monitoring" element={<StaffMonitoring />} />
           </Route>
