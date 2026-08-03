@@ -6,22 +6,12 @@ const bcrypt = require("bcryptjs");
 const xlsx = require("xlsx");
 const fs = require("fs");
 
-// CATATAN SKEMA: PK fisik di semua tabel bernama id_<namatabel> (id_users, id_pengajuan,
-// id_detail_pengajuan, id_dokumen, id_feedback, id_logbook, id_notifikasi, id_penilaian,
-// id_periode, id_push_subscriptions) -- BUKAN kolom generik "id". FK (mahasiswa_id, dosen_id,
-// pengajuan_id, periode_id, user_id, dst) namanya tetap sama seperti sebelumnya.
-// Kolom "NIDN" dosen secara fisik masih bernama id_dosen (UNIQUE KEY-nya saja yang dinamai
-// "nidn" di migrasi) -- variabel JS di bawah tetap dinamai nidn untuk keterbacaan, tapi
-// dipetakan ke kolom id_dosen di query.
 
 const _getPeriodeAktifId = async () => {
   const [rows] = await db.query('SELECT id_periode AS id FROM periode WHERE is_active = 1 LIMIT 1');
   return rows[0]?.id || null;
 };
 
-// ========== IMPORT / TAMBAH MAHASISWA ==========
-// Upsert langsung ke users pakai nim sebagai kunci. Re-import tidak mereset password
-// (password cuma di-set saat baris benar-benar baru, ON DUPLICATE KEY UPDATE tidak menyentuh kolom password).
 const importMahasiswa = async (req, res) => {
   try {
     if (!req.file) {

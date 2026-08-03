@@ -7,6 +7,7 @@ import { saveToQueue } from '../../utils/offlineQueue'
 import { useSyncOnline } from '../../utils/useSyncOnline'
 import { getCache, setCache } from '../../utils/offlineCache'
 import useAuthStore from '../../store/authStore'
+import { normalizeUrl } from '../../utils/normalizeUrl'
 
 // ─────────────────────────── constants ───────────────────────────
 const CACHE_KEY = 'pengajuan'
@@ -126,17 +127,22 @@ export default function MahasiswaPengajuan() {
 
   useSyncOnline(fetchPengajuan)
 
+  // ── Blur handler: normalisasi dulu (http/https/www otomatis), baru validasi ──
   const handleLinkBlur = (value) => {
-    const filled = value.trim().length > 0
-    setLinkError(filled && !isValidUrl(value))
+    const normalized = normalizeUrl(value)
+    setForm(f => ({ ...f, link_pelatihan: normalized }))
+    const filled = normalized.trim().length > 0
+    setLinkError(filled && !isValidUrl(normalized))
   }
 
-  const validate = () => {
+  const validate = (linkOverride) => {
+    const link = linkOverride ?? form.link_pelatihan
+
     if (!form.judul.trim())             return 'Judul Capstone Project wajib diisi'
     if (!form.penyelenggara.trim())     return 'Penyelenggara wajib diisi'
     if (!form.nama_pelatihan.trim())    return 'Nama pelatihan wajib diisi'
-    if (!form.link_pelatihan.trim())    return 'Link pelatihan wajib diisi'
-    if (!isValidUrl(form.link_pelatihan)) {
+    if (!link.trim())                   return 'Link pelatihan wajib diisi'
+    if (!isValidUrl(link)) {
       setLinkError(true)
       return 'Link pelatihan harus berupa URL yang valid (contoh: https://www.coursera.org/...)'
     }
@@ -149,11 +155,11 @@ export default function MahasiswaPengajuan() {
     return null
   }
 
-  const buildPayload = () => ({
+  const buildPayload = (linkOverride) => ({
     judul: form.judul,
     penyelenggara: form.penyelenggara,
     nama_pelatihan: form.nama_pelatihan,
-    link_pelatihan: form.link_pelatihan,
+    link_pelatihan: linkOverride ?? form.link_pelatihan,
     durasi_pelatihan_jam: Number(form.durasi_pelatihan_jam) || 0,
     tanggal_mulai: form.tanggal_mulai || null,
     tanggal_selesai: form.tanggal_selesai || null,
@@ -162,10 +168,17 @@ export default function MahasiswaPengajuan() {
 
   const handleSubmit = async (e) => {
     e.preventDefault()
-    const err = validate()
+
+    // Normalisasi defensif -- jaga-jaga kalau user submit tanpa sempat blur dari field link
+    const normalizedLink = normalizeUrl(form.link_pelatihan)
+    if (normalizedLink !== form.link_pelatihan) {
+      setForm(f => ({ ...f, link_pelatihan: normalizedLink }))
+    }
+
+    const err = validate(normalizedLink)
     if (err) return toast.error(err)
 
-    const payload = buildPayload()
+    const payload = buildPayload(normalizedLink)
 
     if (!navigator.onLine) {
       try {
@@ -284,7 +297,7 @@ export default function MahasiswaPengajuan() {
             <Field label="Link Pelatihan" required>
               <input
                 className={linkError ? inputErrorClass : inputClass}
-                type="url"
+                type="text"
                 placeholder="https://www.contoh.com/kursus"
                 value={form.link_pelatihan}
                 onChange={e => {

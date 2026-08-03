@@ -52,11 +52,7 @@ const KaprodiBiodata       = lazy(() => import('./pages/kaprodi/Biodata'))
 
 const StaffDashboard = lazy(() => import('./pages/staff/Dashboard'))
 const StaffPengajuan = lazy(() => import('./pages/staff/Pengajuan'))
-// PERUBAHAN (item #6): halaman CRUD mahasiswa/dosen pindah ke area Staff.
 const StaffDataMahasiswa = lazy(() => import('./pages/staff/DataMahasiswa'))
-// PERUBAHAN: "Data Dosen" balik jadi 1 halaman tunggal (bukan 2 halaman
-// MBKM/Akademik lagi). Dosen cuma 1 tabel (users role='dosen'), gak ada
-// tabel roster per-periode, jadi gak ada alasan buat dipisah.
 const StaffDosen      = lazy(() => import('./pages/staff/Dosen'))
 const StaffMonitoring    = lazy(() => import('./pages/staff/Monitoring'))
 const BiodataPage = lazy(() => import('./components/common/BiodataPage'))
@@ -161,7 +157,7 @@ export default function App() {
             <Route path="dashboard"  element={<StaffDashboard />} />
             <Route path="pengajuan"  element={<StaffPengajuan />} />
             <Route path="mahasiswa"  element={<StaffDataMahasiswa />} />
-            <Route path="dosen"      element={<staffDosen />} />
+            <Route path="dosen"      element={<StaffDosen />} />
             <Route path="biodata"    element={<BiodataPage />} />
             <Route path="monitoring" element={<StaffMonitoring />} />
           </Route>

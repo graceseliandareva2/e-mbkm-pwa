@@ -9,11 +9,6 @@ const {
   importDosen, tambahDosen, updateDosen,
   updateMahasiswa, hapusMahasiswa, resetPasswordMahasiswa,
   getDaftarMahasiswa, getDaftarDosen,
-  // BARU: Kelola Roster Dosen (MBKM & PA)
-  importRosterDosenMBKM, importRosterDosenPA,
-  tambahRosterDosenMBKM, tambahRosterDosenPA,
-  hapusRosterDosenMBKM, hapusRosterDosenPA,
-  getRosterDosenMBKM, getRosterDosenPA,
   // Existing
   getDashboardStats,
   getAktivitasTerbaru,
@@ -25,11 +20,11 @@ const {
   updateProfil,
   getPeriode,
   getRekapNilai,
-  // BARU: menu Logbook & Dokumen (view-only)
+  // Menu Logbook & Dokumen (view-only)
   getDaftarMahasiswaMBKM,
   getLogbookMahasiswa,
   getDokumenMahasiswa,
-  // BARU: nilai mahasiswa (view-only, finalized only)
+  // Nilai mahasiswa (view-only, finalized only)
   getNilaiMahasiswa,
 } = require('../controllers/staffController');
 
@@ -66,22 +61,6 @@ router.get('/dosen', auth, getDaftarDosen);
 router.post('/dosen', auth, tambahDosen);
 router.put('/dosen/:id', auth, updateDosen);
 
-// BARU: Kelola Roster Dosen MBKM (per periode aktif). Roster HANYA daftar
-// "siapa tersedia di periode ini" -- tidak pernah membuat dosen baru di
-// master data, dan hapus di sini cuma hapus baris roster (bukan dosen.id),
-// jadi histori bimbingan lama tetap aman.
-router.get('/roster-dosen-mbkm',     auth, getRosterDosenMBKM);
-router.post('/roster-dosen-mbkm',    auth, tambahRosterDosenMBKM);
-router.post('/roster-dosen-mbkm/import', auth, uploadImport.single('file'), importRosterDosenMBKM);
-router.delete('/roster-dosen-mbkm/:id',  auth, hapusRosterDosenMBKM);
-
-// BARU: Kelola Roster Dosen PA (per periode aktif). Sama pola dengan roster
-// MBKM di atas, tabel terpisah (roster_dosen_pa).
-router.get('/roster-dosen-pa',     auth, getRosterDosenPA);
-router.post('/roster-dosen-pa',    auth, tambahRosterDosenPA);
-router.post('/roster-dosen-pa/import', auth, uploadImport.single('file'), importRosterDosenPA);
-router.delete('/roster-dosen-pa/:id',  auth, hapusRosterDosenPA);
-
 // Pengajuan MBKM
 router.get('/pengajuan',               auth, getDaftarPengajuan);
 router.get('/pengajuan/export-excel',  auth, exportPengajuanExcel);  // ← sebelum /:id
@@ -96,7 +75,7 @@ router.get('/mahasiswa-mbkm',       auth, getDaftarMahasiswaMBKM);
 router.get('/logbook',              auth, getLogbookMahasiswa);
 router.get('/dokumen',              auth, getDokumenMahasiswa);
 
-// BARU: Nilai Mahasiswa (view-only, finalized only) -- dipakai modal detail
+// Nilai Mahasiswa (view-only, finalized only) -- dipakai modal detail
 router.get('/nilai', auth, getNilaiMahasiswa);
 
 // Profil

@@ -8,6 +8,7 @@ import BuktiPreview, {
   FileBuktiPreview,
   LinkBukti
 } from '../../components/common/BuktiPreview'
+import { normalizeUrl } from '../../utils/normalizeUrl'
 const BASE_URL = ''
 
 const LS_PENGAJUAN = 'cache_pengajuan'
@@ -146,7 +147,13 @@ export default function MahasiswaLogbook() {
 
   const handleSubmit = async (e) => {
     e.preventDefault()
-    
+
+    // Normalisasi defensif -- jaga-jaga kalau user submit tanpa sempat blur dari field link
+    const normalizedBuktiLink = buktiType === 'link' ? normalizeUrl(buktiLink) : buktiLink
+    if (buktiType === 'link' && normalizedBuktiLink !== buktiLink) {
+      setBuktiLink(normalizedBuktiLink)
+    }
+
     if (!form.tanggal || !form.kegiatan || !form.deskripsi?.trim() || !form.jam_mulai || !form.jam_selesai) {
       return toast.error('Tanggal, jam mulai/selesai, kegiatan, dan deskripsi wajib diisi!')
     }
@@ -156,7 +163,7 @@ export default function MahasiswaLogbook() {
     if (pelatihanList.length > 1 && !selectedPelatihanId) {
       return toast.error('Pilih pelatihan terlebih dahulu!')
     }
-    const hasBukti = (buktiType === 'file' && !!form.bukti) || (buktiType === 'link' && !!buktiLink?.trim())
+    const hasBukti = (buktiType === 'file' && !!form.bukti) || (buktiType === 'link' && !!normalizedBuktiLink?.trim())
     if (!hasBukti) {
       return toast.error('Bukti kegiatan wajib diisi (upload file atau link)!')
     }
@@ -173,7 +180,7 @@ export default function MahasiswaLogbook() {
             jam_mulai: form.jam_mulai,
             jam_selesai: form.jam_selesai,
             pelatihan_id: selectedPelatihanId || undefined,
-            bukti_link: buktiType === 'link' ? buktiLink : undefined,
+            bukti_link: buktiType === 'link' ? normalizedBuktiLink : undefined,
           },
           file: buktiType === 'file' && form.bukti
             ? { blob: form.bukti, filename: form.bukti.name, fieldName: 'bukti' }
@@ -198,7 +205,7 @@ export default function MahasiswaLogbook() {
       formData.append('jam_selesai', form.jam_selesai)
       if (selectedPelatihanId) formData.append('pelatihan_id', selectedPelatihanId)
       if (buktiType === 'file' && form.bukti) formData.append('bukti', form.bukti)
-      if (buktiType === 'link' && buktiLink) formData.append('bukti_link', buktiLink)
+      if (buktiType === 'link' && normalizedBuktiLink) formData.append('bukti_link', normalizedBuktiLink)
       await api.post('/mahasiswa/logbook', formData, { headers: { 'Content-Type': 'multipart/form-data' } })
       toast.success('Logbook berhasil ditambahkan!')
       setModalOpen(false)
@@ -211,6 +218,13 @@ export default function MahasiswaLogbook() {
 
   const handleEditSubmit = async (e) => {
     e.preventDefault()
+
+    // Normalisasi defensif -- jaga-jaga kalau user submit tanpa sempat blur dari field link
+    const normalizedEditBuktiLink = editBuktiType === 'link' ? normalizeUrl(editBuktiLink) : editBuktiLink
+    if (editBuktiType === 'link' && normalizedEditBuktiLink !== editBuktiLink) {
+      setEditBuktiLink(normalizedEditBuktiLink)
+    }
+
     if (!editForm.kegiatan || !editForm.deskripsi?.trim() || !editForm.jam_mulai || !editForm.jam_selesai) {
       return toast.error('Jam mulai/selesai, judul kegiatan, dan deskripsi wajib diisi!')
     }
@@ -218,14 +232,14 @@ export default function MahasiswaLogbook() {
       return toast.error('Jam selesai harus setelah jam mulai!')
     }
     const hasBuktiSetelahEdit = !!editForm.bukti
-      || (editBuktiType === 'link' && !!editBuktiLink?.trim())
+      || (editBuktiType === 'link' && !!normalizedEditBuktiLink?.trim())
       || (!editForm.hapusBukti && (!!editLog.cloudinary_public_id || !!editLog.bukti_link))
     if (!hasBuktiSetelahEdit) {
       return toast.error('Bukti kegiatan wajib diisi (upload file atau link)!')
     }
     setEditSubmitting(true)
     try {
-      if (editForm.bukti || editForm.hapusBukti || (editBuktiType === 'link' && editBuktiLink)) {
+      if (editForm.bukti || editForm.hapusBukti || (editBuktiType === 'link' && normalizedEditBuktiLink)) {
         const formData = new FormData()
         formData.append('tanggal', editLog.tanggal)
         formData.append('kegiatan', editForm.kegiatan)
@@ -236,7 +250,7 @@ export default function MahasiswaLogbook() {
         formData.append('kendala', editLog.kendala || '')
         if (editForm.hapusBukti) formData.append('hapus_bukti', '1')
         if (editForm.bukti) formData.append('bukti', editForm.bukti)
-        if (editBuktiType === 'link' && editBuktiLink) formData.append('bukti_link', editBuktiLink)
+        if (editBuktiType === 'link' && normalizedEditBuktiLink) formData.append('bukti_link', normalizedEditBuktiLink)
         await api.put(`/mahasiswa/logbook/${editLog.id}`, formData, { headers: { 'Content-Type': 'multipart/form-data' } })
       } else {
         await api.put(`/mahasiswa/logbook/${editLog.id}`, {
@@ -598,7 +612,8 @@ return (
                       )}
                     </div>
                   ) : (
-                    <input type="url" value={buktiLink} onChange={e => setBuktiLink(e.target.value)}
+                    <input type="text" value={buktiLink} onChange={e => setBuktiLink(e.target.value)}
+                      onBlur={e => setBuktiLink(normalizeUrl(e.target.value))}
                       placeholder="paste link here"
                       className="w-full border border-gray-200 rounded-xl px-3.5 py-2.5 text-sm focus:outline-none focus:border-blue-500" />
                   )}
@@ -720,7 +735,8 @@ return (
                     )}
                   </>
                 ) : (
-                  <input type="url" value={editBuktiLink} onChange={e => setEditBuktiLink(e.target.value)}
+                  <input type="text" value={editBuktiLink} onChange={e => setEditBuktiLink(e.target.value)}
+                    onBlur={e => setEditBuktiLink(normalizeUrl(e.target.value))}
                     placeholder="paste link here"
                     className="w-full border border-gray-200 rounded-xl px-3.5 py-2.5 text-sm focus:outline-none focus:border-blue-500" />
                 )}

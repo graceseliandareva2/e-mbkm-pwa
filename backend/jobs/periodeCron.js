@@ -123,16 +123,16 @@ const runAutoToggle = async () => {
 
 // Reminder deadline logbook (H-3 / H-1) — email (sudah ada) + push (baru)
 //
-// PERUBAHAN: `logbook` tidak lagi punya `mahasiswa_id`/`periode_id` langsung
-// (cuma `pengajuan_id`), dan `mahasiswa` tidak lagi punya `periode_id`.
-// "Mahasiswa terdaftar di periode X" sekarang berarti "punya baris pengajuan
-// di periode X" -- jadi query di-join lewat pengajuan. Juga ganti SUM(l.jam)
-// -> SUM(l.durasi_menit): l.jam satuannya JAM, bukan menit, jadi sebelumnya
-// salah unit selain salah kolom.
+// PERUBAHAN: tidak ada tabel `mahasiswa` terpisah -- data mahasiswa ada
+// langsung di `users` (role = 'mahasiswa'). `logbook` cuma punya
+// `pengajuan_id` (bukan mahasiswa_id/periode_id langsung), dan
+// `pengajuan` PK-nya `id_pengajuan` (bukan `id`). `periode` PK-nya
+// `id_periode` (bukan `id`, bukan `periode_id` -- itu cuma FK di tabel lain).
+// Juga SUM(l.jam) -> SUM(l.durasi_menit): l.jam satuannya JAM, bukan menit.
 const runDeadlineReminderLogbook = async (conn, todayStr) => {
   try {
     const [periodeList] = await conn.query(
-      `SELECT id, nama_periode, tanggal_selesai_logbook
+      `SELECT id_periode AS id, nama_periode, tanggal_selesai_logbook
        FROM periode
        WHERE tanggal_selesai_logbook IS NOT NULL
          AND form_logbook_buka = 1
@@ -149,12 +149,13 @@ const runDeadlineReminderLogbook = async (conn, todayStr) => {
       );
 
       const [mahasiswaList] = await conn.query(
-        `SELECT m.id, m.user_id, m.nama, m.email,
+        `SELECT u.id_users AS id, u.id_users AS user_id, u.nama, u.email,
            COALESCE(SUM(l.durasi_menit), 0) as total_menit
-         FROM mahasiswa m
-         JOIN pengajuan p ON p.mahasiswa_id = m.id AND p.periode_id = ?
-         LEFT JOIN logbook l ON l.pengajuan_id = p.id AND l.status = 'diverifikasi'
-         GROUP BY m.id, m.user_id, m.nama, m.email
+         FROM users u
+         JOIN pengajuan p ON p.mahasiswa_id = u.id_users AND p.periode_id = ?
+         LEFT JOIN logbook l ON l.pengajuan_id = p.id_pengajuan AND l.status = 'diverifikasi'
+         WHERE u.role = 'mahasiswa'
+         GROUP BY u.id_users, u.nama, u.email
          HAVING total_menit < 2880`,
         [periode.id]
       );
@@ -209,15 +210,13 @@ const runDeadlineReminderLogbook = async (conn, todayStr) => {
 
 // Reminder deadline pengajuan (H-3 / H-1) — push only, hanya yang belum submit
 //
-// PERUBAHAN: tabel `pengajuan_capstone` sudah di-drop (sekarang `pengajuan`),
-// dan `mahasiswa.periode_id` sudah tidak ada. "Belum submit" sekarang berarti
-// baris pengajuan-nya di periode ini masih berstatus 'draft' (baik draft dari
-// staff yang menambahkan mahasiswa, maupun draft yang mahasiswa buat sendiri
-// tapi belum di-submit).
+// PERUBAHAN: tidak ada tabel `mahasiswa` terpisah -- pakai `users` (role =
+// 'mahasiswa'). "Belum submit" berarti baris pengajuan-nya di periode ini
+// masih berstatus 'draft'. `periode` PK-nya `id_periode`.
 const runDeadlineReminderPengajuan = async (conn, todayStr) => {
   try {
     const [periodeList] = await conn.query(
-      `SELECT id, nama_periode, tanggal_selesai_pengajuan
+      `SELECT id_periode AS id, nama_periode, tanggal_selesai_pengajuan
        FROM periode
        WHERE tanggal_selesai_pengajuan IS NOT NULL
          AND form_pengajuan_buka = 1
@@ -234,10 +233,10 @@ const runDeadlineReminderPengajuan = async (conn, todayStr) => {
       );
 
       const [belumSubmit] = await conn.query(
-        `SELECT m.id, m.user_id, m.nama
-         FROM mahasiswa m
-         JOIN pengajuan p ON p.mahasiswa_id = m.id AND p.periode_id = ?
-         WHERE p.status = 'draft'`,
+        `SELECT u.id_users AS id, u.id_users AS user_id, u.nama
+         FROM users u
+         JOIN pengajuan p ON p.mahasiswa_id = u.id_users AND p.periode_id = ?
+         WHERE u.role = 'mahasiswa' AND p.status = 'draft'`,
         [periode.id]
       );
 
@@ -258,17 +257,11 @@ const runDeadlineReminderPengajuan = async (conn, todayStr) => {
 
 // Reminder deadline dokumen PPT & Laporan Akhir (H-3 / H-1) — push only, hanya yang belum upload
 //
-// PERUBAHAN: `dokumen` tidak lagi punya `mahasiswa_id`/`periode_id` langsung
-// (cuma `pengajuan_id`). Juga ditambah filter p.status = 'disetujui_kaprodi'
-// karena sesuai alur bisnis (lihat mahasiswaController.STATUS_BOLEH_LOGBOOK_DOKUMEN),
-// upload dokumen cuma boleh dilakukan mahasiswa yang pengajuannya sudah
-// disetujui kaprodi -- mahasiswa lain tidak relevan untuk reminder ini.
-//
-// PERUBAHAN (form_dokumen_buka -> form_ppt_buka/form_laporan_buka): PPT dan
-// Laporan Akhir sekarang punya form terpisah (bisa beda tanggal selesai dan
-// beda status buka/tutup), jadi tiap entri config bawa kolomForm-nya sendiri
-// dan query periodeList difilter pakai kolom itu -- bukan lagi satu kolom
-// form_dokumen_buka gabungan.
+// PERUBAHAN: tidak ada tabel `mahasiswa` terpisah -- pakai `users` (role =
+// 'mahasiswa'). Filter p.status = 'disetujui_kaprodi' karena upload dokumen
+// cuma boleh dilakukan mahasiswa yang pengajuannya sudah disetujui kaprodi.
+// PPT dan Laporan Akhir punya form terpisah (form_ppt_buka/form_laporan_buka),
+// jadi tiap entri config bawa kolomForm-nya sendiri. `periode` PK-nya `id_periode`.
 const runDeadlineReminderDokumen = async (conn, todayStr) => {
   const jenisConfig = [
     { jenis: 'ppt', kolomDeadline: 'tanggal_selesai_ppt', kolomForm: 'form_ppt_buka', label: 'PPT' },
@@ -278,7 +271,7 @@ const runDeadlineReminderDokumen = async (conn, todayStr) => {
   for (const cfg of jenisConfig) {
     try {
       const [periodeList] = await conn.query(
-        `SELECT id, nama_periode, ${cfg.kolomDeadline} as deadline
+        `SELECT id_periode AS id, nama_periode, ${cfg.kolomDeadline} as deadline
          FROM periode
          WHERE ${cfg.kolomDeadline} IS NOT NULL
            AND ${cfg.kolomForm} = 1
@@ -295,15 +288,16 @@ const runDeadlineReminderDokumen = async (conn, todayStr) => {
         );
 
         const [belumLengkap] = await conn.query(
-          `SELECT m.id, m.user_id, m.nama
-           FROM mahasiswa m
-           JOIN pengajuan p ON p.mahasiswa_id = m.id
+          `SELECT u.id_users AS id, u.id_users AS user_id, u.nama
+           FROM users u
+           JOIN pengajuan p ON p.mahasiswa_id = u.id_users
              AND p.periode_id = ? AND p.status = 'disetujui_kaprodi'
-           WHERE NOT EXISTS (
-             SELECT 1 FROM dokumen d
-             WHERE d.pengajuan_id = p.id
-               AND d.jenis = ?
-           )`,
+           WHERE u.role = 'mahasiswa'
+             AND NOT EXISTS (
+               SELECT 1 FROM dokumen d
+               WHERE d.pengajuan_id = p.id_pengajuan
+                 AND d.jenis = ?
+             )`,
           [periode.id, cfg.jenis]
         );
 
@@ -325,10 +319,12 @@ const runDeadlineReminderDokumen = async (conn, todayStr) => {
 
 // Reminder harian jam 17:00 — push only, mahasiswa yang belum isi logbook hari ini
 //
-// PERUBAHAN: sama seperti di atas -- join lewat pengajuan, bukan
-// mahasiswa.periode_id / logbook.mahasiswa_id yang sudah tidak ada. Ditambah
-// filter p.status = 'disetujui_kaprodi' dengan alasan yang sama seperti reminder
-// dokumen (cuma mahasiswa dengan pengajuan disetujui yang boleh isi logbook).
+// PERUBAHAN: tidak ada tabel `mahasiswa` terpisah -- pakai `users` (role =
+// 'mahasiswa'). `periode` PK-nya `id_periode` (bukan `periode_id`),
+// `pengajuan` PK-nya `id_pengajuan`. Join periode pakai per.id_periode =
+// p.periode_id (sebelumnya ada bug: kondisi join ganda "= p.periode_id =
+// p.periode_id" yang salah). Filter p.status = 'disetujui_kaprodi' dengan
+// alasan yang sama seperti reminder dokumen.
 const runLogbookHarianReminder = async () => {
   const conn = await db.getConnection();
   try {
@@ -340,14 +336,15 @@ const runLogbookHarianReminder = async () => {
     ].join('-');
 
     const [mahasiswaBelumIsi] = await conn.query(
-      `SELECT m.id, m.user_id, m.nama
-       FROM mahasiswa m
-       JOIN pengajuan p ON p.mahasiswa_id = m.id AND p.status = 'disetujui_kaprodi'
-       JOIN periode per ON per.id = p.periode_id
-       WHERE per.form_logbook_buka = 1
+      `SELECT u.id_users AS id, u.id_users AS user_id, u.nama
+       FROM users u
+       JOIN pengajuan p ON p.mahasiswa_id = u.id_users AND p.status = 'disetujui_kaprodi'
+       JOIN periode per ON per.id_periode = p.periode_id
+       WHERE u.role = 'mahasiswa'
+         AND per.form_logbook_buka = 1
          AND NOT EXISTS (
            SELECT 1 FROM logbook l
-           WHERE l.pengajuan_id = p.id
+           WHERE l.pengajuan_id = p.id_pengajuan
              AND l.tanggal = ?
          )`,
       [todayStr]

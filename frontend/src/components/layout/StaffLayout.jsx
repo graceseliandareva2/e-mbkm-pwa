@@ -1,45 +1,125 @@
-PS D:\skripsi\capstone-project\frontend> git status 
-On branch main
-Your branch is up to date with 'origin/main'.
+import { Outlet, NavLink, useNavigate } from 'react-router-dom'
+import { useState } from 'react'
+import {
+  LayoutDashboard, ClipboardList, LogOut, Menu, X, User, Users,
+  UserCheck, BarChart3
+} from 'lucide-react'
+import useAuthStore from '../../store/authStore'
+import toast from 'react-hot-toast'
+import ProfileDropdown from '../common/ProfileDropdown'
+import PeriodeSelector from '../common/PeriodeSelector'
 
-Changes not staged for commit:
-  (use "git add <file>..." to update what will be committed)
-  (use "git restore <file>..." to discard changes in working directory)
-        modified:   ../backend/controllers/staffController.js
-        modified:   ../backend/jobs/periodeCron.js
-        modified:   ../backend/routes/staffRoutes.js
+// PERUBAHAN: "Data Dosen" balik jadi 1 link biasa (bukan submenu lagi).
+// Dosen cuma 1 tabel (users role='dosen'), gak ada lagi konsep roster
+// per-periode (Pembimbing MBKM vs Pembimbing Akademik), jadi cukup 1 halaman.
+const navItems = [
+  { to: '/staff/dashboard',    icon: LayoutDashboard, label: 'Dashboard' },
+  { to: '/staff/pengajuan',    icon: ClipboardList,   label: 'Pengajuan MBKM' },
+  // PERUBAHAN (item #6): CRUD mahasiswa & dosen pindah ke sini dari Kaprodi.
+  { to: '/staff/mahasiswa',    icon: Users,           label: 'Data Mahasiswa' },
+  { to: '/staff/dosen',        icon: UserCheck,       label: 'Data Dosen' },
+]
 
-no changes added to commit (use "git add" and/or "git commit -a")
-PS D:\skripsi\capstone-project\frontend> git status
-On branch main
-Your branch is up to date with 'origin/main'.
+const navItemsBawah = [
+  // BARU: menu Monitoring (logbook + dokumen mahasiswa, view-only).
+  { to: '/staff/monitoring',   icon: BarChart3,       label: 'Monitoring' },
+  { to: '/staff/biodata',      icon: User,            label: 'Biodata' },
+]
 
-Changes not staged for commit:
-  (use "git add <file>..." to update what will be committed)
-  (use "git restore <file>..." to discard changes in working directory)
-        modified:   ../backend/controllers/staffController.js
-        modified:   ../backend/jobs/periodeCron.js
-        modified:   ../backend/routes/staffRoutes.js
+export default function StaffLayout() {
+  const [sidebarOpen, setSidebarOpen] = useState(false)
+  const { logout } = useAuthStore()
+  const navigate = useNavigate()
 
-no changes added to commit (use "git add" and/or "git commit -a")
-PS D:\skripsi\capstone-project\frontend> git diff --stat
- backend/controllers/staffController.js |  10 ----
- backend/jobs/periodeCron.js            | 101 ++++++++++++++++-----------------
- backend/routes/staffRoutes.js          |  27 +--------
- 3 files changed, 52 insertions(+), 86 deletions(-)
-PS D:\skripsi\capstone-project\frontend> ls -la .git
-Get-ChildItem : A parameter cannot be found that matches parameter name 'la'.
-At line:1 char:4
-+ ls -la .git
-+    ~~~
-    + CategoryInfo          : InvalidArgument: (:) [Get-ChildItem], ParameterBindingException
-    + FullyQualifiedErrorId : NamedParameterNotFound,Microsoft.PowerShell.Commands.GetChildItemCommand
- 
-PS D:\skripsi\capstone-project\frontend> pwd
+  const handleLogout = () => {
+    logout()
+    toast.success('Berhasil logout!')
+    navigate('/login')
+  }
 
-Path                                
-----                                
-D:\skripsi\capstone-project\frontend
+  const renderNavItem = (item) => {
+    const Icon = item.icon
+    return (
+      <NavLink key={item.to} to={item.to}
+        onClick={() => setSidebarOpen(false)}
+        className={({ isActive }) =>
+          `flex items-center gap-3 px-4 py-2.5 rounded-xl text-sm font-medium transition-all
+          ${isActive
+            ? 'bg-white text-blue-800 font-semibold shadow-sm'
+            : 'text-white/80 hover:bg-white/15 hover:text-white'}`
+        }>
+        <Icon className="w-4 h-4 flex-shrink-0" />
+        <span>{item.label}</span>
+      </NavLink>
+    )
+  }
 
+  return (
+    <div className="flex h-screen overflow-hidden" style={{ background: '#f0f2f5' }}>
+      {sidebarOpen && (
+        <div className="fixed inset-0 bg-black/50 z-20 lg:hidden"
+          onClick={() => setSidebarOpen(false)} />
+      )}
 
-PS D:\skripsi\capstone-project\frontend> 
+      {/* Sidebar */}
+      <aside
+        className={`flex-shrink-0 w-56 h-full flex flex-col z-30
+          transition-transform duration-300 ease-in-out
+          fixed top-0 left-0
+          ${sidebarOpen ? 'translate-x-0' : '-translate-x-full'}
+          lg:translate-x-0 lg:static`}
+        style={{ background: 'linear-gradient(180deg, #1e4db7 0%, #1a44a8 100%)' }}
+      >
+        {/* Logo */}
+        <div className="flex flex-col items-center py-6 px-4 border-b border-white/10">
+          <img src="/logo-itbss.png" alt="ITBSS"
+            className="h-16 w-16 object-contain mb-2 drop-shadow-lg" />
+          <p className="text-white text-xs font-bold text-center leading-tight">ITB SABDA SETIA</p>
+          <button className="lg:hidden absolute top-4 right-4 p-1 rounded-lg hover:bg-white/10"
+            onClick={() => setSidebarOpen(false)}>
+            <X className="w-4 h-4 text-white" />
+          </button>
+        </div>
+
+        {/* Nav */}
+        <nav className="flex-1 px-3 py-4 space-y-1 overflow-y-auto overflow-x-hidden">
+          {navItems.map(renderNavItem)}
+          {navItemsBawah.map(renderNavItem)}
+        </nav>
+
+        {/* Logout */}
+        <div className="px-3 py-4 border-t border-white/10 flex-shrink-0">
+          <button onClick={handleLogout}
+            className="flex items-center gap-3 px-4 py-2.5 rounded-xl text-sm font-medium text-white/80 hover:bg-white/15 hover:text-white w-full transition-all">
+            <LogOut className="w-4 h-4" />
+            Logout
+          </button>
+        </div>
+      </aside>
+
+      {/* Main */}
+      <div className="flex-1 flex flex-col min-w-0 overflow-hidden">
+        {/* Header */}
+        <header className="bg-white border-b border-gray-200 px-4 sm:px-6 py-3.5 flex items-center gap-3 sticky top-0 z-10 shadow-sm">
+          <button className="lg:hidden p-2 rounded-xl hover:bg-gray-100"
+            onClick={() => setSidebarOpen(true)}>
+            <Menu className="w-5 h-5 text-gray-600" />
+          </button>
+          <p className="text-sm text-gray-600">
+            Anda Masuk Sebagai <span className="font-bold text-blue-700">Staff Akademik</span>
+          </p>
+          <div className="flex-1" />
+          <PeriodeSelector />
+          <div className="pl-2 border-l border-gray-200">
+            <ProfileDropdown />
+          </div>
+        </header>
+
+        {/* Content */}
+        <main className="flex-1 overflow-auto p-4 sm:p-6">
+          <Outlet />
+        </main>
+      </div>
+    </div>
+  )
+}
