@@ -54,11 +54,10 @@ const StaffDashboard = lazy(() => import('./pages/staff/Dashboard'))
 const StaffPengajuan = lazy(() => import('./pages/staff/Pengajuan'))
 // PERUBAHAN (item #6): halaman CRUD mahasiswa/dosen pindah ke area Staff.
 const StaffDataMahasiswa = lazy(() => import('./pages/staff/DataMahasiswa'))
-// PERUBAHAN (split Pembimbing MBKM / Pembimbing Akademik): halaman "Data
-// Dosen" (StaffDosen) tunggal dipecah jadi 2 halaman terpisah supaya
-// tambah/import masing-masing gak kecampur peran (is_dosen_pa).
-const StaffDosenMBKM      = lazy(() => import('./pages/staff/DosenMBKM'))
-const StaffDosenAkademik  = lazy(() => import('./pages/staff/DosenAkademik'))
+// PERUBAHAN: "Data Dosen" balik jadi 1 halaman tunggal (bukan 2 halaman
+// MBKM/Akademik lagi). Dosen cuma 1 tabel (users role='dosen'), gak ada
+// tabel roster per-periode, jadi gak ada alasan buat dipisah.
+const StaffDosen      = lazy(() => import('./pages/staff/Dosen'))
 const StaffMonitoring    = lazy(() => import('./pages/staff/Monitoring'))
 const BiodataPage = lazy(() => import('./components/common/BiodataPage'))
 
@@ -158,22 +157,21 @@ export default function App() {
             <Route path="biodata"      element={<KaprodiBiodata />} />
           </Route>
 
-         <Route path="/staff" element={
-  <ProtectedRoute allowedRoles={['staff_akademik']}><StaffLayout /></ProtectedRoute>
-}>
-  <Route path="dashboard"  element={<StaffDashboard />} />
-  <Route path="pengajuan"  element={<StaffPengajuan />} />
-  <Route path="mahasiswa"  element={<StaffDataMahasiswa />} />
-  {/* PERUBAHAN (split Pembimbing MBKM / Pembimbing Akademik):
-      route "dosen" tunggal diganti jadi 2 route terpisah. Redirect
-      "dosen" -> "dosen/mbkm" dijaga untuk kompatibilitas kalau ada
-      link/bookmark lama yang masih mengarah ke /staff/dosen. */}
-  <Route path="dosen" element={<Navigate to="/staff/dosen/mbkm" replace />} />
-  <Route path="dosen/mbkm"     element={<StaffDosenMBKM />} />
-  <Route path="dosen/akademik" element={<StaffDosenAkademik />} />
-  <Route path="biodata"    element={<BiodataPage />} />
-  <Route path="monitoring" element={<StaffMonitoring />} />
-</Route>
+          <Route path="/staff" element={
+            <ProtectedRoute allowedRoles={['staff_akademik']}><StaffLayout /></ProtectedRoute>
+          }>
+            <Route path="dashboard"  element={<StaffDashboard />} />
+            <Route path="pengajuan"  element={<StaffPengajuan />} />
+            <Route path="mahasiswa"  element={<StaffDataMahasiswa />} />
+            {/* PERUBAHAN: route dosen balik jadi 1 halaman tunggal.
+                Redirect dari path lama (/staff/dosen/mbkm, /staff/dosen/akademik)
+                dijaga untuk kompatibilitas kalau ada link/bookmark lama. */}
+            <Route path="dosen"           element={<StaffDosen />} />
+            <Route path="dosen/mbkm"      element={<Navigate to="/staff/dosen" replace />} />
+            <Route path="dosen/akademik"  element={<Navigate to="/staff/dosen" replace />} />
+            <Route path="biodata"    element={<BiodataPage />} />
+            <Route path="monitoring" element={<StaffMonitoring />} />
+          </Route>
 
           <Route path="*" element={<Navigate to="/" replace />} />
         </Routes>

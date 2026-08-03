@@ -1,35 +1,24 @@
-import { Outlet, NavLink, useNavigate, useLocation } from 'react-router-dom'
+import { Outlet, NavLink, useNavigate } from 'react-router-dom'
 import { useState } from 'react'
 import {
-  LayoutDashboard, ClipboardList, Archive, LogOut, Menu, X, Bell, User, Users,
-  UserCheck, BarChart3, ChevronDown, GraduationCap, BookUser
+  LayoutDashboard, ClipboardList, LogOut, Menu, X, User, Users,
+  UserCheck, BarChart3
 } from 'lucide-react'
 import useAuthStore from '../../store/authStore'
 import toast from 'react-hot-toast'
 import ProfileDropdown from '../common/ProfileDropdown'
 import PeriodeSelector from '../common/PeriodeSelector'
 
-// PERUBAHAN (split Pembimbing MBKM / Pembimbing Akademik):
-// Menu "Data Dosen" yang tadinya 1 item link langsung, sekarang jadi 1
-// item PARENT dengan submenu (2 anak: Pembimbing MBKM & Pembimbing
-// Akademik). navItems dipecah jadi array flat item (dashboard, pengajuan,
-// dst) dan 1 objek khusus `dosenSubmenu` supaya gampang di-render beda
-// (parent-nya bisa expand/collapse, item lain tetap link biasa seperti semula).
+// PERUBAHAN: "Data Dosen" balik jadi 1 link biasa (bukan submenu lagi).
+// Dosen cuma 1 tabel (users role='dosen'), gak ada lagi konsep roster
+// per-periode (Pembimbing MBKM vs Pembimbing Akademik), jadi cukup 1 halaman.
 const navItems = [
   { to: '/staff/dashboard',    icon: LayoutDashboard, label: 'Dashboard' },
   { to: '/staff/pengajuan',    icon: ClipboardList,   label: 'Pengajuan MBKM' },
   // PERUBAHAN (item #6): CRUD mahasiswa & dosen pindah ke sini dari Kaprodi.
   { to: '/staff/mahasiswa',    icon: Users,           label: 'Data Mahasiswa' },
+  { to: '/staff/dosen',        icon: UserCheck,       label: 'Data Dosen' },
 ]
-
-const dosenSubmenu = {
-  label: 'Data Dosen',
-  icon: UserCheck,
-  children: [
-    { to: '/staff/dosen/mbkm',     icon: BookUser,      label: 'Pembimbing MBKM' },
-    { to: '/staff/dosen/akademik', icon: GraduationCap, label: 'Pembimbing Akademik' },
-  ],
-}
 
 const navItemsBawah = [
   // BARU: menu Monitoring (logbook + dokumen mahasiswa, view-only).
@@ -41,9 +30,6 @@ export default function StaffLayout() {
   const [sidebarOpen, setSidebarOpen] = useState(false)
   const { logout } = useAuthStore()
   const navigate = useNavigate()
-  const location = useLocation()
-  const isDosenActive = location.pathname.startsWith('/staff/dosen')
-const [dosenMenuOpen, setDosenMenuOpen] = useState(false)
 
   const handleLogout = () => {
     logout()
@@ -98,44 +84,6 @@ const [dosenMenuOpen, setDosenMenuOpen] = useState(false)
         {/* Nav */}
         <nav className="flex-1 px-3 py-4 space-y-1 overflow-y-auto overflow-x-hidden">
           {navItems.map(renderNavItem)}
-
-          {/* Submenu Data Dosen */}
-          <div>
-            <button
-              type="button"
-              onClick={() => setDosenMenuOpen((prev) => !prev)}
-              className={`w-full flex items-center gap-3 px-4 py-2.5 rounded-xl text-sm font-medium transition-all
-                ${isDosenActive
-                  ? 'bg-white/10 text-white font-semibold'
-                  : 'text-white/80 hover:bg-white/15 hover:text-white'}`}
-            >
-              <dosenSubmenu.icon className="w-4 h-4 flex-shrink-0" />
-              <span className="flex-1 text-left">{dosenSubmenu.label}</span>
-              <ChevronDown className={`w-3.5 h-3.5 flex-shrink-0 transition-transform ${dosenMenuOpen ? 'rotate-180' : ''}`} />
-            </button>
-
-            {dosenMenuOpen && (
-              <div className="mt-1 ml-3 pl-3 border-l border-white/15 space-y-1">
-                {dosenSubmenu.children.map((item) => {
-                  const Icon = item.icon
-                  return (
-                    <NavLink key={item.to} to={item.to}
-                      onClick={() => setSidebarOpen(false)}
-                      className={({ isActive }) =>
-                        `flex items-center gap-2.5 px-3 py-2 rounded-lg text-[13px] font-medium transition-all
-                        ${isActive
-                          ? 'bg-white text-blue-800 font-semibold shadow-sm'
-                          : 'text-white/70 hover:bg-white/15 hover:text-white'}`
-                      }>
-                      <Icon className="w-3.5 h-3.5 flex-shrink-0" />
-                      <span>{item.label}</span>
-                    </NavLink>
-                  )
-                })}
-              </div>
-            )}
-          </div>
-
           {navItemsBawah.map(renderNavItem)}
         </nav>
 

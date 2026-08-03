@@ -1,9 +1,11 @@
+// pages/staff/StaffDosen.jsx
+// Menggantikan StaffDosenAkademik.jsx & StaffDosenMBKM.jsx.
+// Dosen cuma satu tabel (`users` role='dosen'), tidak ada lagi konsep roster
+// per-periode (PA / MBKM) -- makanya cukup satu halaman.
 import { useEffect, useState } from 'react'
 import { Upload, Search, Users, X, Check, UserPlus, Pencil } from 'lucide-react'
 import api from '../../utils/api'
 import toast from 'react-hot-toast'
-import usePeriodeFilter from '../../hooks/usePeriodeFilter'
-
 
 const emptyTambahForm = {
   id_dosen: '',
@@ -20,13 +22,7 @@ const emptyEditForm = {
   is_active: true,
 }
 
-export default function StaffDosenMBKM() {
-  const {
-    periodeId: selectedPeriode,
-    periodeList: periode,
-    setLocalPeriode,
-  } = usePeriodeFilter('staff_akademik')
-
+export default function StaffDosen() {
   const [roster, setRoster] = useState([])
   const [search, setSearch] = useState('')
   const [loading, setLoading] = useState(true)
@@ -42,17 +38,16 @@ export default function StaffDosenMBKM() {
   const [editLoading, setEditLoading] = useState(false)
 
   useEffect(() => {
-    if (selectedPeriode) fetchRoster(selectedPeriode)
-  
-  }, [selectedPeriode])
+    fetchDosen()
+  }, [])
 
-  const fetchRoster = async (periodeId) => {
+  const fetchDosen = async () => {
     setLoading(true)
     try {
-      const res = await api.get('/staff/roster-dosen-mbkm', { params: { periode_id: periodeId } })
+      const res = await api.get('/staff/dosen')
       setRoster(res.data.data || [])
     } catch {
-      toast.error('Gagal memuat roster Pembimbing MBKM!')
+      toast.error('Gagal memuat daftar dosen!')
     } finally {
       setLoading(false)
     }
@@ -61,21 +56,16 @@ export default function StaffDosenMBKM() {
   const handleImport = async (e) => {
     const file = e.target.files[0]
     if (!file) return
-    if (!selectedPeriode) {
-      toast.error('Pilih periode terlebih dahulu!')
-      e.target.value = ''
-      return
-    }
     setUploading(true)
     try {
       const formData = new FormData()
       formData.append('file', file)
-      formData.append('periode_id', selectedPeriode)
-      const res = await api.post('/staff/roster-dosen-mbkm/import', formData, {
+      // periode_id sengaja tidak dikirim -> backend otomatis pakai periode aktif
+      const res = await api.post('/staff/import-dosen', formData, {
         headers: { 'Content-Type': 'multipart/form-data' }
       })
       toast.success(res.data.message)
-      fetchRoster(selectedPeriode)
+      fetchDosen()
     } catch (err) {
       toast.error(err.response?.data?.message || 'Gagal import!')
     } finally {
@@ -95,22 +85,20 @@ export default function StaffDosenMBKM() {
       toast.error('Semua field wajib diisi!')
       return
     }
-    if (!selectedPeriode) {
-      toast.error('Pilih periode terlebih dahulu!')
-      return
-    }
     setTambahLoading(true)
     try {
-      const res = await api.post('/staff/roster-dosen-mbkm', {
-        ...tambahForm,
-        periode_id: selectedPeriode,
+      const res = await api.post('/staff/dosen', {
+        nidn: id_dosen,
+        nama,
+        email,
+        program_studi,
       })
-      toast.success(res.data.message || 'Dosen berhasil ditambahkan ke daftar pembimbing MBKM!')
+      toast.success(res.data.message || 'Dosen berhasil ditambahkan!')
       setShowTambah(false)
       setTambahForm(emptyTambahForm)
-      fetchRoster(selectedPeriode)
+      fetchDosen()
     } catch (err) {
-      toast.error(err.response?.data?.message || 'Gagal menambahkan dosen ke daftar pembimbing MBKM!')
+      toast.error(err.response?.data?.message || 'Gagal menambahkan dosen!')
     } finally {
       setTambahLoading(false)
     }
@@ -122,13 +110,13 @@ export default function StaffDosenMBKM() {
   }
 
   const handleOpenEdit = (row) => {
-    setEditDosenId(row.dosen_id)
+    setEditDosenId(row.id)
     setEditForm({
       id_dosen: row.id_dosen || '',
       nama: row.nama || '',
       email: row.email || '',
       program_studi: row.program_studi || '',
-      is_active: row.is_active,
+      is_active: !!row.is_active,
     })
     setShowEdit(true)
   }
@@ -146,12 +134,18 @@ export default function StaffDosenMBKM() {
     }
     setEditLoading(true)
     try {
-      const res = await api.put(`/staff/dosen/${editDosenId}`, editForm)
+      const res = await api.put(`/staff/dosen/${editDosenId}`, {
+        nidn: id_dosen,
+        nama,
+        email,
+        program_studi,
+        is_active: editForm.is_active,
+      })
       toast.success(res.data.message || 'Data dosen berhasil diperbarui!')
       setShowEdit(false)
       setEditForm(emptyEditForm)
       setEditDosenId(null)
-      fetchRoster(selectedPeriode)
+      fetchDosen()
     } catch (err) {
       toast.error(err.response?.data?.message || 'Gagal memperbarui data dosen!')
     } finally {
@@ -174,50 +168,40 @@ export default function StaffDosenMBKM() {
     <div className="space-y-5">
       <div className="flex items-center justify-between flex-wrap gap-3">
         <div>
-          <h1 className="text-2xl font-bold text-gray-800">Pembimbing MBKM</h1>
-          <p className="text-gray-500 text-sm mt-1">Kelola dosen pembimbing MBKM per periode</p>
+          <h1 className="text-2xl font-bold text-gray-800">Dosen</h1>
+          <p className="text-gray-500 text-sm mt-1">Kelola data dosen (dipakai sebagai Dosen Pembimbing Akademik & MBKM)</p>
         </div>
         <div className="flex items-center gap-2">
           <button
             onClick={() => setShowTambah(true)}
-            disabled={!selectedPeriode}
-            className="flex items-center gap-2 px-4 py-2.5 rounded-xl text-sm font-semibold transition-colors shadow-md bg-white border border-blue-200 text-blue-700 hover:bg-blue-50 disabled:opacity-50 disabled:cursor-not-allowed"
+            className="flex items-center gap-2 px-4 py-2.5 rounded-xl text-sm font-semibold transition-colors shadow-md bg-white border border-blue-200 text-blue-700 hover:bg-blue-50"
           >
             <UserPlus className="w-4 h-4" />
             Tambah
           </button>
           <label className={`flex items-center gap-2 px-4 py-2.5 rounded-xl text-sm font-semibold transition-colors shadow-md cursor-pointer
-            ${uploading || !selectedPeriode ? 'bg-gray-400 cursor-not-allowed' : 'bg-blue-600 hover:bg-blue-700 text-white'}`}>
+            ${uploading ? 'bg-gray-400 cursor-not-allowed' : 'bg-blue-600 hover:bg-blue-700 text-white'}`}>
             <Upload className="w-4 h-4" />
             {uploading ? 'Mengimport...' : 'Import'}
-            <input type="file" accept=".xlsx,.xls,.csv" onChange={handleImport} className="hidden" disabled={uploading || !selectedPeriode} />
+            <input type="file" accept=".xlsx,.xls,.csv" onChange={handleImport} className="hidden" disabled={uploading} />
           </label>
         </div>
       </div>
 
-      {/* Search + Periode */}
-      <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-4 flex flex-col sm:flex-row gap-3">
+      {/* Search */}
+      <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-4">
         <div className="relative flex-1">
           <Search className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
           <input type="text" value={search} onChange={e => setSearch(e.target.value)}
             placeholder="Cari nama atau ID Dosen..."
             className="w-full pl-9 pr-4 py-2 border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 bg-gray-50" />
         </div>
-<select
-  value={selectedPeriode ?? ''}
-  onChange={(e) => setLocalPeriode(periode.find(p => String(p.id) === String(e.target.value)))}
-  className="px-3 py-2 border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 bg-gray-50"
->
-  {periode.map((p) => (
-    <option key={p.id} value={p.id}>{p.nama_periode}</option>
-  ))}
-</select>
       </div>
 
       {/* Tabel */}
       <div className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden">
         <div className="px-6 py-4 border-b border-gray-100 flex items-center justify-between">
-          <h2 className="font-bold text-gray-800">Roster Pembimbing MBKM</h2>
+          <h2 className="font-bold text-gray-800">Daftar Dosen</h2>
           <span className="text-sm text-gray-400">{filtered.length} dosen</span>
         </div>
         <div className="overflow-x-auto">
@@ -234,21 +218,17 @@ export default function StaffDosenMBKM() {
               </tr>
             </thead>
             <tbody className="divide-y divide-gray-100">
-{loading && selectedPeriode ? (
-  <tr><td colSpan={7} className="text-center py-12">
-    <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-blue-600 mx-auto" />
-  </td></tr>
-) : !selectedPeriode ? (
-                <tr><td colSpan={7} className="text-center py-12 text-gray-400 text-sm">
-                  Belum ada periode yang bisa dipilih.
+              {loading ? (
+                <tr><td colSpan={7} className="text-center py-12">
+                  <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-blue-600 mx-auto" />
                 </td></tr>
               ) : filtered.length === 0 ? (
                 <tr><td colSpan={7} className="text-center py-12 text-gray-400 text-sm">
                   <Users className="w-10 h-10 mx-auto mb-2 text-gray-200" />
-                  Belum ada dosen di roster MBKM periode ini
+                  Belum ada data dosen
                 </td></tr>
               ) : filtered.map((d, i) => (
-                <tr key={d.roster_id} className="hover:bg-gray-50 transition-colors">
+                <tr key={d.id} className="hover:bg-gray-50 transition-colors">
                   <td className="px-6 py-4 text-sm text-gray-500">{i + 1}</td>
                   <td className="px-6 py-4 text-sm font-mono text-gray-700">{d.id_dosen}</td>
                   <td className="px-6 py-4 text-sm font-medium text-gray-800">{d.nama}</td>
@@ -282,7 +262,7 @@ export default function StaffDosenMBKM() {
             <div className="flex items-center justify-between p-6 border-b border-gray-100">
               <div className="flex items-center gap-2">
                 <UserPlus className="w-5 h-5 text-blue-600" />
-                <h2 className="font-bold text-gray-800">Tambah Dosen ke daftar pembimbing MBKM</h2>
+                <h2 className="font-bold text-gray-800">Tambah Dosen</h2>
               </div>
               <button onClick={handleCloseTambah} className="p-2 hover:bg-gray-100 rounded-xl">
                 <X className="w-5 h-5 text-gray-500" />
@@ -290,7 +270,7 @@ export default function StaffDosenMBKM() {
             </div>
             <div className="p-6 space-y-4">
               <div>
-                <label className="text-xs font-semibold text-gray-600 block mb-1.5">ID Dosen <span className="text-red-500">*</span></label>
+                <label className="text-xs font-semibold text-gray-600 block mb-1.5">ID Dosen (NIDN) <span className="text-red-500">*</span></label>
                 <input type="text" name="id_dosen" value={tambahForm.id_dosen} onChange={handleTambahChange}
                   placeholder="Contoh: 19.321.008"
                   className="w-full px-3 py-2.5 border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 bg-gray-50" />
@@ -313,6 +293,7 @@ export default function StaffDosenMBKM() {
                   placeholder="Contoh: Sistem dan Teknologi Informasi"
                   className="w-full px-3 py-2.5 border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 bg-gray-50" />
               </div>
+
               <div className="flex gap-3 pt-2">
                 <button onClick={handleCloseTambah}
                   className="flex-1 py-2.5 border border-gray-200 text-gray-600 rounded-xl text-sm font-semibold hover:bg-gray-50">
@@ -342,9 +323,9 @@ export default function StaffDosenMBKM() {
                 <X className="w-5 h-5 text-gray-500" />
               </button>
             </div>
-            <div className="p-4 space-y-4">
+            <div className="p-6 space-y-4">
               <div>
-                <label className="text-xs font-semibold text-gray-600 block mb-1.5">ID Dosen <span className="text-red-500">*</span></label>
+                <label className="text-xs font-semibold text-gray-600 block mb-1.5">ID Dosen (NIDN) <span className="text-red-500">*</span></label>
                 <input type="text" name="id_dosen" value={editForm.id_dosen} onChange={handleEditChange}
                   placeholder="Contoh: 19.321.008"
                   className="w-full px-3 py-2.5 border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-amber-400 bg-gray-50" />
