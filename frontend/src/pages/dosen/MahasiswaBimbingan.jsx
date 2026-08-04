@@ -203,7 +203,7 @@ export default function DosenMahasiswaBimbingan() {
                     <a href={showDetail.link_pelatihan} target="_blank" rel="noreferrer"
                       className="text-sm text-blue-600 hover:underline break-all">{showDetail.link_pelatihan || '-'}</a>
                     <p className="text-xs text-gray-400 mt-1">Durasi</p>
-                    <p className="text-sm text-gray-700">{showDetail.durasi_pelatihan_jam || 0} jam</p>
+                    <p className="text-sm text-gray-700">{Number(showDetail.durasi_pelatihan_jam) || 0} jam</p>
                   </div>
                 )}
 
