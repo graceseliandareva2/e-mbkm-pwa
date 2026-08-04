@@ -211,9 +211,9 @@ export default function DosenMahasiswaBimbingan() {
                   const total = Number(showDetail.durasi_pelatihan_jam) || 0
                   return (
                     <div className={`flex justify-between px-3 py-2 rounded-xl text-sm font-semibold
-                      ${total >= 48 ? 'bg-green-50 text-green-700' : 'bg-orange-50 text-orange-700'}`}>
+                      ${total >= 30 ? 'bg-green-50 text-green-700' : 'bg-orange-50 text-orange-700'}`}>
                       <span>Total Waktu Pembelajaran</span>
-                      <span>{total} jam {total >= 48 ? '✓' : `(kurang ${48 - total} jam)`}</span>
+                      <span>{total} jam {total >= 30 ? '✓' : `(kurang ${30 - total} jam)`}</span>
                     </div>
                   )
                 })()}
