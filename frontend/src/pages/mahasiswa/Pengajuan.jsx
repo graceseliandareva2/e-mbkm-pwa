@@ -237,7 +237,23 @@ export default function MahasiswaPengajuan() {
         <input className={inputClass} value={form.nama_lengkap} disabled readOnly />
       </Field>
 
-     if (!form.dosen_pa_id)              return 'Dosen Pembimbing Akademik wajib dipilih'
+      {/* Dosen Pembimbing Akademik -- dropdown dari GET /mahasiswa/dosen-pa */}
+      <Field label="Dosen Pembimbing Akademik" required>
+        <select
+          className={inputClass}
+          value={form.dosen_pa_id}
+          onChange={e => setForm({ ...form, dosen_pa_id: e.target.value })}
+          disabled={disabled}
+        >
+          <option value="">Pilih Dosen Pembimbing Akademik</option>
+          {dosenPAList.map(d => (
+            <option key={d.id} value={d.id}>{d.nama}</option>
+          ))}
+        </select>
+        {!disabled && dosenPAList.length === 0 && (
+          <p className="text-xs text-gray-400 mt-1">Memuat daftar dosen...</p>
+        )}
+      </Field>
 
       {/* Detail Capstone Project -- field sesuai kontrak backend */}
       <Field label="Judul Capstone Project" required>

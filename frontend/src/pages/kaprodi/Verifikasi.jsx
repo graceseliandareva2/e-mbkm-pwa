@@ -263,32 +263,21 @@ export default function KaprodiVerifikasi() {
                   <p className="text-sm text-gray-700">{showDetail.dosen_pembimbing_akademik || '-'}</p>
                 </div>
 
-                {getPelatihanArray(showDetail.pelatihan).map((p, idx) => (
-                  <div key={idx} className="bg-gray-50 rounded-xl p-3 border border-gray-100 space-y-1">
-                    <p className="text-xs font-bold text-gray-600">
-                      Pelatihan {idx + 1}{idx === 0 ? ' (Utama)' : ' (Tambahan)'}
-                    </p>
-                    <p className="text-xs text-gray-400">Judul Pelatihan</p>
-                    <p className="text-sm text-gray-700">{p.nama || '-'}</p>
-                    <p className="text-xs text-gray-400 mt-1">Link</p>
-                    <a href={p.link} target="_blank" rel="noreferrer"
-                      className="text-sm text-blue-600 hover:underline break-all">{p.link || '-'}</a>
-                    <p className="text-xs text-gray-400 mt-1">Durasi</p>
-                    <p className="text-sm text-gray-700">{p.durasi_jam} jam</p>
-                  </div>
-                ))}
+                <div className="bg-gray-50 rounded-xl p-3 border border-gray-100 space-y-1">
+                  <p className="text-xs font-bold text-gray-600">Pelatihan</p>
+                  <p className="text-xs text-gray-400">Judul Pelatihan</p>
+                  <p className="text-sm text-gray-700">{showDetail.nama_pelatihan || '-'}</p>
+                  <p className="text-xs text-gray-400 mt-1">Link</p>
+                  <a href={showDetail.link_pelatihan} target="_blank" rel="noreferrer"
+                    className="text-sm text-blue-600 hover:underline break-all">{showDetail.link_pelatihan || '-'}</a>
+                  <p className="text-xs text-gray-400 mt-1">Durasi</p>
+                  <p className="text-sm text-gray-700">{Number(showDetail.durasi_pelatihan_jam ?? 0)} jam</p>
+                </div>
 
-                {(() => {
-                  const total = getPelatihanArray(showDetail.pelatihan)
-                    .reduce((sum, p) => sum + (Number(p.durasi_jam) || 0), 0)
-                  return (
-                    <div className={`flex justify-between px-3 py-2 rounded-xl text-sm font-semibold
-                      ${total >= 48 ? 'bg-green-50 text-green-700' : 'bg-orange-50 text-orange-700'}`}>
-                      <span>Total Waktu Pembelajaran</span>
-                      <span>{total} jam</span>
-                    </div>
-                  )
-                })()}
+                <div className={`flex justify-between px-3 py-2 rounded-xl text-sm font-semibold ${Number(showDetail.durasi_pelatihan_jam ?? 0) >= 48 ? 'bg-green-50 text-green-700' : 'bg-orange-50 text-orange-700'}`}>
+                  <span>Total Waktu Pembelajaran</span>
+                  <span>{Number(showDetail.durasi_pelatihan_jam ?? 0)} jam</span>
+                </div>
               </div>
 
               {showDetail.status === 'diajukan' && (

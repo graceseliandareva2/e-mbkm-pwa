@@ -400,27 +400,24 @@ const hapusMahasiswa = async (req, res) => {
   const conn = await db.getConnection();
   try {
     const { id } = req.params;
-
     const [mhs] = await conn.query("SELECT * FROM users WHERE id_users = ? AND role = 'mahasiswa'", [id]);
     if (!mhs.length) {
-      conn.release();
-      return res.status(404).json({ message: "Mahasiswa tidak ditemukan." });
+      return res.status(404).json({ message: "Mahasiswa tidak ditemukan." }); // gak perlu conn.release() manual
     }
 
     await conn.beginTransaction();
-
     await conn.query("DELETE FROM notifikasi WHERE user_id = ?", [id]);
     await conn.query("DELETE FROM pengajuan WHERE mahasiswa_id = ?", [id]);
     await conn.query("DELETE FROM users WHERE id_users = ?", [id]);
-
     await conn.commit();
+
     res.json({ message: "Mahasiswa berhasil dihapus." });
   } catch (error) {
     await conn.rollback();
     console.error("hapusMahasiswa error:", error);
     res.status(500).json({ message: "Gagal menghapus mahasiswa.", detail: error.message });
   } finally {
-    conn.release();
+    conn.release(); // satu-satunya tempat release
   }
 };
 

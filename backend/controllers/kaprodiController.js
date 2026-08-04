@@ -27,16 +27,13 @@ const enforceRentangCap = async (periodeId = null) => {
 const getPeriode = async (req, res) => {
   try {
     await enforceRentangCap();
-    const [rows] = await db.query("SELECT * FROM periode ORDER BY created_at DESC");
+    const [rows] = await db.query("SELECT *, id_periode AS id FROM periode ORDER BY created_at DESC");
     res.json({ data: rows });
   } catch (error) {
     res.status(500).json({ message: "Terjadi kesalahan server." });
   }
 };
 
-// jenis sudah dihapus dari periode (gak ada lagi beda mbkm/studi independen/keduanya).
-// tanggal_mulai_ppt & tanggal_mulai_laporan TIDAK PERNAH ADA sebagai kolom terpisah --
-// yang ada cuma satu kolom gabungan tanggal_mulai_dokumen dipakai bareng PPT & Laporan Akhir.
 const tambahPeriode = async (req, res) => {
   try {
     const {
@@ -322,8 +319,11 @@ const getDosenRosterPA = async (req, res) => {
   }
 };
 
-// Sekarang jadi SATU-SATUNYA jalur approve: assign dosen = otomatis approve pengajuan
-// (sesuai gate resmi status='disetujui_kaprodi' AND dosen_id IS NOT NULL).
+// Assign dosen SEKARANG TERPISAH dari approve. Approve (set status='disetujui_kaprodi')
+// dilakukan lewat verifikasiPengajuan() -- fungsi ini cuma boleh dipakai SETELAH pengajuan
+// sudah berstatus 'disetujui_kaprodi', dan cuma mengisi/mengganti dosen_id.
+// Gerbang resmi logbook & dokumen (status='disetujui_kaprodi' AND dosen_id IS NOT NULL)
+// baru terpenuhi penuh setelah langkah ini.
 const assignDosen = async (req, res) => {
   try {
     const { mahasiswa_id, dosen_id, periode_id } = req.body;
@@ -333,13 +333,17 @@ const assignDosen = async (req, res) => {
     }
 
     const [pengajuanRows] = await db.query(
-      `SELECT id_pengajuan FROM pengajuan WHERE mahasiswa_id = ? AND periode_id = ?`,
+      `SELECT id_pengajuan, status FROM pengajuan WHERE mahasiswa_id = ? AND periode_id = ?`,
       [mahasiswa_id, periode_id]
     );
     if (!pengajuanRows.length) {
       return res.status(404).json({ message: "Pengajuan mahasiswa ini di periode tersebut tidak ditemukan." });
     }
     const pengajuanId = pengajuanRows[0].id_pengajuan;
+
+    if (pengajuanRows[0].status !== 'disetujui_kaprodi') {
+      return res.status(400).json({ message: "Pengajuan harus diverifikasi (disetujui) Kaprodi terlebih dahulu sebelum dosen pembimbing bisa di-assign." });
+    }
 
     const [dosenRows] = await db.query(
       "SELECT id_users FROM users WHERE id_users = ? AND role = 'dosen' AND current_periode_id = ?",
@@ -350,22 +354,22 @@ const assignDosen = async (req, res) => {
     }
 
     await db.query(
-      "UPDATE pengajuan SET dosen_id = ?, status = 'disetujui_kaprodi' WHERE id_pengajuan = ?",
+      "UPDATE pengajuan SET dosen_id = ? WHERE id_pengajuan = ?",
       [dosen_id, pengajuanId]
     );
 
-    const pesan = "Pengajuan capstone kamu telah disetujui oleh Kaprodi dan dosen pembimbing sudah ditentukan.";
+    const pesan = "Dosen pembimbing untuk pengajuan capstone kamu sudah ditentukan. Kamu sekarang bisa mulai mengisi logbook.";
     await db.query(
       "INSERT INTO notifikasi (id_notifikasi, user_id, judul, pesan, tipe) VALUES (?, ?, ?, ?, ?)",
-      [uuidv4(), mahasiswa_id, "Status Pengajuan Capstone", pesan, "sukses"]
+      [uuidv4(), mahasiswa_id, "Dosen Pembimbing Ditentukan", pesan, "sukses"]
     );
     await sendPushToUser(mahasiswa_id, {
-      title: "Pengajuan Disetujui",
+      title: "Dosen Pembimbing Ditentukan",
       body: pesan,
       url: "/mahasiswa/pengajuan",
     });
 
-    res.json({ message: "Dosen pembimbing berhasil di-assign dan pengajuan disetujui." });
+    res.json({ message: "Dosen pembimbing berhasil di-assign." });
   } catch (error) {
     console.error('assignDosen error:', error);
     res.status(500).json({ message: "Terjadi kesalahan server." });
@@ -392,8 +396,8 @@ const getVerifikasiPengajuan = async (req, res) => {
         p.id_pengajuan AS id, p.mahasiswa_id, p.periode_id, p.status,
         p.catatan_kaprodi,
         p.created_at, p.updated_at, p.archived_at, p.archived_by,
-        dp.nama_pelatihan, dp.judul, dp.penyelenggara, dp.waktu_studi_independen, dp.deskripsi,
-        dp.lokasi, dp.tanggal_mulai, dp.tanggal_selesai,
+        dp.nama_pelatihan, dp.link_pelatihan, dp.durasi_pelatihan_jam, dp.judul, dp.penyelenggara, dp.waktu_studi_independen, dp.deskripsi,
+dp.lokasi, dp.tanggal_mulai, dp.tanggal_selesai,
         u.nim, u.nama as nama_mahasiswa, u.email,
         p.dosen_id, d.nama as nama_dosen
        FROM pengajuan p
@@ -411,20 +415,23 @@ const getVerifikasiPengajuan = async (req, res) => {
   }
 };
 
-// Sekarang cuma buat menolak/minta revisi. Approve WAJIB lewat assignDosen()
-// karena status='disetujui_kaprodi' selalu berbarengan dengan pengisian dosen_id.
+// Menyetujui (disetujui_kaprodi), menolak (ditolak), atau minta revisi (revisi).
+// Approve DI SINI TIDAK mengisi dosen_id -- dosen_id baru diisi belakangan lewat
+// assignDosen(), setelah mahasiswa muncul di halaman Assign Dosen (yang memfilter
+// status='disetujui_kaprodi'). Gerbang logbook/dokumen baru penuh terbuka setelah
+// assignDosen dijalankan.
 const verifikasiPengajuan = async (req, res) => {
   try {
     const { id } = req.params;
     const { status, catatan_kaprodi } = req.body;
 
-    if (!["ditolak", "revisi"].includes(status)) {
-      return res.status(400).json({ message: "Status tidak valid. Gunakan endpoint assign dosen untuk menyetujui pengajuan." });
+    if (!["disetujui_kaprodi", "ditolak", "revisi"].includes(status)) {
+      return res.status(400).json({ message: "Status tidak valid." });
     }
 
     await db.query(
       "UPDATE pengajuan SET status = ?, catatan_kaprodi = ? WHERE id_pengajuan = ?",
-      [status, catatan_kaprodi, id]
+      [status, catatan_kaprodi || null, id]
     );
 
     const [pengajuan] = await db.query(
@@ -435,15 +442,30 @@ const verifikasiPengajuan = async (req, res) => {
     if (pengajuan.length > 0) {
       const userId = pengajuan[0].mahasiswa_id; // mahasiswa_id == users.id_users
 
-      const pesan =
-        status === "revisi"
-          ? `Pengajuan capstone kamu perlu direvisi. Catatan: ${catatan_kaprodi}`
-          : `Pengajuan capstone kamu ditolak. Catatan: ${catatan_kaprodi}`;
+      let pesan;
+      let tipe;
+      if (status === "disetujui_kaprodi") {
+        pesan = "Pengajuan capstone kamu telah disetujui oleh Kaprodi. Dosen pembimbing akan segera ditentukan.";
+        tipe = "sukses";
+      } else if (status === "revisi") {
+        pesan = `Pengajuan capstone kamu perlu direvisi. Catatan: ${catatan_kaprodi}`;
+        tipe = "peringatan";
+      } else {
+        pesan = `Pengajuan capstone kamu ditolak. Catatan: ${catatan_kaprodi}`;
+        tipe = "peringatan";
+      }
 
       await db.query(
         "INSERT INTO notifikasi (id_notifikasi, user_id, judul, pesan, tipe) VALUES (?, ?, ?, ?, ?)",
-        [uuidv4(), userId, "Status Pengajuan Capstone", pesan, "peringatan"]
+        [uuidv4(), userId, "Status Pengajuan Capstone", pesan, tipe]
       );
+      if (status === "disetujui_kaprodi") {
+        await sendPushToUser(userId, {
+          title: "Pengajuan Disetujui",
+          body: pesan,
+          url: "/mahasiswa/pengajuan",
+        });
+      }
     }
 
     res.json({ message: "Status pengajuan berhasil diupdate." });
