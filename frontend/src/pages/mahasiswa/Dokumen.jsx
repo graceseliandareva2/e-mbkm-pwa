@@ -341,7 +341,8 @@ export default function MahasiswaDokumen() {
     } catch { toast.error('Gagal menghapus dokumen') }
   }
 
-  const isDisabled = pengajuan?.status !== 'disetujui_kaprodi'
+  // Terkunci jika pengajuan belum disetujui kaprodi ATAU sudah disetujui tapi dosen pembimbing belum di-assign
+  const isDisabled = pengajuan?.status !== 'disetujui_kaprodi' || !pengajuan?.dosen_id
   const VERIFIED_STATUSES = ['diverifikasi']
   const activeDokumen = dokumen.filter(d => !VERIFIED_STATUSES.includes(d.status))
   const historyDokumen = dokumen.filter(d => VERIFIED_STATUSES.includes(d.status))
@@ -411,7 +412,9 @@ export default function MahasiswaDokumen() {
         </div>
         <p className="font-semibold text-gray-700">Upload Dokumen Belum Tersedia</p>
         <p className="text-sm text-gray-400 mt-1 max-w-xs mx-auto">
-          Upload dokumen dapat dilakukan setelah pengajuan Capstone Project kamu disetujui oleh Kaprodi.
+          {pengajuan?.status !== 'disetujui_kaprodi'
+            ? 'Upload dokumen dapat dilakukan setelah pengajuan Capstone Project kamu disetujui oleh Kaprodi.'
+            : 'Upload dokumen dapat dilakukan setelah kamu mendapatkan dosen pembimbing dari Kaprodi.'}
         </p>
         {!navigator.onLine && (
           <p className="text-xs text-yellow-600 mt-3 bg-yellow-50 border border-yellow-100 rounded-xl px-3 py-2">

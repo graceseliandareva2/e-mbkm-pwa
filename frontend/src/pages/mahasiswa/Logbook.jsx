@@ -280,7 +280,8 @@ export default function MahasiswaLogbook() {
     } catch { toast.error('Gagal menghapus logbook') }
   }
 
-  const isDisabled = pengajuan?.status !== 'disetujui_kaprodi'
+  // Terkunci jika pengajuan belum disetujui kaprodi ATAU sudah disetujui tapi dosen pembimbing belum di-assign
+  const isDisabled = pengajuan?.status !== 'disetujui_kaprodi' || !pengajuan?.dosen_id
 
   const activeLogbooks = logbooks.filter(l => l.status !== 'diverifikasi')
   const historyLogbooks = logbooks.filter(l => l.status === 'diverifikasi')
@@ -444,7 +445,9 @@ export default function MahasiswaLogbook() {
         </div>
         <p className="font-semibold text-gray-700">Logbook Belum Tersedia</p>
         <p className="text-sm text-gray-400 mt-1 max-w-xs mx-auto">
-          Logbook dapat diisi setelah pengajuan Capstone Project kamu disetujui oleh Kaprodi.
+          {pengajuan?.status !== 'disetujui_kaprodi'
+            ? 'Logbook dapat diisi setelah pengajuan Capstone Project kamu disetujui oleh Kaprodi.'
+            : 'Logbook dapat diisi setelah kamu mendapatkan dosen pembimbing dari Kaprodi.'}
         </p>
         {!navigator.onLine && (
           <p className="text-xs text-yellow-600 mt-3 bg-yellow-50 border border-yellow-100 rounded-xl px-3 py-2">
