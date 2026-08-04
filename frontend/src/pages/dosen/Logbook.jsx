@@ -108,6 +108,7 @@ export default function DosenLogbook() {
     try {
       const res  = await api.get('/dosen/logbook', { params: { periode_id: periodeId, mahasiswa_id: mahasiswaId } })
       const list = res.data.data || []
+      console.log(list);
       setLogbooks(list)
       setCache(CACHE_LOGBOOK(periodeId, mahasiswaId), list)
     } catch {

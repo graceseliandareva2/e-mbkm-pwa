@@ -385,7 +385,7 @@ const getLogbookMahasiswa = async (req, res) => {
 
       const [rows] = await db.query(
         `
-        SELECT l.*, m.nama as nama_mahasiswa, m.nim
+        SELECT l.id_logbook AS id, l.*, m.nama as nama_mahasiswa, m.nim
         FROM logbook l
         JOIN pengajuan pc ON pc.id_pengajuan = l.pengajuan_id
         JOIN users m ON pc.mahasiswa_id = m.id_users
@@ -400,7 +400,7 @@ const getLogbookMahasiswa = async (req, res) => {
 
     const [rows] = await db.query(
       `
-      SELECT l.*, m.nama as nama_mahasiswa, m.nim
+      SELECT l.id_logbook AS id, l.*, m.nama as nama_mahasiswa, m.nim
       FROM logbook l
       JOIN pengajuan pc ON pc.id_pengajuan = l.pengajuan_id
       JOIN users m ON pc.mahasiswa_id = m.id_users
@@ -502,7 +502,7 @@ const getDokumenMahasiswa = async (req, res) => {
 
       const [rows] = await db.query(
         `
-        SELECT d.*, m.nama as nama_mahasiswa, m.nim
+        SELECT d.id_dokumen AS id, d.*, m.nama as nama_mahasiswa, m.nim
         FROM dokumen d
         JOIN pengajuan pc ON pc.id_pengajuan = d.pengajuan_id
         JOIN users m ON pc.mahasiswa_id = m.id_users
@@ -517,7 +517,7 @@ const getDokumenMahasiswa = async (req, res) => {
 
     const [rows] = await db.query(
       `
-      SELECT d.*, m.nama as nama_mahasiswa, m.nim
+      SELECT d.id_dokumen AS id, d.*, m.nama as nama_mahasiswa, m.nim
       FROM dokumen d
       JOIN pengajuan pc ON pc.id_pengajuan = d.pengajuan_id
       JOIN users m ON pc.mahasiswa_id = m.id_users
@@ -533,7 +533,6 @@ const getDokumenMahasiswa = async (req, res) => {
     res.status(500).json({ message: "Terjadi kesalahan server." });
   }
 };
-
 const verifikasiDokumen = async (req, res) => {
   try {
     const dsn = await getDosenProfile(req.user.id);

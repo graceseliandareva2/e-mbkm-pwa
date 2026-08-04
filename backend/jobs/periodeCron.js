@@ -3,6 +3,8 @@ const db = require('../config/db');
 const { sendEmail } = require('../utils/mailer');
 const { sendPushToUser } = require('../utils/pushSender');
 
+const TIMEZONE = 'Asia/Jakarta';
+
 const runAutoToggle = async () => {
   const conn = await db.getConnection();
   try {
@@ -121,18 +123,16 @@ const runAutoToggle = async () => {
   }
 };
 
-// Reminder deadline logbook (H-3 / H-1) — email (sudah ada) + push (baru)
+// Reminder deadline logbook (H-3 / H-1) — email (sudah ada) + push
 //
-// PERUBAHAN: tidak ada tabel `mahasiswa` terpisah -- data mahasiswa ada
-// langsung di `users` (role = 'mahasiswa'). `logbook` cuma punya
-// `pengajuan_id` (bukan mahasiswa_id/periode_id langsung), dan
-// `pengajuan` PK-nya `id_pengajuan` (bukan `id`). `periode` PK-nya
-// `id_periode` (bukan `id`, bukan `periode_id` -- itu cuma FK di tabel lain).
-// Juga SUM(l.jam) -> SUM(l.durasi_menit): l.jam satuannya JAM, bukan menit.
+// FIX: threshold jam logbook sebelumnya di-hardcode 2880 menit (48 jam).
+// Sekarang diambil dari periode.min_jam_pengajuan (target jam logbook
+// per periode, bisa beda-beda tiap periode). Fallback ke 48 jam kalau
+// kolom itu NULL/0 supaya tidak crash di periode lama yang belum diisi.
 const runDeadlineReminderLogbook = async (conn, todayStr) => {
   try {
     const [periodeList] = await conn.query(
-      `SELECT id_periode AS id, nama_periode, tanggal_selesai_logbook
+      `SELECT id_periode AS id, nama_periode, tanggal_selesai_logbook, min_jam_pengajuan
        FROM periode
        WHERE tanggal_selesai_logbook IS NOT NULL
          AND form_logbook_buka = 1
@@ -148,6 +148,9 @@ const runDeadlineReminderLogbook = async (conn, todayStr) => {
         (new Date(periode.tanggal_selesai_logbook) - new Date(todayStr)) / (1000 * 60 * 60 * 24)
       );
 
+      const targetJam = Number(periode.min_jam_pengajuan) > 0 ? Number(periode.min_jam_pengajuan) : 48;
+      const targetMenit = targetJam * 60;
+
       const [mahasiswaList] = await conn.query(
         `SELECT u.id_users AS id, u.id_users AS user_id, u.nama, u.email,
            COALESCE(SUM(l.durasi_menit), 0) as total_menit
@@ -156,15 +159,16 @@ const runDeadlineReminderLogbook = async (conn, todayStr) => {
          LEFT JOIN logbook l ON l.pengajuan_id = p.id_pengajuan AND l.status = 'diverifikasi'
          WHERE u.role = 'mahasiswa'
          GROUP BY u.id_users, u.nama, u.email
-         HAVING total_menit < 2880`,
-        [periode.id]
+         HAVING total_menit < ?`,
+        [periode.id, targetMenit]
       );
 
       for (const mhs of mahasiswaList) {
         const jamTerverifikasi = Math.floor(mhs.total_menit / 60);
         const menitTerverifikasi = mhs.total_menit % 60;
-        const sisaJam = Math.floor((2880 - mhs.total_menit) / 60);
-        const sisaMenit = (2880 - mhs.total_menit) % 60;
+        const sisaMenitTotal = targetMenit - mhs.total_menit;
+        const sisaJam = Math.floor(sisaMenitTotal / 60);
+        const sisaMenit = sisaMenitTotal % 60;
 
         if (mhs.email) {
           await sendEmail({
@@ -181,7 +185,7 @@ const runDeadlineReminderLogbook = async (conn, todayStr) => {
                   <div style="background: #eff6ff; border-left: 4px solid #1e4db7; padding: 12px 16px; border-radius: 4px; margin: 16px 0;">
                     <p style="margin: 0; color: #1e3a8a;"><strong>Progress Logbook Kamu:</strong></p>
                     <p style="margin: 8px 0 0; color: #1e40af;">
-                      Terverifikasi: ${jamTerverifikasi} jam ${menitTerverifikasi} menit / 48 jam<br>
+                      Terverifikasi: ${jamTerverifikasi} jam ${menitTerverifikasi} menit / ${targetJam} jam<br>
                       Kurang: ${sisaJam} jam ${sisaMenit} menit lagi
                     </p>
                   </div>
@@ -209,10 +213,6 @@ const runDeadlineReminderLogbook = async (conn, todayStr) => {
 };
 
 // Reminder deadline pengajuan (H-3 / H-1) — push only, hanya yang belum submit
-//
-// PERUBAHAN: tidak ada tabel `mahasiswa` terpisah -- pakai `users` (role =
-// 'mahasiswa'). "Belum submit" berarti baris pengajuan-nya di periode ini
-// masih berstatus 'draft'. `periode` PK-nya `id_periode`.
 const runDeadlineReminderPengajuan = async (conn, todayStr) => {
   try {
     const [periodeList] = await conn.query(
@@ -256,12 +256,6 @@ const runDeadlineReminderPengajuan = async (conn, todayStr) => {
 };
 
 // Reminder deadline dokumen PPT & Laporan Akhir (H-3 / H-1) — push only, hanya yang belum upload
-//
-// PERUBAHAN: tidak ada tabel `mahasiswa` terpisah -- pakai `users` (role =
-// 'mahasiswa'). Filter p.status = 'disetujui_kaprodi' karena upload dokumen
-// cuma boleh dilakukan mahasiswa yang pengajuannya sudah disetujui kaprodi.
-// PPT dan Laporan Akhir punya form terpisah (form_ppt_buka/form_laporan_buka),
-// jadi tiap entri config bawa kolomForm-nya sendiri. `periode` PK-nya `id_periode`.
 const runDeadlineReminderDokumen = async (conn, todayStr) => {
   const jenisConfig = [
     { jenis: 'ppt', kolomDeadline: 'tanggal_selesai_ppt', kolomForm: 'form_ppt_buka', label: 'PPT' },
@@ -317,14 +311,10 @@ const runDeadlineReminderDokumen = async (conn, todayStr) => {
   }
 };
 
-// Reminder harian jam 17:00 — push only, mahasiswa yang belum isi logbook hari ini
-//
-// PERUBAHAN: tidak ada tabel `mahasiswa` terpisah -- pakai `users` (role =
-// 'mahasiswa'). `periode` PK-nya `id_periode` (bukan `periode_id`),
-// `pengajuan` PK-nya `id_pengajuan`. Join periode pakai per.id_periode =
-// p.periode_id (sebelumnya ada bug: kondisi join ganda "= p.periode_id =
-// p.periode_id" yang salah). Filter p.status = 'disetujui_kaprodi' dengan
-// alasan yang sama seperti reminder dokumen.
+// Reminder harian logbook — push only, mahasiswa yang belum isi logbook hari ini.
+// Dipanggil 2x sehari (17:00 & 21:00) lewat cron di bawah. Aman dipanggil
+// berkali-kali dalam hari yang sama karena query-nya selalu re-check
+// "belum ada baris logbook hari ini" -- yang sudah isi otomatis ke-skip.
 const runLogbookHarianReminder = async () => {
   const conn = await db.getConnection();
   try {
@@ -367,9 +357,15 @@ const runLogbookHarianReminder = async () => {
 };
 
 const startPeriodeCron = () => {
-  cron.schedule('1 0 * * *', runAutoToggle);
-  cron.schedule('0 17 * * *', runLogbookHarianReminder);
-  console.log('[periodeCron] Scheduler aktif (00:01 auto-toggle & deadline, 17:00 reminder harian logbook)');
+  // 00:01 WIB -- auto buka/tutup form periode + reminder deadline H-3/H-1
+  cron.schedule('1 0 * * *', runAutoToggle, { timezone: TIMEZONE });
+
+  // 17:00 WIB & 21:00 WIB -- reminder harian "belum isi logbook hari ini"
+// 17:00 WIB & 22:00 WIB -- reminder harian "belum isi logbook hari ini"
+cron.schedule('0 17 * * *', runLogbookHarianReminder, { timezone: TIMEZONE });
+cron.schedule('0 22 * * *', runLogbookHarianReminder, { timezone: TIMEZONE });
+
+console.log('[periodeCron] Scheduler aktif (00:01 WIB auto-toggle & deadline, 17:00 & 22:00 WIB reminder harian logbook)');
 };
 
 module.exports = { startPeriodeCron, runAutoToggle, runLogbookHarianReminder };

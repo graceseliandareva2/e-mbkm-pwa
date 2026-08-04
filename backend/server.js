@@ -1,7 +1,7 @@
 const express = require("express");
 const cors = require("cors");
 const path = require("path");
-const { startPeriodeCron, runAutoToggle } = require("./jobs/periodeCron");
+const { startPeriodeCron } = require("./jobs/periodeCron");
 require("dotenv").config();
 
 const app = express();
@@ -56,6 +56,14 @@ const PORT = process.env.PORT || 5000;
 app.listen(PORT, () => {
   console.log(`Server berjalan di http://localhost:${PORT}`);
 });
+
+// PENTING: runAutoToggle() TIDAK dipanggil manual di sini lagi.
+// Sebelumnya ada `runAutoToggle();` langsung setelah startPeriodeCron() --
+// itu bikin fungsi reminder H-3/H-1 (yang tidak punya guard idempotensi)
+// ikut terpicu setiap kali server di-restart/redeploy. Kalau kebetulan
+// restart terjadi di hari H-3 atau H-1 deadline, mahasiswa bisa dapat
+// notif dobel/triple. Auto-toggle & reminder deadline cukup jalan lewat
+// cron terjadwal (00:01 WIB) di dalam startPeriodeCron().
 startPeriodeCron();
-runAutoToggle();
+
 console.log("Static folder:", path.join(__dirname, "uploads"));
