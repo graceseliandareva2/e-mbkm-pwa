@@ -18,10 +18,7 @@ export default function PeriodeSelector() {
     selectedPeriodeStaff, setSelectedPeriodeStaff,
   } = usePeriodeStore()
 
-  const isDosen = user?.role === 'dosen_pembimbing'
-  // FIX: role Staff di token/DB adalah 'staff_akademik' (sesuai nama tabel),
-  // bukan 'staff'. Sebelumnya perbandingan ini selalu false untuk Staff,
-  // jadi dia fallback ke default endpoint '/kaprodi/periode' -> 403 Forbidden.
+  const isDosen = user?.role === 'dosen'
   const isStaff = user?.role === 'staff_akademik'
 
   const endpoint = isDosen ? '/dosen/periode' : isStaff ? '/staff/periode' : '/kaprodi/periode'

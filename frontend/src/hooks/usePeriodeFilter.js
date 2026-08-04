@@ -43,7 +43,7 @@ export default function usePeriodeFilter(role) {
     let cancelled = false;
     if (!cfg) { setLoading(false); return; }
 
-   const resolve = async () => {
+ const resolve = async () => {
   setLoading(true);
   try {
     const res = await api.get(cfg.endpoint);
@@ -59,7 +59,7 @@ export default function usePeriodeFilter(role) {
       setGlobalPeriode(aktif);
     }
   } catch (err) {
-    console.error(`usePeriodeFilter(${resolvedRole}) gagal fetch periode:`, err);
+    console.error(`usePeriodeFilter(${resolvedRole}) GAGAL fetch dari ${cfg.endpoint}:`, err);
   } finally {
     if (!cancelled) setLoading(false);
   }
