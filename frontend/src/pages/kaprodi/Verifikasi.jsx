@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import { Search, CheckCircle, XCircle, FileText, X, ChevronDown } from 'lucide-react'
+import { Search, CheckCircle, XCircle, FileText, X } from 'lucide-react'
 import api from '../../utils/api'
 import toast from 'react-hot-toast'
 import { formatTanggal } from '../../utils/helpers'
@@ -14,7 +14,6 @@ export default function KaprodiVerifikasi() {
   const [catatan, setCatatan] = useState('')
   const [processing, setProcessing] = useState(false)
 
-  const [openPelatihan, setOpenPelatihan] = useState(null)
 
   const {
     periodeId: selectedPeriode,
@@ -81,13 +80,6 @@ export default function KaprodiVerifikasi() {
       draft:             { cls: 'bg-gray-100 text-gray-600',     label: 'Draft' },
     }
     return map[status] || { cls: 'bg-gray-100 text-gray-600', label: status }
-  }
-
-  const getPelatihanArray = (pelatihan) => {
-    try {
-      if (!pelatihan) return []
-      return typeof pelatihan === 'string' ? JSON.parse(pelatihan) : pelatihan
-    } catch { return [] }
   }
 
   const filtered = pengajuan.filter(p => {
@@ -157,10 +149,7 @@ export default function KaprodiVerifikasi() {
                 </td></tr>
               ) : filtered.map((p, i) => {
                 const { cls, label } = getStatusBadge(p.status)
-                const pelatihanList = getPelatihanArray(p.pelatihan)
-                const pelatihanUtama = pelatihanList[0]?.nama || '-'
-                const sisaCount = pelatihanList.length - 1
-                const isOpen = openPelatihan === p.id
+                const pelatihanUtama = p.nama_pelatihan || '-'
 
                 return (
                   <tr key={p.id} className="hover:bg-gray-50 transition-colors">
@@ -170,37 +159,7 @@ export default function KaprodiVerifikasi() {
                       <p className="text-xs text-gray-400">{p.nim}</p>
                     </td>
                     <td className="px-6 py-4 text-sm text-gray-700 max-w-xs align-top">
-                      {pelatihanList.length === 0 ? (
-                        <p className="truncate">-</p>
-                      ) : pelatihanList.length === 1 ? (
-                        <p className="truncate">{pelatihanUtama}</p>
-                      ) : (
-                        <div>
-                          <button
-                            onClick={() => setOpenPelatihan(isOpen ? null : p.id)}
-                            className="flex items-center gap-1.5 hover:text-blue-600 transition-colors"
-                          >
-                            <span className="truncate max-w-[160px]">{pelatihanUtama}</span>
-                            <span className="shrink-0 text-[10px] font-semibold bg-blue-50 text-blue-600 px-1.5 py-0.5 rounded-full">
-                              +{sisaCount}
-                            </span>
-                            <ChevronDown className={`w-3.5 h-3.5 shrink-0 text-gray-400 transition-transform ${isOpen ? 'rotate-180' : ''}`} />
-                          </button>
-
-                          {isOpen && (
-                            <div className="mt-2 border border-gray-100 rounded-lg divide-y divide-gray-100 bg-gray-50/50">
-                              {pelatihanList.map((pel, idx) => (
-                                <div key={idx} className="px-2.5 py-1.5">
-                                  <p className="text-[10px] font-semibold text-gray-400">
-                                    Pelatihan {idx + 1}{idx === 0 ? ' (Utama)' : ''}
-                                  </p>
-                                  <p className="text-sm text-gray-700 truncate">{pel.nama || '-'}</p>
-                                </div>
-                              ))}
-                            </div>
-                          )}
-                        </div>
-                      )}
+                      <p className="truncate">{pelatihanUtama}</p>
                     </td>
                     <td className="px-6 py-4 text-xs text-gray-500 align-top">{formatTanggal(p.created_at)}</td>
                     <td className="px-6 py-4 align-top">
