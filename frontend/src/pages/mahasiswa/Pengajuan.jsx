@@ -58,7 +58,6 @@ const mapResponseToForm = (data, user) => ({
   nim: data?.nim || user?.nim || '',
   nama_lengkap: data?.nama_lengkap || user?.nama || '',
   dosen_pa_id: data?.dosen_pa_id || '',
-  judul: data?.judul || '',
   penyelenggara: data?.penyelenggara || '',
   tanggal_mulai: toDateInputValue(data?.tanggal_mulai),
   tanggal_selesai: toDateInputValue(data?.tanggal_selesai),
@@ -138,9 +137,12 @@ export default function MahasiswaPengajuan() {
   const validate = (linkOverride) => {
     const link = linkOverride ?? form.link_pelatihan
 
-    if (!form.judul.trim())             return 'Judul Capstone Project wajib diisi'
     if (!form.penyelenggara.trim())     return 'Penyelenggara wajib diisi'
     if (!form.dosen_pa_id)              return 'Dosen Pembimbing Akademik wajib dipilih'
+    if (!form.tanggal_mulai)            return 'Tanggal mulai wajib diisi'
+    if (!form.tanggal_selesai)          return 'Tanggal selesai wajib diisi'
+    if (form.tanggal_selesai < form.tanggal_mulai)
+      return 'Tanggal selesai tidak boleh sebelum tanggal mulai'
     if (!form.nama_pelatihan.trim())    return 'Nama pelatihan wajib diisi'
     if (!link.trim())                   return 'Link pelatihan wajib diisi'
     if (!isValidUrl(link)) {
@@ -157,7 +159,7 @@ export default function MahasiswaPengajuan() {
   }
 
   const buildPayload = (linkOverride) => ({
-    judul: form.judul,
+    judul: form.nama_pelatihan, // judul capstone = nama pelatihan, tidak ada input terpisah lagi
     penyelenggara: form.penyelenggara,
     nama_pelatihan: form.nama_pelatihan,
     link_pelatihan: linkOverride ?? form.link_pelatihan,
@@ -255,23 +257,18 @@ export default function MahasiswaPengajuan() {
         )}
       </Field>
 
-      {/* Detail Capstone Project -- field sesuai kontrak backend */}
-      <Field label="Judul Capstone Project" required>
-        <input className={inputClass} value={form.judul}
-          onChange={e => setForm({ ...form, judul: e.target.value })} disabled={disabled}
-          placeholder="Contoh: Sistem Informasi Manajemen MBKM Berbasis Web" />
-      </Field>
+      {/* Judul Capstone Project sekarang otomatis diambil dari Nama Pelatihan, tidak ada input terpisah */}
       <Field label="Penyelenggara" required>
         <input className={inputClass} value={form.penyelenggara}
           onChange={e => setForm({ ...form, penyelenggara: e.target.value })} disabled={disabled}
-          placeholder="Contoh: PT Contoh Teknologi Indonesia" />
+          placeholder="Contoh: Coursera" />
       </Field>
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-        <Field label="Tanggal Mulai">
+        <Field label="Tanggal Mulai" required>
           <input className={inputClass} type="date" value={form.tanggal_mulai}
             onChange={e => setForm({ ...form, tanggal_mulai: e.target.value })} disabled={disabled} />
         </Field>
-        <Field label="Tanggal Selesai">
+        <Field label="Tanggal Selesai" required>
           <input className={inputClass} type="date" value={form.tanggal_selesai}
             onChange={e => setForm({ ...form, tanggal_selesai: e.target.value })} disabled={disabled} />
         </Field>
@@ -379,7 +376,7 @@ export default function MahasiswaPengajuan() {
         <div className="flex items-center justify-between gap-3">
           <div className="flex items-center gap-2 flex-wrap min-w-0">
             <p className="font-semibold text-gray-800 truncate">
-              {pengajuan.judul || '-'}
+              {pengajuan.nama_pelatihan || '-'}
             </p>
             <div className={`flex items-center gap-1.5 px-2.5 py-1 rounded-full border text-xs font-semibold flex-shrink-0
               ${statusCfg.color} ${statusCfg.bg} ${statusCfg.border}`}>

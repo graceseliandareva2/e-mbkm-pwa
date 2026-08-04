@@ -6,57 +6,18 @@ import {
   Check,
   GraduationCap,
   BookOpen,
-  ChevronDown,
-  ChevronUp,
 } from "lucide-react";
 import api from "../../utils/api";
 import toast from "react-hot-toast";
 import usePeriodeFilter from "../../hooks/usePeriodeFilter";
 
-function JudulCapstone({ pelatihan = [] }) {
-  const [expanded, setExpanded] = useState(false);
-
-  if (pelatihan.length === 0) {
+function JudulCapstone({ namaPelatihan }) {
+  if (!namaPelatihan) {
     return <span className="text-gray-400 italic text-xs">-</span>;
   }
 
-  if (pelatihan.length === 1) {
-    return (
-      <p className="text-sm text-gray-600 leading-relaxed">{pelatihan[0]}</p>
-    );
-  }
-
   return (
-    <div className="space-y-0">
-      {(expanded ? pelatihan : pelatihan.slice(0, 1)).map((judul, idx, arr) => (
-        <div key={idx}>
-          <p className="text-sm text-gray-700 leading-relaxed py-2">{judul}</p>
-          {idx < arr.length - 1 && <div className="border-t border-gray-200" />}
-        </div>
-      ))}
-      {!expanded && (
-        <div className="border-t border-gray-200">
-          <button
-            onClick={() => setExpanded(true)}
-            className="flex items-center gap-1 text-xs text-blue-500 hover:text-blue-700 font-medium pt-2"
-          >
-            <ChevronDown className="w-3 h-3" />+{pelatihan.length - 1} pelatihan
-            lainnya
-          </button>
-        </div>
-      )}
-      {expanded && (
-        <div className="border-t border-gray-200">
-          <button
-            onClick={() => setExpanded(false)}
-            className="flex items-center gap-1 text-xs text-blue-500 hover:text-blue-700 font-medium pt-2"
-          >
-            <ChevronUp className="w-3 h-3" />
-            Sembunyikan
-          </button>
-        </div>
-      )}
-    </div>
+    <p className="text-sm text-gray-600 leading-relaxed">{namaPelatihan}</p>
   );
 }
 
@@ -145,9 +106,7 @@ export default function KaprodiAssignDosen() {
     (p) =>
       p.nama?.toLowerCase().includes(search.toLowerCase()) ||
       p.nim?.toLowerCase().includes(search.toLowerCase()) ||
-      (p.pelatihan || []).some((judul) =>
-        judul.toLowerCase().includes(search.toLowerCase()),
-      ),
+      p.nama_pelatihan?.toLowerCase().includes(search.toLowerCase()),
   );
   const totalPages = Math.ceil(filtered.length / PAGE_SIZE);
   const paginated = filtered.slice(
@@ -260,7 +219,7 @@ export default function KaprodiAssignDosen() {
                       {p.program_studi || "-"}
                     </td>
                     <td className="px-6 py-4 max-w-[260px]">
-                      <JudulCapstone pelatihan={p.pelatihan || []} />
+                      <JudulCapstone namaPelatihan={p.nama_pelatihan} />
                     </td>
                     <td className="px-6 py-4 text-sm">
                       {p.nama_dosen ? (
@@ -382,7 +341,7 @@ export default function KaprodiAssignDosen() {
                     {showAssign.program_studi}
                   </p>
                 )}
-                {(showAssign.pelatihan || []).length > 0 && (
+                {showAssign.nama_pelatihan && (
                   <div className="ml-6 mt-2 space-y-1">
                     <div className="flex items-center gap-1.5 mb-1">
                       <BookOpen className="w-3.5 h-3.5 text-gray-400 flex-shrink-0" />
@@ -390,14 +349,9 @@ export default function KaprodiAssignDosen() {
                         Pelatihan:
                       </span>
                     </div>
-                    {showAssign.pelatihan.map((judul, idx) => (
-                      <p
-                        key={idx}
-                        className="text-xs text-gray-600 italic leading-relaxed ml-5"
-                      >
-                        {judul}
-                      </p>
-                    ))}
+                    <p className="text-xs text-gray-600 italic leading-relaxed ml-5">
+                      {showAssign.nama_pelatihan}
+                    </p>
                   </div>
                 )}
               </div>

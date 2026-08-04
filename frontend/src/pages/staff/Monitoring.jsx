@@ -291,7 +291,6 @@ const DetailMahasiswaModal = ({ row, onClose }) => {
               {/* Logbook Mahasiswa */}
               <div>
                 <h3 className="text-sm font-bold text-gray-700 mb-1">Logbook Mahasiswa</h3>
-                <p className="text-xs text-gray-400 mb-3">{row.nim} - {row.nama}</p>
                 <LogbookSection logbook={logbook} onPreview={setPreview} />
               </div>
 
