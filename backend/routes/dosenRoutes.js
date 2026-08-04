@@ -9,9 +9,12 @@ const {
   finalisasiNilai,
 } = require('../controllers/dosenController');
 const auth = [verifyToken, authorizeRoles('dosen')];
+
 router.get('/periode', auth, async (req, res) => {
   try {
-    const [rows] = await db.query("SELECT * FROM periode ORDER BY created_at DESC");
+    const [rows] = await db.query(
+      "SELECT id_periode AS id, nama_periode, is_active FROM periode ORDER BY created_at DESC"
+    );
     res.json({ data: rows });
   } catch (err) {
     res.status(500).json({ message: 'Terjadi kesalahan server.' });
@@ -30,4 +33,5 @@ router.post('/feedback', auth, berikanFeedback);
 router.get('/penilaian/ekspor', auth, eksporPenilaianPDF);
 router.get('/penilaian/ekspor-semua', auth, eksporSemuaPenilaianPDF);
 router.get('/mahasiswa-siap-dinilai', auth, getMahasiswaSiapDinilai);
+
 module.exports = router;
