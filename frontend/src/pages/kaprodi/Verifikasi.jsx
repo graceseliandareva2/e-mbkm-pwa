@@ -260,7 +260,7 @@ export default function KaprodiVerifikasi() {
                 </div>
                 <div>
                   <p className="text-xs text-gray-400 mb-1">Dosen Pembimbing Akademik</p>
-                  <p className="text-sm text-gray-700">{showDetail.dosen_pembimbing_akademik || '-'}</p>
+                  <p className="text-sm text-gray-700">{showDetail.nama_dosen_pa || '-'}</p>
                 </div>
 
                 <div className="bg-gray-50 rounded-xl p-3 border border-gray-100 space-y-1">
