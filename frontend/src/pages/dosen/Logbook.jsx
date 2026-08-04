@@ -340,7 +340,7 @@ export default function DosenLogbook() {
                     </div>
                     <p className="text-xs text-gray-400 mt-0.5">
                       {new Date(log.tanggal).toLocaleDateString('id-ID', { day: 'numeric', month: 'long', year: 'numeric' })}
-                      {' · '}{formatDurasi(log.jam)}
+                      {' · '}{formatDurasi(log.durasi_menit)}
                     </p>
                   </div>
                 </div>
