@@ -33,6 +33,7 @@ const MahasiswaDashboard  = lazy(() => import('./pages/mahasiswa/Dashboard'))
 const MahasiswaPengajuan  = lazy(() => import('./pages/mahasiswa/Pengajuan'))
 const MahasiswaLogbook    = lazy(() => import('./pages/mahasiswa/Logbook'))
 const MahasiswaDokumen    = lazy(() => import('./pages/mahasiswa/Dokumen'))
+const MahasiswaRiwayat    = lazy(() => import('./pages/mahasiswa/Riwayat'))
 
 const DosenDashboard  = lazy(() => import('./pages/dosen/Dashboard'))
 const DosenMahasiswa  = lazy(() => import('./pages/dosen/MahasiswaBimbingan'))
@@ -51,7 +52,11 @@ const KaprodiBiodata       = lazy(() => import('./pages/kaprodi/Biodata'))
 
 const StaffDashboard = lazy(() => import('./pages/staff/Dashboard'))
 const StaffPengajuan = lazy(() => import('./pages/staff/Pengajuan'))
+// PERUBAHAN (item #6): halaman CRUD mahasiswa/dosen pindah ke area Staff.
 const StaffDataMahasiswa = lazy(() => import('./pages/staff/DataMahasiswa'))
+// PERUBAHAN: "Data Dosen" balik jadi 1 halaman tunggal (bukan 2 halaman
+// MBKM/Akademik lagi). Dosen cuma 1 tabel (users role='dosen'), gak ada
+// tabel roster per-periode, jadi gak ada alasan buat dipisah.
 const StaffDosen      = lazy(() => import('./pages/staff/Dosen'))
 const StaffMonitoring    = lazy(() => import('./pages/staff/Monitoring'))
 const BiodataPage = lazy(() => import('./components/common/BiodataPage'))
@@ -98,9 +103,11 @@ const RoleRedirect = () => {
   if (!hydrated) return null
   if (!isAuthenticated) return <Navigate to="/login" replace />
 
+  // PERUBAHAN: role dosen sekarang 'dosen' (bukan 'dosen_pembimbing' lagi --
+  // sudah disederhanakan pas migrasi restrukturisasi users).
   const redirectMap = {
     mahasiswa:        '/mahasiswa/dashboard',
-    dosen_pembimbing: '/dosen/dashboard',
+    dosen:             '/dosen/dashboard',
     kaprodi:          '/kaprodi/dashboard',
     staff_akademik:   '/staff/dashboard',
   }
@@ -124,11 +131,13 @@ export default function App() {
             <Route path="pengajuan" element={<MahasiswaPengajuan />} />
             <Route path="logbook"   element={<MahasiswaLogbook />} />
             <Route path="dokumen"   element={<MahasiswaDokumen />} />
+            <Route path="riwayat"   element={<MahasiswaRiwayat />} />
             <Route path="biodata"   element={<BiodataPage />} />
           </Route>
 
+          {/* PERUBAHAN: allowedRoles pakai 'dosen' (bukan 'dosen_pembimbing' lagi) */}
           <Route path="/dosen" element={
-            <ProtectedRoute allowedRoles={['dosen_pembimbing']}><DosenLayout /></ProtectedRoute>
+            <ProtectedRoute allowedRoles={['dosen']}><DosenLayout /></ProtectedRoute>
           }>
             <Route path="dashboard" element={<DosenDashboard />} />
             <Route path="mahasiswa" element={<DosenMahasiswa />} />
@@ -144,8 +153,14 @@ export default function App() {
             <Route path="dashboard"    element={<KaprodiDashboard />} />
             <Route path="periode"      element={<KaprodiPeriode />} />
             <Route path="mahasiswa"    element={<KaprodiDataMahasiswa />} />
+            {/* BARU: route "verifikasi" & "monitoring" sebelumnya hilang -- 
+                komponennya sudah di-import tapi belum didaftarkan sebagai Route,
+                jadi navigate('/kaprodi/verifikasi') & ('/kaprodi/monitoring')
+                jatuh ke catch-all "*" dan balik ke dashboard. */}
+            <Route path="verifikasi"   element={<KaprodiVerifikasi />} />
             <Route path="assign-dosen" element={<KaprodiAssignDosen />} />
             <Route path="dosen"        element={<KaprodiDosen/>}/>
+            <Route path="monitoring"   element={<KaprodiMonitoring />} />
             <Route path="biodata"      element={<KaprodiBiodata />} />
           </Route>
 
@@ -155,6 +170,8 @@ export default function App() {
             <Route path="dashboard"  element={<StaffDashboard />} />
             <Route path="pengajuan"  element={<StaffPengajuan />} />
             <Route path="mahasiswa"  element={<StaffDataMahasiswa />} />
+            {/* FIX: sebelumnya <staffDosen /> (huruf kecil) -- React menganggap ini
+                tag HTML biasa, bukan komponen, sekarang dibetulkan ke <StaffDosen />. */}
             <Route path="dosen"      element={<StaffDosen />} />
             <Route path="biodata"    element={<BiodataPage />} />
             <Route path="monitoring" element={<StaffMonitoring />} />

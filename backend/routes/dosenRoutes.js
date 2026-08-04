@@ -8,8 +8,7 @@ const {
   eksporPenilaianPDF, eksporSemuaPenilaianPDF, getMahasiswaSiapDinilai,
   finalisasiNilai,
 } = require('../controllers/dosenController');
-const auth = [verifyToken, authorizeRoles('dosen_pembimbing')];
-
+const auth = [verifyToken, authorizeRoles('dosen')];
 router.get('/periode', auth, async (req, res) => {
   try {
     const [rows] = await db.query("SELECT * FROM periode ORDER BY created_at DESC");

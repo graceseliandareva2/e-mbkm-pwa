@@ -209,27 +209,29 @@ const tambahPengajuan = async (req, res) => {
     // pembedaan mbkm/studi-independen/keduanya, jadi cek roster dibuang.
 
     const {
-      judul, penyelenggara, deskripsi, lokasi,
-      nama_pelatihan, link_pelatihan, durasi_pelatihan_jam,
-      tanggal_mulai, tanggal_selesai, dosen_pa_id,
-    } = req.body;
+  judul, penyelenggara, deskripsi, lokasi,
+  nama_pelatihan, link_pelatihan, durasi_pelatihan_jam,
+  tanggal_mulai, tanggal_selesai, dosen_pa_id,
+} = req.body;
 
-    if (!judul || !penyelenggara || !nama_pelatihan) {
-      connection.release();
-      return res.status(400).json({ message: "Judul, penyelenggara, dan pelatihan wajib diisi." });
-    }
+if (!judul || !penyelenggara || !nama_pelatihan) {
+  connection.release();
+  return res.status(400).json({ message: "Judul, penyelenggara, dan pelatihan wajib diisi." });
+}
 
-    // dosen_pa_id opsional, tapi kalau diisi wajib dosen yang valid & aktif di periode ini.
-    if (dosen_pa_id) {
-      const [dosenPaRows] = await db.query(
-        `SELECT id_users FROM users WHERE id_users = ? AND role = 'dosen' AND current_periode_id = ?`,
-        [dosen_pa_id, periode.id_periode]
-      );
-      if (!dosenPaRows.length) {
-        connection.release();
-        return res.status(400).json({ message: "Dosen PA yang dipilih tidak valid." });
-      }
-    }
+// dosen_pa_id wajib -- setiap pengajuan harus punya dosen pembimbing akademik.
+if (!dosen_pa_id) {
+  connection.release();
+  return res.status(400).json({ message: "Dosen Pembimbing Akademik wajib dipilih." });
+}
+const [dosenPaRows] = await db.query(
+  `SELECT id_users FROM users WHERE id_users = ? AND role = 'dosen' AND current_periode_id = ?`,
+  [dosen_pa_id, periode.id_periode]
+);
+if (!dosenPaRows.length) {
+  connection.release();
+  return res.status(400).json({ message: "Dosen PA yang dipilih tidak valid." });
+}
 
     // Skema baru: 1 pengajuan = 1 pelatihan (field tunggal, bukan array 1-3 lagi).
     const durasiJam = Number(durasi_pelatihan_jam) || 0;
@@ -313,16 +315,18 @@ const updatePengajuan = async (req, res) => {
       return res.status(400).json({ message: "Judul, penyelenggara, dan pelatihan wajib diisi." });
     }
 
-    if (dosen_pa_id) {
-      const [dosenPaRows] = await db.query(
-        `SELECT id_users FROM users WHERE id_users = ? AND role = 'dosen' AND current_periode_id = ?`,
-        [dosen_pa_id, pengajuan[0].periode_id]
-      );
-      if (!dosenPaRows.length) {
-        connection.release();
-        return res.status(400).json({ message: "Dosen PA yang dipilih tidak valid." });
-      }
-    }
+   if (!dosen_pa_id) {
+  connection.release();
+  return res.status(400).json({ message: "Dosen Pembimbing Akademik wajib dipilih." });
+}
+const [dosenPaRows] = await db.query(
+  `SELECT id_users FROM users WHERE id_users = ? AND role = 'dosen' AND current_periode_id = ?`,
+  [dosen_pa_id, pengajuan[0].periode_id]
+);
+if (!dosenPaRows.length) {
+  connection.release();
+  return res.status(400).json({ message: "Dosen PA yang dipilih tidak valid." });
+}
 
     const [periodeRow] = await db.query(
       "SELECT min_jam_pengajuan FROM periode WHERE id_periode = ?",
@@ -348,7 +352,7 @@ const updatePengajuan = async (req, res) => {
        WHERE pengajuan_id = ?`,
       [
         judul, penyelenggara, deskripsi || null, lokasi || null,
-        nama_pelatihan, link_pelatihan || null, durasiJam, dosen_pa_id || null,
+        nama_pelatihan, link_pelatihan || null, durasiJam, dosen_pa_id,
         tanggal_mulai || null, tanggal_selesai || null, id,
       ]
     );

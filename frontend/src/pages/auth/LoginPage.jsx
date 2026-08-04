@@ -23,7 +23,7 @@ login(res.data.user, res.data.token)
 toast.success(res.data.message)
       const redirectMap = {
         mahasiswa: '/mahasiswa/dashboard',
-        dosen_pembimbing: '/dosen/dashboard', 
+        dosen: '/dosen/dashboard', 
         kaprodi: '/kaprodi/dashboard',
         staff_akademik: '/staff/dashboard',
       }

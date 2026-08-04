@@ -140,6 +140,7 @@ export default function MahasiswaPengajuan() {
 
     if (!form.judul.trim())             return 'Judul Capstone Project wajib diisi'
     if (!form.penyelenggara.trim())     return 'Penyelenggara wajib diisi'
+    if (!form.dosen_pa_id)              return 'Dosen Pembimbing Akademik wajib dipilih'
     if (!form.nama_pelatihan.trim())    return 'Nama pelatihan wajib diisi'
     if (!link.trim())                   return 'Link pelatihan wajib diisi'
     if (!isValidUrl(link)) {
@@ -236,26 +237,7 @@ export default function MahasiswaPengajuan() {
         <input className={inputClass} value={form.nama_lengkap} disabled readOnly />
       </Field>
 
-      <Field label="Dosen Pembimbing Akademik">
-        {disabled ? (
-          <input
-            className={inputClass}
-            value={dosenPAList.find(d => d.id === form.dosen_pa_id)?.nama || pengajuan?.nama_dosen_pa || '-'}
-            disabled readOnly
-          />
-        ) : (
-          <select
-            className={inputClass}
-            value={form.dosen_pa_id}
-            onChange={e => setForm({ ...form, dosen_pa_id: e.target.value })}
-          >
-            <option value="">-- Pilih Dosen PA (opsional) --</option>
-            {dosenPAList.map(d => (
-              <option key={d.id} value={d.id}>{d.nama}</option>
-            ))}
-          </select>
-        )}
-      </Field>
+     if (!form.dosen_pa_id)              return 'Dosen Pembimbing Akademik wajib dipilih'
 
       {/* Detail Capstone Project -- field sesuai kontrak backend */}
       <Field label="Judul Capstone Project" required>
