@@ -399,11 +399,13 @@ const getVerifikasiPengajuan = async (req, res) => {
         dp.nama_pelatihan, dp.link_pelatihan, dp.durasi_pelatihan_jam, dp.judul, dp.penyelenggara, dp.waktu_studi_independen, dp.deskripsi,
 dp.lokasi, dp.tanggal_mulai, dp.tanggal_selesai,
         u.nim, u.nama as nama_mahasiswa, u.email,
-        p.dosen_id, d.nama as nama_dosen
+        p.dosen_id, d.nama as nama_dosen,
+        dp.dosen_pa_id, dpa.nama as nama_dosen_pa
        FROM pengajuan p
        JOIN users u ON p.mahasiswa_id = u.id_users
        LEFT JOIN detail_pengajuan dp ON dp.pengajuan_id = p.id_pengajuan
        LEFT JOIN users d ON d.id_users = p.dosen_id
+       LEFT JOIN users dpa ON dpa.id_users = dp.dosen_pa_id
        WHERE p.periode_id = ?
        ORDER BY p.created_at DESC`,
       [periode_id]
