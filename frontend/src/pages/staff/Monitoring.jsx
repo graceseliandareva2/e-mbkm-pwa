@@ -108,6 +108,9 @@ const formatDurasi = (menit) => {
   return `${j}j ${m}m`
 }
 
+// Kolom "Pelatihan" dihapus dari sini -- nama_pelatihan itu properti per PENGAJUAN
+// (detail_pengajuan.nama_pelatihan, 1 pengajuan = 1 pelatihan), bukan per baris logbook.
+// Sekarang ditampilkan sekali di bagian "Informasi Mahasiswa" (lihat DetailMahasiswaModal).
 const LogbookSection = ({ logbook, onPreview }) => {
   if (!logbook.length) {
     return <p className="text-sm text-gray-400 italic">Belum ada entri logbook.</p>
@@ -122,7 +125,6 @@ const LogbookSection = ({ logbook, onPreview }) => {
               <th className="text-left px-3 py-2 text-xs font-semibold text-gray-500 uppercase">Tanggal</th>
               <th className="text-left px-3 py-2 text-xs font-semibold text-gray-500 uppercase">Jam</th>
               <th className="text-left px-3 py-2 text-xs font-semibold text-gray-500 uppercase">Kegiatan</th>
-              <th className="text-left px-3 py-2 text-xs font-semibold text-gray-500 uppercase">Pelatihan</th>
               <th className="text-center px-3 py-2 text-xs font-semibold text-gray-500 uppercase">Durasi</th>
               <th className="text-center px-3 py-2 text-xs font-semibold text-gray-500 uppercase">Status</th>
               <th className="text-center px-3 py-2 text-xs font-semibold text-gray-500 uppercase">Bukti</th>
@@ -146,7 +148,6 @@ const LogbookSection = ({ logbook, onPreview }) => {
                     {formatJam(l.jam_mulai)}–{formatJam(l.jam_selesai)}
                   </td>
                   <td className="px-3 py-2.5 text-gray-700 max-w-xs">{l.kegiatan || '-'}</td>
-                  <td className="px-3 py-2.5 text-gray-500">{l.nama_pelatihan || '-'}</td>
                   <td className="px-3 py-2.5 text-gray-500 text-center whitespace-nowrap">{formatDurasi(l.durasi_menit)}</td>
                   <td className="px-3 py-2.5 text-center"><LogbookStatusBadge status={l.status} /></td>
                   <td className="px-3 py-2.5 text-center">
@@ -277,6 +278,7 @@ const DetailMahasiswaModal = ({ row, onClose }) => {
                     { icon: User, label: 'Nama', value: row.nama },
                     { icon: GraduationCap, label: 'Program MBKM', value: row.program_mbkm || '-' },
                     { icon: GraduationCap, label: 'Dosen PA', value: row.dosen_pa || '-' },
+                    { icon: FileText, label: 'Pelatihan', value: row.nama_pelatihan || '-' },
                     { icon: Clock, label: 'Status Pengajuan', value: <StatusBadge status={row.status_pengajuan} /> },
                     { icon: FileText, label: 'Jumlah Entri Logbook', value: logbook.length },
                   ].map((f, i) => (
