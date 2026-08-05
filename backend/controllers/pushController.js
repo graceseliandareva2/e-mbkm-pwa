@@ -2,6 +2,7 @@ const db = require("../config/db");
 
 const subscribe = async (req, res) => {
   console.log("=== PUSH SUBSCRIBE MASUK ===");
+   console.log("Headers:", req.headers.authorization);
   console.log(req.body);
   console.log(req.user);
   try {
