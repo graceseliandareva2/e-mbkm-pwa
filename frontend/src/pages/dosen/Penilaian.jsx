@@ -374,17 +374,18 @@ export default function DosenPenilaian() {
               return (
                 <div
                   key={mhs.id}
-                  className="bg-white rounded-2xl shadow-sm border border-gray-100 p-4 flex items-center justify-between gap-4 hover:border-blue-200 transition"
+                  className="bg-white rounded-2xl shadow-sm border border-gray-100 p-4 hover:border-blue-200 transition"
                 >
+                  {/* Baris 1: avatar + info mahasiswa */}
                   <div className="flex items-center gap-3 min-w-0">
                     <div className="w-10 h-10 rounded-xl bg-blue-100 text-blue-700 font-bold text-sm flex items-center justify-center flex-shrink-0">
                       {mhs.nama?.charAt(0)}
                     </div>
-                    <div className="min-w-0">
+                    <div className="min-w-0 flex-1">
                       <p className="font-semibold text-gray-800 text-sm truncate">
                         {mhs.nama}
                       </p>
-                      <p className="text-xs text-gray-400">
+                      <p className="text-xs text-gray-400 truncate">
                         {mhs.nim} · {mhs.nama_periode}
                       </p>
                       {mhs.judul && (
@@ -395,7 +396,8 @@ export default function DosenPenilaian() {
                     </div>
                   </div>
 
-                  <div className="flex items-center gap-2 flex-shrink-0">
+                  {/* Baris 2: badge jam, badge status, tombol -- boleh wrap di layar sempit */}
+                  <div className="flex items-center gap-2 flex-wrap mt-3">
                     <div className="flex items-center gap-1 text-xs text-green-600 bg-green-50 px-2 py-1 rounded-lg">
                       <Clock className="w-3 h-3" />
                       {formatDurasi(mhs.total_jam_logbook)}
@@ -417,7 +419,7 @@ export default function DosenPenilaian() {
 
                     <button
                       onClick={() => handlePilihMhs(mhs)}
-                      className="px-4 py-2 bg-blue-600 text-white text-xs font-semibold rounded-xl hover:bg-blue-700 transition"
+                      className="ml-auto px-4 py-2 bg-blue-600 text-white text-xs font-semibold rounded-xl hover:bg-blue-700 transition"
                     >
                       {mhsLocked ? "Lihat Nilai" : mhs.penilaian_id ? "Edit Nilai" : "Beri Nilai"}
                     </button>

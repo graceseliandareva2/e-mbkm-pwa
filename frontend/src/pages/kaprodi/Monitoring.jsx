@@ -336,75 +336,75 @@ const DetailMahasiswaModal = ({ row, onClose }) => {
                 </div>
               </div>
 
-              {/* Logbook*/}
-              <div>
-                <h3 className="text-sm font-bold text-gray-700 mb-1">Logbook</h3>
-                <p className="text-xs text-gray-400 mb-3">{detail.nim} - {detail.nama} · {detail.jumlah_logbook} Entri Logbook</p>
-                {logbook.length === 0 ? (
-                  <p className="text-sm text-gray-400 italic">Belum ada entri logbook.</p>
-                ) : (
-                  <>
-                    <div className="border border-gray-100 rounded-xl overflow-hidden">
-                      <table className="w-full text-sm">
-                        <thead>
-                          <tr className="bg-gray-50">
-                            <th className="text-left px-3 py-2 text-xs font-semibold text-gray-500 uppercase">Tanggal</th>
-                            <th className="text-left px-3 py-2 text-xs font-semibold text-gray-500 uppercase">Jam</th>
-                            <th className="text-left px-3 py-2 text-xs font-semibold text-gray-500 uppercase">Kegiatan</th>
-                            <th className="text-left px-3 py-2 text-xs font-semibold text-gray-500 uppercase">Durasi</th>
-                            <th className="text-center px-3 py-2 text-xs font-semibold text-gray-500 uppercase">Bukti</th>
-                          </tr>
-                        </thead>
-                        <tbody className="divide-y divide-gray-100">
-                          {logPaginated.map(l => (
-                            <tr key={l.id}>
-                              <td className="px-3 py-2 text-gray-600 whitespace-nowrap">
-                                {new Date(l.tanggal).toLocaleDateString('id-ID')}
-                              </td>
-                              <td className="px-3 py-2 text-gray-500 whitespace-nowrap">
-                                {l.jam_mulai?.slice(0, 5)}–{l.jam_selesai?.slice(0, 5)}
-                              </td>
-                              <td className="px-3 py-2 text-gray-800">
-                                <div className="flex items-center gap-1.5 flex-wrap">
-                                  <span>{l.kegiatan}</span>
-                                  {l.nama_pelatihan && (
-                                    <span className="text-xs bg-blue-50 text-blue-600 px-2 py-0.5 rounded-full font-medium">
-                                      {l.nama_pelatihan}
-                                    </span>
-                                  )}
-                                </div>
-                              </td>
-                              <td className="px-3 py-2 text-gray-500 whitespace-nowrap">
-                                {l.durasi_menit != null ? `${Math.round(l.durasi_menit)} menit` : '-'}
-                              </td>
-                              <td className="px-3 py-2 text-center">
-                                <LogbookBuktiCell log={l} />
-                              </td>
-                            </tr>
-                          ))}
-                        </tbody>
-                      </table>
-                    </div>
-                    {logTotalPages > 1 && (
-                      <div className="flex items-center justify-between mt-2">
-                        <span className="text-xs text-gray-400">
-                          Halaman {logPage} dari {logTotalPages}
-                        </span>
-                        <div className="flex gap-1">
-                          <button onClick={() => setLogPage(p => Math.max(1, p - 1))} disabled={logPage === 1}
-                            className="px-2.5 py-1 text-xs rounded-lg border border-gray-200 text-gray-600 hover:bg-gray-50 disabled:opacity-40 disabled:cursor-not-allowed">
-                            ‹ Prev
-                          </button>
-                          <button onClick={() => setLogPage(p => Math.min(logTotalPages, p + 1))} disabled={logPage === logTotalPages}
-                            className="px-2.5 py-1 text-xs rounded-lg border border-gray-200 text-gray-600 hover:bg-gray-50 disabled:opacity-40 disabled:cursor-not-allowed">
-                            Next ›
-                          </button>
-                        </div>
-                      </div>
+             {/* Logbook*/}
+<div>
+  <h3 className="text-sm font-bold text-gray-700 mb-1">Logbook</h3>
+  <p className="text-xs text-gray-400 mb-3">{detail.nim} - {detail.nama} · {detail.jumlah_logbook} Entri Logbook</p>
+  {logbook.length === 0 ? (
+    <p className="text-sm text-gray-400 italic">Belum ada entri logbook.</p>
+  ) : (
+    <>
+      <div className="border border-gray-100 rounded-xl overflow-x-auto">
+        <table className="w-full text-sm min-w-[600px]">
+          <thead>
+            <tr className="bg-gray-50">
+              <th className="text-left px-3 py-2 text-xs font-semibold text-gray-500 uppercase whitespace-nowrap">Tanggal</th>
+              <th className="text-left px-3 py-2 text-xs font-semibold text-gray-500 uppercase whitespace-nowrap">Jam</th>
+              <th className="text-left px-3 py-2 text-xs font-semibold text-gray-500 uppercase">Kegiatan</th>
+              <th className="text-left px-3 py-2 text-xs font-semibold text-gray-500 uppercase whitespace-nowrap">Durasi</th>
+              <th className="text-center px-3 py-2 text-xs font-semibold text-gray-500 uppercase whitespace-nowrap">Bukti</th>
+            </tr>
+          </thead>
+          <tbody className="divide-y divide-gray-100">
+            {logPaginated.map(l => (
+              <tr key={l.id}>
+                <td className="px-3 py-2 text-gray-600 whitespace-nowrap">
+                  {new Date(l.tanggal).toLocaleDateString('id-ID')}
+                </td>
+                <td className="px-3 py-2 text-gray-500 whitespace-nowrap">
+                  {l.jam_mulai?.slice(0, 5)}–{l.jam_selesai?.slice(0, 5)}
+                </td>
+                <td className="px-3 py-2 text-gray-800">
+                  <div className="flex items-center gap-1.5 flex-wrap">
+                    <span>{l.kegiatan}</span>
+                    {l.nama_pelatihan && (
+                      <span className="text-xs bg-blue-50 text-blue-600 px-2 py-0.5 rounded-full font-medium">
+                        {l.nama_pelatihan}
+                      </span>
                     )}
-                  </>
-                )}
-              </div>
+                  </div>
+                </td>
+                <td className="px-3 py-2 text-gray-500 whitespace-nowrap">
+                  {l.durasi_menit != null ? `${Math.round(l.durasi_menit)} menit` : '-'}
+                </td>
+                <td className="px-3 py-2 text-center whitespace-nowrap">
+                  <LogbookBuktiCell log={l} />
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+      {logTotalPages > 1 && (
+        <div className="flex items-center justify-between mt-2">
+          <span className="text-xs text-gray-400">
+            Halaman {logPage} dari {logTotalPages}
+          </span>
+          <div className="flex gap-1">
+            <button onClick={() => setLogPage(p => Math.max(1, p - 1))} disabled={logPage === 1}
+              className="px-2.5 py-1 text-xs rounded-lg border border-gray-200 text-gray-600 hover:bg-gray-50 disabled:opacity-40 disabled:cursor-not-allowed">
+              ‹ Prev
+            </button>
+            <button onClick={() => setLogPage(p => Math.min(logTotalPages, p + 1))} disabled={logPage === logTotalPages}
+              className="px-2.5 py-1 text-xs rounded-lg border border-gray-200 text-gray-600 hover:bg-gray-50 disabled:opacity-40 disabled:cursor-not-allowed">
+              Next ›
+            </button>
+          </div>
+        </div>
+      )}
+    </>
+  )}
+</div>
 
             </div>
           )}
