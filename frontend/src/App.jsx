@@ -89,11 +89,7 @@ const ProtectedRoute = ({ children, allowedRoles }) => {
     }
   }, [hydrated]);
 
-  // TAMBAHAN: subscribe push setiap kali ProtectedRoute ke-render dengan user
-  // yang sudah authenticated -- ini cover kasus sesi lama yang gak sempat
-  // trigger subscribe waktu di LoginPage (refresh, buka tab baru, dll).
-  // subscribeToPush() sendiri sudah punya guard internal (gak subscribe ulang
-  // kalau browser udah punya subscription aktif), jadi aman dipanggil berkali-kali.
+
   useEffect(() => {
     if (hydrated && isAuthenticated && user) {
       subscribeToPush();
