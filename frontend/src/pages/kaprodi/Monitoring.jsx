@@ -460,22 +460,12 @@ export default function KaprodiMonitoring() {
     [filtered, currentPage]
   )
 
-  const periodeAktif = useMemo(
-    () => periode.find(p => p.id === selectedPeriode),
-    [periode, selectedPeriode]
-  )
-  const minJam = periodeAktif?.min_jam_pengajuan || 48 
-
-  const stats = useMemo(() => ({
-    total:           data.length,
-    laporan_selesai: data.filter(m => m.dokumen_laporan?.status === 'diverifikasi').length,
-    ppt_selesai:     data.filter(m => m.dokumen_ppt !== null).length,
-    lengkap:         data.filter(m =>
-      (m.total_jam_terverifikasi || 0) >= minJam &&
-      m.dokumen_laporan?.status === 'diverifikasi' &&
-      m.dokumen_ppt !== null
-    ).length,
-  }), [data, minJam])
+const stats = useMemo(() => ({
+  total:           data.length,
+  laporan_selesai: data.filter(m => m.dokumen_laporan?.status === 'diverifikasi').length,
+  ppt_selesai:     data.filter(m => m.dokumen_ppt?.status === 'diverifikasi').length,
+  lengkap:         data.filter(m => m.dokumen_lengkap).length,
+}), [data])
 
   return (
     <div className="space-y-5">

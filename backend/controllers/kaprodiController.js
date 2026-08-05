@@ -552,7 +552,8 @@ const verifikasiDokumen = async (req, res) => {
     res.json({ message: "Status dokumen berhasil diupdate." });
   } catch (error) {
     console.error("verifikasiDokumen kaprodi error:", error);
-    res.status(500).json({ message: "Terjadi kesalahan server." });
+    res.status(500).json({ message: 
+      "Terjadi kesalahan server." });
   }
 };
 
@@ -591,6 +592,12 @@ const getMonitoringDokumen = async (req, res) => {
       [periode_id]
     );
 
+    const [[periodeInfo]] = await db.query(
+      "SELECT min_jam_pengajuan FROM periode WHERE id_periode = ?",
+      [periode_id]
+    );
+    const minJam = periodeInfo?.min_jam_pengajuan ?? 0;
+
     const formatted = rows.map((r) => ({
       nim: r.nim,
       nama: r.nama,
@@ -601,6 +608,10 @@ const getMonitoringDokumen = async (req, res) => {
       nilai_akhir: r.nilai_akhir,
       status_laporan: r.status_laporan,
       status_ppt: r.status_ppt,
+      dokumen_lengkap:
+        r.status_laporan === "diverifikasi" &&
+        r.status_ppt === "diverifikasi" &&
+        Number(r.total_jam_terverifikasi) >= Number(minJam),
       dokumen_laporan: r.laporan_id ? {
         id: r.laporan_id, cloudinary_url: r.laporan_path,
         nama_file: r.laporan_nama, status: r.status_laporan,
@@ -660,22 +671,22 @@ const getDashboardStats = async (req, res) => {
     const minJam = periodeInfo?.min_jam_pengajuan ?? 0;
 
     const [[{ dokumen_lengkap }]] = await db.query(
-      `SELECT COUNT(*) AS dokumen_lengkap
-       FROM (
-         SELECT dok.pengajuan_id
-         FROM dokumen dok
-         JOIN pengajuan p ON p.id_pengajuan = dok.pengajuan_id
-         WHERE p.periode_id = ?
-         GROUP BY dok.pengajuan_id
-         HAVING SUM(CASE WHEN dok.jenis = 'laporan_akhir' AND dok.status = 'diverifikasi' THEN 1 ELSE 0 END) > 0
-            AND SUM(dok.jenis = 'ppt') > 0
-            AND COALESCE((
-              SELECT SUM(lb.durasi_menit) / 60 FROM logbook lb
-              WHERE lb.pengajuan_id = dok.pengajuan_id AND lb.status = 'diverifikasi'
-            ), 0) >= ?
-       ) AS lengkap`,
-      [periode_id, minJam]
-    );
+  `SELECT COUNT(*) AS dokumen_lengkap
+   FROM (
+     SELECT dok.pengajuan_id
+     FROM dokumen dok
+     JOIN pengajuan p ON p.id_pengajuan = dok.pengajuan_id
+     WHERE p.periode_id = ?
+     GROUP BY dok.pengajuan_id
+     HAVING SUM(CASE WHEN dok.jenis = 'laporan_akhir' AND dok.status = 'diverifikasi' THEN 1 ELSE 0 END) > 0
+        AND SUM(CASE WHEN dok.jenis = 'ppt' AND dok.status = 'diverifikasi' THEN 1 ELSE 0 END) > 0
+        AND COALESCE((
+          SELECT SUM(lb.durasi_menit) / 60 FROM logbook lb
+          WHERE lb.pengajuan_id = dok.pengajuan_id AND lb.status = 'diverifikasi'
+        ), 0) >= ?
+   ) AS lengkap`,
+  [periode_id, minJam]
+);
 
     res.json({
       data: { total_mahasiswa, total_dosen, total_pengajuan, dokumen_lengkap, periode_id, nama_periode },

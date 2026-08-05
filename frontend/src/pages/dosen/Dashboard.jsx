@@ -46,24 +46,30 @@ export default function DosenDashboard() {
       let logbookMenunggu = 0
       let dokumenLengkap  = 0
 
-      await Promise.all(mhsList.map(async (m) => {
-        try {
-          const mhsParams = { mahasiswa_id: m.id, ...(periodeId ? { periode_id: periodeId } : {}) }
-          const [lbRes, dkRes] = await Promise.all([
-            api.get('/dosen/logbook', { params: mhsParams }),
-            api.get('/dosen/dokumen',  { params: mhsParams }),
-          ])
-          const lbs = lbRes.data.data || []
-          const dks = dkRes.data.data || []
+     await Promise.all(mhsList.map(async (m) => {
+  try {
+    const mhsParams = { mahasiswa_id: m.id, ...(periodeId ? { periode_id: periodeId } : {}) }
+    const [lbRes, dkRes] = await Promise.all([
+      api.get('/dosen/logbook', { params: mhsParams }),
+      api.get('/dosen/dokumen',  { params: mhsParams }),
+    ])
+    const lbs = lbRes.data.data || []
+    const dks = dkRes.data.data || []
 
-          logbookMenunggu += lbs.filter(l => l.status === 'disubmit').length
+    logbookMenunggu += lbs.filter(l => l.status === 'disubmit').length
 
-          const laporan = dks.find(d => d.jenis === 'laporan_akhir')
-          const ppt     = dks.find(d => d.jenis === 'ppt')
-          const statusOk = ['diverifikasi', 'disetujui_dospem', 'disetujui_kaprodi']
-          if (statusOk.includes(laporan?.status) && statusOk.includes(ppt?.status)) dokumenLengkap++
-        } catch { /* ignore per-mahasiswa error */ }
-      }))
+    const laporan = dks.find(d => d.jenis === 'laporan_akhir')
+    const ppt     = dks.find(d => d.jenis === 'ppt')
+    const totalJam = lbs
+      .filter(l => l.status === 'diverifikasi')
+      .reduce((sum, l) => sum + (Number(l.durasi_menit) || 0), 0) / 60
+    const minJam = Number(selectedPeriode?.min_jam_pengajuan) || 0
+
+    if (laporan?.status === 'diverifikasi' && ppt?.status === 'diverifikasi' && totalJam >= minJam) {
+      dokumenLengkap++
+    }
+  } catch { /* ignore per-mahasiswa error */ }
+}))
 
       setStats({
         total_mahasiswa:  mhsList.length,

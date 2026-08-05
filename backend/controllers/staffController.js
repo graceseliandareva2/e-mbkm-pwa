@@ -1272,24 +1272,43 @@ const getDaftarMahasiswaMBKM = async (req, res) => {
         dp.nama_pelatihan,
         d.nama as dosen_pembimbing,
         pa.nama as dosen_pa,
-        pn.nilai_akhir, pn.grade
+        pn.nilai_akhir, pn.grade,
+        per.min_jam_pengajuan,
+        MAX(CASE WHEN dok.jenis = 'laporan_akhir' THEN dok.status END) as status_laporan,
+        MAX(CASE WHEN dok.jenis = 'ppt' THEN dok.status END) as status_ppt,
+        COALESCE((
+          SELECT SUM(lb.durasi_menit) / 60 FROM logbook lb
+          WHERE lb.pengajuan_id = p.id_pengajuan AND lb.status = 'diverifikasi'
+        ), 0) as total_jam_terverifikasi
       FROM users u
       INNER JOIN pengajuan p ON p.mahasiswa_id = u.id_users ${periode_id ? "AND p.periode_id = ?" : ""}
+      JOIN periode per ON per.id_periode = p.periode_id
       LEFT JOIN detail_pengajuan dp ON dp.pengajuan_id = p.id_pengajuan
       LEFT JOIN users d ON d.id_users = p.dosen_id
       LEFT JOIN users pa ON pa.id_users = dp.dosen_pa_id
+      LEFT JOIN dokumen dok ON dok.pengajuan_id = p.id_pengajuan
       LEFT JOIN penilaian pn ON pn.pengajuan_id = p.id_pengajuan AND pn.finalized_at IS NOT NULL
       WHERE u.role = 'mahasiswa'
+      GROUP BY u.nim, u.nama, p.id_pengajuan, p.status, dp.judul, dp.penyelenggara,
+        dp.nama_pelatihan, d.nama, pa.nama, pn.nilai_akhir, pn.grade, per.min_jam_pengajuan
       ORDER BY u.nama ASC`,
       periode_id ? [periode_id] : [],
     );
-    res.json({ data: rows });
+
+    const formatted = rows.map((r) => ({
+      ...r,
+      dokumen_lengkap:
+        r.status_laporan === "diverifikasi" &&
+        r.status_ppt === "diverifikasi" &&
+        Number(r.total_jam_terverifikasi) >= Number(r.min_jam_pengajuan),
+    }));
+
+    res.json({ data: formatted });
   } catch (error) {
     console.error("getDaftarMahasiswaMBKM error:", error);
     res.status(500).json({ message: "Terjadi kesalahan server." });
   }
 };
-
 // pelatihan_id di logbook sudah dihapus dari skema (1 pengajuan = 1 pelatihan, disimpan di detail_pengajuan).
 // durasi_menit adalah GENERATED COLUMN (auto-hitung dari jam_mulai/jam_selesai) -- read-only, jangan pernah di-INSERT/UPDATE manual.
 const getLogbookMahasiswa = async (req, res) => {

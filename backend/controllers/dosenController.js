@@ -73,6 +73,7 @@ const getMahasiswaSiapDinilai = async (req, res) => {
       SELECT 
         m.id_users as id, m.nim, m.nama, m.program_studi,
         pc.id_pengajuan as pengajuan_id, pc.periode_id, per.nama_periode,
+        per.min_jam_pengajuan,
         dp.judul, dp.nama_pelatihan,
         SUM(CASE WHEN d.jenis = 'ppt' AND d.status = 'diverifikasi' THEN 1 ELSE 0 END) as punya_ppt,
         SUM(CASE WHEN d.jenis = 'laporan_akhir' AND d.status = 'diverifikasi' THEN 1 ELSE 0 END) as punya_laporan,
@@ -92,10 +93,13 @@ const getMahasiswaSiapDinilai = async (req, res) => {
       LEFT JOIN penilaian pn ON pn.pengajuan_id = pc.id_pengajuan
       WHERE pc.dosen_id = ? ${periode_id ? "AND pc.periode_id = ?" : ""}
       GROUP BY m.id_users, m.nim, m.nama, m.program_studi,
-        pc.id_pengajuan, pc.periode_id, per.nama_periode, dp.judul, dp.nama_pelatihan,
+        pc.id_pengajuan, pc.periode_id, per.nama_periode, per.min_jam_pengajuan,
+        dp.judul, dp.nama_pelatihan,
         pn.id_penilaian, pn.nilai_kesesuaian, pn.nilai_proyek, pn.nilai_evaluasi,
         pn.nilai_laporan, pn.nilai_presentasi, pn.nilai_akhir, pn.grade, pn.catatan, pn.finalized_at
-      HAVING punya_ppt >= 1 AND punya_laporan >= 1
+      HAVING punya_ppt >= 1 
+        AND punya_laporan >= 1 
+        AND total_jam_logbook >= per.min_jam_pengajuan
       ORDER BY m.nama ASC
     `,
       periode_id ? [dsn.id, periode_id] : [dsn.id]
