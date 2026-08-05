@@ -20,6 +20,10 @@ async function isDosenPembimbingPengajuan(dosenId, pengajuanId) {
   return rows.length > 0;
 }
 
+// Ditambah: LEFT JOIN users (alias pa) via detail_pengajuan.dosen_pa_id, select pa.nama AS
+// dosen_pembimbing_akademik -- sebelumnya kolom ini tidak pernah di-select, padahal frontend
+// (DosenMahasiswaBimbingan.jsx) sudah membaca m.dosen_pembimbing_akademik. pa.nama ditambahkan
+// ke GROUP BY karena query ini pakai GROUP BY manual.
 const getMahasiswaBimbingan = async (req, res) => {
   try {
     const dsn = await getDosenProfile(req.user.id);
@@ -33,16 +37,19 @@ const getMahasiswaBimbingan = async (req, res) => {
         pc.periode_id, per.nama_periode,
     pc.id_pengajuan as pengajuan_id, dp.judul, pc.status as status_pengajuan,
         dp.nama_pelatihan, dp.link_pelatihan, dp.durasi_pelatihan_jam, pc.catatan_kaprodi,
+        pa.nama as dosen_pembimbing_akademik,
         COUNT(DISTINCT l.id_logbook) as jumlah_logbook
       FROM pengajuan pc
       JOIN users m ON pc.mahasiswa_id = m.id_users
       JOIN periode per ON pc.periode_id = per.id_periode
       LEFT JOIN detail_pengajuan dp ON dp.pengajuan_id = pc.id_pengajuan
+      LEFT JOIN users pa ON pa.id_users = dp.dosen_pa_id
       LEFT JOIN logbook l ON l.pengajuan_id = pc.id_pengajuan
       WHERE pc.dosen_id = ? ${periode_id ? "AND pc.periode_id = ?" : ""}
       GROUP BY m.id_users, m.nim, m.nama, m.email, m.program_studi,
         pc.periode_id, per.nama_periode, pc.id_pengajuan, dp.judul, pc.status,
-        dp.nama_pelatihan, dp.link_pelatihan, dp.durasi_pelatihan_jam, pc.catatan_kaprodi
+        dp.nama_pelatihan, dp.link_pelatihan, dp.durasi_pelatihan_jam, pc.catatan_kaprodi,
+        pa.nama
       ORDER BY m.nama ASC
     `,
       periode_id ? [dsn.id, periode_id] : [dsn.id]

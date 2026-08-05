@@ -686,8 +686,6 @@ const getDashboardStats = async (req, res) => {
   }
 };
 
-// dp.pelatihan (array JSON) sudah gak ada -- sekarang field tunggal dp.nama_pelatihan,
-// jadi seluruh logic parsing JSON dibuang.
 const getPengajuanDisetujui = async (req, res) => {
   try {
     const { periode_id } = req.query;

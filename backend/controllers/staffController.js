@@ -6,9 +6,10 @@ const bcrypt = require("bcryptjs");
 const xlsx = require("xlsx");
 const fs = require("fs");
 
-
 const _getPeriodeAktifId = async () => {
-  const [rows] = await db.query('SELECT id_periode AS id FROM periode WHERE is_active = 1 LIMIT 1');
+  const [rows] = await db.query(
+    "SELECT id_periode AS id FROM periode WHERE is_active = 1 LIMIT 1",
+  );
   return rows[0]?.id || null;
 };
 
@@ -18,10 +19,14 @@ const importMahasiswa = async (req, res) => {
       return res.status(400).json({ message: "File tidak ditemukan." });
     }
 
-    const periodeId = req.body.periode_id || await _getPeriodeAktifId();
+    const periodeId = req.body.periode_id || (await _getPeriodeAktifId());
     if (!periodeId) {
       fs.unlinkSync(req.file.path);
-      return res.status(400).json({ message: "Tidak ada periode aktif dan periode_id tidak diberikan." });
+      return res
+        .status(400)
+        .json({
+          message: "Tidak ada periode aktif dan periode_id tidak diberikan.",
+        });
     }
 
     const workbook = xlsx.readFile(req.file.path);
@@ -31,20 +36,36 @@ const importMahasiswa = async (req, res) => {
 
     if (data.length === 0) {
       fs.unlinkSync(req.file.path);
-      return res.status(400).json({ message: "File kosong atau format tidak sesuai." });
+      return res
+        .status(400)
+        .json({ message: "File kosong atau format tidak sesuai." });
     }
 
     const headerKeys = Object.keys(data[0] || {});
-    const hasNimColumn = headerKeys.some((k) => ["NIM Mahasiswa", "NIM", "nim"].includes(k));
-    const hasNamaColumn = headerKeys.some((k) => ["Nama Mahasiswa", "Nama", "nama"].includes(k));
-    const hasEmailColumn = headerKeys.some((k) =>
-      ["Email Mahasiswa", "E-mail Mahasiswa", "E-Mail Mahasiswa", "Email", "email"].includes(k)
+    const hasNimColumn = headerKeys.some((k) =>
+      ["NIM Mahasiswa", "NIM", "nim"].includes(k),
     );
-    const hasProdiColumn = headerKeys.some((k) => ["Program Studi", "Prodi", "prodi"].includes(k));
+    const hasNamaColumn = headerKeys.some((k) =>
+      ["Nama Mahasiswa", "Nama", "nama"].includes(k),
+    );
+    const hasEmailColumn = headerKeys.some((k) =>
+      [
+        "Email Mahasiswa",
+        "E-mail Mahasiswa",
+        "E-Mail Mahasiswa",
+        "Email",
+        "email",
+      ].includes(k),
+    );
+    const hasProdiColumn = headerKeys.some((k) =>
+      ["Program Studi", "Prodi", "prodi"].includes(k),
+    );
 
     if (!hasNimColumn || !hasNamaColumn || !hasEmailColumn || !hasProdiColumn) {
       fs.unlinkSync(req.file.path);
-      return res.status(400).json({ message: "File kosong atau format tidak sesuai." });
+      return res
+        .status(400)
+        .json({ message: "File kosong atau format tidak sesuai." });
     }
 
     let berhasil = 0;
@@ -53,13 +74,23 @@ const importMahasiswa = async (req, res) => {
 
     for (const row of data) {
       try {
-        const nim = String(row["NIM Mahasiswa"] || row["NIM"] || row["nim"] || "").trim();
-        const nama = String(row["Nama Mahasiswa"] || row["Nama"] || row["nama"] || "").trim();
-        const email = String(
-          row["Email Mahasiswa"] || row["E-mail Mahasiswa"] || row["E-Mail Mahasiswa"] ||
-          row["Email"] || row["email"] || ""
+        const nim = String(
+          row["NIM Mahasiswa"] || row["NIM"] || row["nim"] || "",
         ).trim();
-        const prodi = String(row["Program Studi"] || row["Prodi"] || row["prodi"] || "").trim();
+        const nama = String(
+          row["Nama Mahasiswa"] || row["Nama"] || row["nama"] || "",
+        ).trim();
+        const email = String(
+          row["Email Mahasiswa"] ||
+            row["E-mail Mahasiswa"] ||
+            row["E-Mail Mahasiswa"] ||
+            row["Email"] ||
+            row["email"] ||
+            "",
+        ).trim();
+        const prodi = String(
+          row["Program Studi"] || row["Prodi"] || row["prodi"] || "",
+        ).trim();
 
         if (!nim || !nama) {
           gagal++;
@@ -71,11 +102,13 @@ const importMahasiswa = async (req, res) => {
 
         const [usernameBentrok] = await db.query(
           "SELECT id_users FROM users WHERE username = ? AND (nim IS NULL OR nim != ?)",
-          [username, nim]
+          [username, nim],
         );
         if (usernameBentrok.length > 0) {
           gagal++;
-          errors.push(`Username ${username} sudah dipakai akun lain, NIM ${nim} dilewati.`);
+          errors.push(
+            `Username ${username} sudah dipakai akun lain, NIM ${nim} dilewati.`,
+          );
           continue;
         }
 
@@ -92,7 +125,17 @@ const importMahasiswa = async (req, res) => {
              program_studi = VALUES(program_studi),
              current_periode_id = VALUES(current_periode_id),
              imported_by = VALUES(imported_by)`,
-          [userId, username, hashedPassword, nama, email || null, nim, prodi || null, periodeId, req.user.id]
+          [
+            userId,
+            username,
+            hashedPassword,
+            nama,
+            email || null,
+            nim,
+            prodi || null,
+            periodeId,
+            req.user.id,
+          ],
         );
 
         berhasil++;
@@ -107,13 +150,17 @@ const importMahasiswa = async (req, res) => {
     if (berhasil === 0) {
       return res.status(400).json({
         message: "File kosong atau format tidak sesuai.",
-        berhasil, gagal, errors,
+        berhasil,
+        gagal,
+        errors,
       });
     }
 
     return res.json({
       message: `Import selesai. Berhasil: ${berhasil}, Gagal: ${gagal}`,
-      berhasil, gagal, errors,
+      berhasil,
+      gagal,
+      errors,
     });
   } catch (error) {
     console.error("Import mahasiswa error:", error);
@@ -130,37 +177,57 @@ const tambahMahasiswa = async (req, res) => {
       return res.status(400).json({ message: "Semua field wajib diisi." });
     }
 
-    const targetPeriodeId = periode_id || await _getPeriodeAktifId();
+    const targetPeriodeId = periode_id || (await _getPeriodeAktifId());
     if (!targetPeriodeId) {
-      return res.status(400).json({ message: "Tidak ada periode aktif dan periode_id tidak diberikan." });
+      return res
+        .status(400)
+        .json({
+          message: "Tidak ada periode aktif dan periode_id tidak diberikan.",
+        });
     }
 
-    const [existingNim] = await db.query("SELECT id_users AS id, current_periode_id FROM users WHERE nim = ?", [nim]);
+    const [existingNim] = await db.query(
+      "SELECT id_users AS id, current_periode_id FROM users WHERE nim = ?",
+      [nim],
+    );
 
     if (existingNim.length > 0) {
-      if (String(existingNim[0].current_periode_id) === String(targetPeriodeId)) {
-        return res.status(400).json({ message: "NIM ini sudah terdaftar di periode ini." });
+      if (
+        String(existingNim[0].current_periode_id) === String(targetPeriodeId)
+      ) {
+        return res
+          .status(400)
+          .json({ message: "NIM ini sudah terdaftar di periode ini." });
       }
 
       const [usernameBentrok] = await db.query(
         "SELECT id_users FROM users WHERE username = ? AND id_users != ?",
-        [email, existingNim[0].id]
+        [email, existingNim[0].id],
       );
       if (usernameBentrok.length > 0) {
-        return res.status(400).json({ message: "Email ini sudah terdaftar untuk akun lain." });
+        return res
+          .status(400)
+          .json({ message: "Email ini sudah terdaftar untuk akun lain." });
       }
 
       await db.query(
         "UPDATE users SET username=?, nama=?, email=?, program_studi=?, current_periode_id=? WHERE id_users=?",
-        [email, nama, email, program_studi, targetPeriodeId, existingNim[0].id]
+        [email, nama, email, program_studi, targetPeriodeId, existingNim[0].id],
       );
 
-      return res.json({ message: "Mahasiswa lama berhasil didaftarkan ulang ke periode ini." });
+      return res.json({
+        message: "Mahasiswa lama berhasil didaftarkan ulang ke periode ini.",
+      });
     }
 
-    const [existingUsername] = await db.query("SELECT id_users FROM users WHERE username = ?", [email]);
+    const [existingUsername] = await db.query(
+      "SELECT id_users FROM users WHERE username = ?",
+      [email],
+    );
     if (existingUsername.length > 0) {
-      return res.status(400).json({ message: "Email ini sudah terdaftar untuk akun lain." });
+      return res
+        .status(400)
+        .json({ message: "Email ini sudah terdaftar untuk akun lain." });
     }
 
     const userId = uuidv4();
@@ -169,7 +236,17 @@ const tambahMahasiswa = async (req, res) => {
     await db.query(
       `INSERT INTO users (id_users, username, password, role, nama, email, nim, program_studi, current_periode_id, imported_by)
        VALUES (?, ?, ?, 'mahasiswa', ?, ?, ?, ?, ?, ?)`,
-      [userId, email, hashedPassword, nama, email, nim, program_studi, targetPeriodeId, req.user.id]
+      [
+        userId,
+        email,
+        hashedPassword,
+        nama,
+        email,
+        nim,
+        program_studi,
+        targetPeriodeId,
+        req.user.id,
+      ],
     );
 
     res.status(201).json({ message: "Data mahasiswa berhasil ditambahkan." });
@@ -182,12 +259,17 @@ const tambahMahasiswa = async (req, res) => {
 // ========== IMPORT / TAMBAH DOSEN ==========
 const importDosen = async (req, res) => {
   try {
-    if (!req.file) return res.status(400).json({ message: 'File tidak ditemukan.' });
+    if (!req.file)
+      return res.status(400).json({ message: "File tidak ditemukan." });
 
-    const periodeId = req.body.periode_id || await _getPeriodeAktifId();
+    const periodeId = req.body.periode_id || (await _getPeriodeAktifId());
     if (!periodeId) {
       fs.unlinkSync(req.file.path);
-      return res.status(400).json({ message: 'Tidak ada periode aktif dan periode_id tidak diberikan.' });
+      return res
+        .status(400)
+        .json({
+          message: "Tidak ada periode aktif dan periode_id tidak diberikan.",
+        });
     }
 
     const workbook = xlsx.readFile(req.file.path);
@@ -196,17 +278,31 @@ const importDosen = async (req, res) => {
 
     if (data.length === 0) {
       fs.unlinkSync(req.file.path);
-      return res.status(400).json({ message: 'File kosong atau format tidak sesuai.' });
+      return res
+        .status(400)
+        .json({ message: "File kosong atau format tidak sesuai." });
     }
 
-    let berhasil = 0, gagal = 0, errors = [];
+    let berhasil = 0,
+      gagal = 0,
+      errors = [];
 
     for (const row of data) {
       try {
-        const nidn = String(row['NIDN'] || row['ID Dosen'] || row['id_dosen'] || row['Id Dosen'] || '').trim();
-        const nama = String(row['Nama'] || row['nama'] || row['NAMA'] || '').trim();
-        const email = String(row['Email'] || row['email'] || '').trim();
-        const program_studi = String(row['Program Studi'] || row['program_studi'] || '').trim() || null;
+        const nidn = String(
+          row["NIDN"] ||
+            row["ID Dosen"] ||
+            row["id_dosen"] ||
+            row["Id Dosen"] ||
+            "",
+        ).trim();
+        const nama = String(
+          row["Nama"] || row["nama"] || row["NAMA"] || "",
+        ).trim();
+        const email = String(row["Email"] || row["email"] || "").trim();
+        const program_studi =
+          String(row["Program Studi"] || row["program_studi"] || "").trim() ||
+          null;
 
         if (!nidn || !nama) {
           gagal++;
@@ -217,11 +313,13 @@ const importDosen = async (req, res) => {
         const username = email || nidn;
         const [usernameBentrok] = await db.query(
           "SELECT id_users FROM users WHERE username = ? AND (id_dosen IS NULL OR id_dosen != ?)",
-          [username, nidn]
+          [username, nidn],
         );
         if (usernameBentrok.length > 0) {
           gagal++;
-          errors.push(`Username ${username} sudah dipakai akun lain, NIDN ${nidn} dilewati.`);
+          errors.push(
+            `Username ${username} sudah dipakai akun lain, NIDN ${nidn} dilewati.`,
+          );
           continue;
         }
 
@@ -238,7 +336,17 @@ const importDosen = async (req, res) => {
              program_studi = VALUES(program_studi),
              current_periode_id = VALUES(current_periode_id),
              imported_by = VALUES(imported_by)`,
-          [userId, username, hashedPassword, nama, email || null, nidn, program_studi, periodeId, req.user.id]
+          [
+            userId,
+            username,
+            hashedPassword,
+            nama,
+            email || null,
+            nidn,
+            program_studi,
+            periodeId,
+            req.user.id,
+          ],
         );
 
         berhasil++;
@@ -252,18 +360,22 @@ const importDosen = async (req, res) => {
 
     if (berhasil === 0) {
       return res.status(400).json({
-        message: 'File kosong atau format tidak sesuai.',
-        berhasil, gagal, errors,
+        message: "File kosong atau format tidak sesuai.",
+        berhasil,
+        gagal,
+        errors,
       });
     }
 
     res.json({
       message: `Import selesai. Berhasil: ${berhasil}, Gagal: ${gagal}`,
-      berhasil, gagal, errors,
+      berhasil,
+      gagal,
+      errors,
     });
   } catch (error) {
-    console.error('Import dosen error:', error);
-    res.status(500).json({ message: 'Terjadi kesalahan server.' });
+    console.error("Import dosen error:", error);
+    res.status(500).json({ message: "Terjadi kesalahan server." });
   }
 };
 
@@ -275,35 +387,60 @@ const tambahDosen = async (req, res) => {
       return res.status(400).json({ message: "Semua field wajib diisi." });
     }
 
-    const targetPeriodeId = periode_id || await _getPeriodeAktifId();
+    const targetPeriodeId = periode_id || (await _getPeriodeAktifId());
     if (!targetPeriodeId) {
-      return res.status(400).json({ message: "Tidak ada periode aktif dan periode_id tidak diberikan." });
+      return res
+        .status(400)
+        .json({
+          message: "Tidak ada periode aktif dan periode_id tidak diberikan.",
+        });
     }
 
-    const [existingNidn] = await db.query("SELECT id_users AS id, current_periode_id FROM users WHERE id_dosen = ?", [nidn]);
+    const [existingNidn] = await db.query(
+      "SELECT id_users AS id, current_periode_id FROM users WHERE id_dosen = ?",
+      [nidn],
+    );
 
     if (existingNidn.length > 0) {
-      if (String(existingNidn[0].current_periode_id) === String(targetPeriodeId)) {
-        return res.status(400).json({ message: "NIDN ini sudah terdaftar di periode ini." });
+      if (
+        String(existingNidn[0].current_periode_id) === String(targetPeriodeId)
+      ) {
+        return res
+          .status(400)
+          .json({ message: "NIDN ini sudah terdaftar di periode ini." });
       }
 
       const [usernameBentrok] = await db.query(
         "SELECT id_users FROM users WHERE username = ? AND id_users != ?",
-        [email, existingNidn[0].id]
+        [email, existingNidn[0].id],
       );
       if (usernameBentrok.length > 0) {
-        return res.status(400).json({ message: "Email ini sudah terdaftar untuk akun lain." });
+        return res
+          .status(400)
+          .json({ message: "Email ini sudah terdaftar untuk akun lain." });
       }
 
       await db.query(
         "UPDATE users SET username=?, nama=?, email=?, program_studi=?, current_periode_id=? WHERE id_users=?",
-        [email, nama, email, program_studi, targetPeriodeId, existingNidn[0].id]
+        [
+          email,
+          nama,
+          email,
+          program_studi,
+          targetPeriodeId,
+          existingNidn[0].id,
+        ],
       );
 
-      return res.json({ message: "Dosen lama berhasil didaftarkan ulang ke periode ini." });
+      return res.json({
+        message: "Dosen lama berhasil didaftarkan ulang ke periode ini.",
+      });
     }
 
-    const [existingEmail] = await db.query("SELECT id_users FROM users WHERE username = ?", [email]);
+    const [existingEmail] = await db.query(
+      "SELECT id_users FROM users WHERE username = ?",
+      [email],
+    );
     if (existingEmail.length > 0) {
       return res.status(400).json({ message: "Email ini sudah terdaftar." });
     }
@@ -314,7 +451,17 @@ const tambahDosen = async (req, res) => {
     await db.query(
       `INSERT INTO users (id_users, username, password, role, nama, email, id_dosen, program_studi, current_periode_id, imported_by)
        VALUES (?, ?, ?, 'dosen', ?, ?, ?, ?, ?, ?)`,
-      [userId, email, hashedPassword, nama, email, nidn, program_studi, targetPeriodeId, req.user.id]
+      [
+        userId,
+        email,
+        hashedPassword,
+        nama,
+        email,
+        nidn,
+        program_studi,
+        targetPeriodeId,
+        req.user.id,
+      ],
     );
 
     res.status(201).json({ message: "Data dosen berhasil ditambahkan." });
@@ -333,23 +480,36 @@ const updateDosen = async (req, res) => {
       return res.status(400).json({ message: "Semua field wajib diisi." });
     }
 
-    const [dosen] = await db.query("SELECT * FROM users WHERE id_users = ? AND role = 'dosen'", [id]);
+    const [dosen] = await db.query(
+      "SELECT * FROM users WHERE id_users = ? AND role = 'dosen'",
+      [id],
+    );
     if (!dosen.length) {
       return res.status(404).json({ message: "Dosen tidak ditemukan." });
     }
 
-    const [nidnBentrok] = await db.query("SELECT id_users FROM users WHERE id_dosen = ? AND id_users != ?", [nidn, id]);
+    const [nidnBentrok] = await db.query(
+      "SELECT id_users FROM users WHERE id_dosen = ? AND id_users != ?",
+      [nidn, id],
+    );
     if (nidnBentrok.length > 0) {
-      return res.status(400).json({ message: "NIDN ini sudah terdaftar untuk akun lain." });
+      return res
+        .status(400)
+        .json({ message: "NIDN ini sudah terdaftar untuk akun lain." });
     }
-    const [emailBentrok] = await db.query("SELECT id_users FROM users WHERE username = ? AND id_users != ?", [email, id]);
+    const [emailBentrok] = await db.query(
+      "SELECT id_users FROM users WHERE username = ? AND id_users != ?",
+      [email, id],
+    );
     if (emailBentrok.length > 0) {
-      return res.status(400).json({ message: "Email ini sudah terdaftar untuk akun lain." });
+      return res
+        .status(400)
+        .json({ message: "Email ini sudah terdaftar untuk akun lain." });
     }
 
     await db.query(
       "UPDATE users SET id_dosen=?, nama=?, email=?, username=?, program_studi=?, is_active=? WHERE id_users=?",
-      [nidn, nama, email, email, program_studi, is_active ? 1 : 0, id]
+      [nidn, nama, email, email, program_studi, is_active ? 1 : 0, id],
     );
 
     res.json({ message: "Data dosen berhasil diperbarui." });
@@ -368,24 +528,37 @@ const updateMahasiswa = async (req, res) => {
       return res.status(400).json({ message: "Semua field wajib diisi." });
     }
 
-    const [mhs] = await db.query("SELECT * FROM users WHERE id_users = ? AND role = 'mahasiswa'", [id]);
+    const [mhs] = await db.query(
+      "SELECT * FROM users WHERE id_users = ? AND role = 'mahasiswa'",
+      [id],
+    );
     if (!mhs.length) {
       return res.status(404).json({ message: "Mahasiswa tidak ditemukan." });
     }
 
-    const [nimBentrok] = await db.query("SELECT id_users FROM users WHERE nim = ? AND id_users != ?", [nim, id]);
+    const [nimBentrok] = await db.query(
+      "SELECT id_users FROM users WHERE nim = ? AND id_users != ?",
+      [nim, id],
+    );
     if (nimBentrok.length > 0) {
-      return res.status(400).json({ message: "NIM sudah digunakan mahasiswa lain." });
+      return res
+        .status(400)
+        .json({ message: "NIM sudah digunakan mahasiswa lain." });
     }
     const usernameBaru = email || nim;
-    const [emailBentrok] = await db.query("SELECT id_users FROM users WHERE username = ? AND id_users != ?", [usernameBaru, id]);
+    const [emailBentrok] = await db.query(
+      "SELECT id_users FROM users WHERE username = ? AND id_users != ?",
+      [usernameBaru, id],
+    );
     if (emailBentrok.length > 0) {
-      return res.status(400).json({ message: "Email ini sudah terdaftar untuk akun lain." });
+      return res
+        .status(400)
+        .json({ message: "Email ini sudah terdaftar untuk akun lain." });
     }
 
     await db.query(
       "UPDATE users SET nim=?, nama=?, email=?, username=?, program_studi=? WHERE id_users=?",
-      [nim, nama, email, usernameBaru, program_studi, id]
+      [nim, nama, email, usernameBaru, program_studi, id],
     );
 
     res.json({ message: "Data mahasiswa berhasil diperbarui." });
@@ -400,7 +573,10 @@ const hapusMahasiswa = async (req, res) => {
   const conn = await db.getConnection();
   try {
     const { id } = req.params;
-    const [mhs] = await conn.query("SELECT * FROM users WHERE id_users = ? AND role = 'mahasiswa'", [id]);
+    const [mhs] = await conn.query(
+      "SELECT * FROM users WHERE id_users = ? AND role = 'mahasiswa'",
+      [id],
+    );
     if (!mhs.length) {
       return res.status(404).json({ message: "Mahasiswa tidak ditemukan." }); // gak perlu conn.release() manual
     }
@@ -415,7 +591,9 @@ const hapusMahasiswa = async (req, res) => {
   } catch (error) {
     await conn.rollback();
     console.error("hapusMahasiswa error:", error);
-    res.status(500).json({ message: "Gagal menghapus mahasiswa.", detail: error.message });
+    res
+      .status(500)
+      .json({ message: "Gagal menghapus mahasiswa.", detail: error.message });
   } finally {
     conn.release(); // satu-satunya tempat release
   }
@@ -425,23 +603,30 @@ const resetPasswordMahasiswa = async (req, res) => {
   try {
     const { id } = req.params;
 
-    const [mhs] = await db.query("SELECT * FROM users WHERE id_users = ? AND role = 'mahasiswa'", [id]);
+    const [mhs] = await db.query(
+      "SELECT * FROM users WHERE id_users = ? AND role = 'mahasiswa'",
+      [id],
+    );
     if (!mhs.length) {
       return res.status(404).json({ message: "Mahasiswa tidak ditemukan." });
     }
 
     const hashedPassword = await bcrypt.hash(mhs[0].nim, 8);
 
-    await db.query("UPDATE users SET password = ? WHERE id_users = ?", [hashedPassword, id]);
+    await db.query("UPDATE users SET password = ? WHERE id_users = ?", [
+      hashedPassword,
+      id,
+    ]);
 
     await db.query(
       "INSERT INTO notifikasi (id_notifikasi, user_id, judul, pesan, tipe) VALUES (?, ?, ?, ?, ?)",
       [
-        uuidv4(), id,
+        uuidv4(),
+        id,
         "Password Direset",
         "Password akun kamu telah direset oleh Kaprodi. Password baru kamu adalah NIM kamu.",
         "peringatan",
-      ]
+      ],
     );
 
     res.json({
@@ -501,7 +686,7 @@ const getDaftarDosen = async (req, res) => {
   try {
     const [rows] = await db.query(
       `SELECT id_users AS id, id_dosen, nama, email, program_studi, current_periode_id, is_active
-       FROM users WHERE role = 'dosen' ORDER BY nama ASC`
+       FROM users WHERE role = 'dosen' ORDER BY nama ASC`,
     );
     res.json({ data: rows });
   } catch (error) {
@@ -518,21 +703,21 @@ const getDashboardStats = async (req, res) => {
 
     const [[{ total }]] = await db.query(
       `SELECT COUNT(*) as total FROM pengajuan ${wherePengajuan}`,
-      paramsPengajuan
+      paramsPengajuan,
     );
 
-    const targetPeriodeId = periode_id || await _getPeriodeAktifId();
+    const targetPeriodeId = periode_id || (await _getPeriodeAktifId());
 
     const [[{ total_mahasiswa }]] = await db.query(
       `SELECT COUNT(*) as total_mahasiswa FROM users
        WHERE role = 'mahasiswa' ${targetPeriodeId ? "AND current_periode_id = ?" : ""}`,
-      targetPeriodeId ? [targetPeriodeId] : []
+      targetPeriodeId ? [targetPeriodeId] : [],
     );
 
     const [[{ total_dosen }]] = await db.query(
       `SELECT COUNT(*) as total_dosen FROM users
        WHERE role = 'dosen' ${targetPeriodeId ? "AND current_periode_id = ?" : ""}`,
-      targetPeriodeId ? [targetPeriodeId] : []
+      targetPeriodeId ? [targetPeriodeId] : [],
     );
 
     res.json({
@@ -560,7 +745,7 @@ const getAktivitasTerbaru = async (req, res) => {
       LEFT JOIN detail_pengajuan dp ON dp.pengajuan_id = p.id_pengajuan
       ${periode_id ? "WHERE p.periode_id = ?" : ""}
       ORDER BY p.created_at DESC LIMIT 5`,
-      periode_id ? [periode_id] : []
+      periode_id ? [periode_id] : [],
     );
 
     const [dokumen] = await db.query(
@@ -571,7 +756,7 @@ const getAktivitasTerbaru = async (req, res) => {
       JOIN users u ON p.mahasiswa_id = u.id_users
       ${periode_id ? "WHERE p.periode_id = ?" : ""}
       ORDER BY d.created_at DESC LIMIT 5`,
-      periode_id ? [periode_id] : []
+      periode_id ? [periode_id] : [],
     );
 
     const aktivitas = [...pengajuan, ...dokumen]
@@ -614,7 +799,7 @@ const getDaftarPengajuan = async (req, res) => {
       LEFT JOIN users d ON p.dosen_id = d.id_users
       ${where}
       ORDER BY p.created_at DESC`,
-      params
+      params,
     );
 
     res.json({ data: rows });
@@ -630,7 +815,8 @@ const getDetailPengajuan = async (req, res) => {
   try {
     const { id } = req.params;
 
-    const [rows] = await db.query(`
+    const [rows] = await db.query(
+      `
       SELECT
         p.id_pengajuan AS id, p.mahasiswa_id, p.periode_id,
         dp.judul, dp.deskripsi, dp.penyelenggara,
@@ -647,9 +833,12 @@ const getDetailPengajuan = async (req, res) => {
       LEFT JOIN detail_pengajuan dp ON dp.pengajuan_id = p.id_pengajuan
       LEFT JOIN users d ON p.dosen_id = d.id_users
       WHERE p.id_pengajuan = ?
-    `, [id]);
+    `,
+      [id],
+    );
 
-    if (!rows.length) return res.status(404).json({ message: "Pengajuan tidak ditemukan." });
+    if (!rows.length)
+      return res.status(404).json({ message: "Pengajuan tidak ditemukan." });
 
     res.json({ data: rows[0] });
   } catch (error) {
@@ -661,10 +850,17 @@ const getDetailPengajuan = async (req, res) => {
 const _getExportRows = async (periode_id, mahasiswa_id) => {
   let where = "WHERE 1=1";
   const params = [];
-  if (periode_id)   { where += " AND p.periode_id = ?"; params.push(periode_id); }
-  if (mahasiswa_id) { where += " AND u.id_users = ?";    params.push(mahasiswa_id); }
+  if (periode_id) {
+    where += " AND p.periode_id = ?";
+    params.push(periode_id);
+  }
+  if (mahasiswa_id) {
+    where += " AND u.id_users = ?";
+    params.push(mahasiswa_id);
+  }
 
-  const [rows] = await db.query(`
+  const [rows] = await db.query(
+    `
     SELECT
       u.id_users as mahasiswa_id,
       u.nim, u.nama, u.program_studi,
@@ -679,20 +875,25 @@ const _getExportRows = async (periode_id, mahasiswa_id) => {
     LEFT JOIN users d ON p.dosen_id = d.id_users
     ${where}
     ORDER BY u.nama ASC
-  `, params);
+  `,
+    params,
+  );
 
   return rows;
 };
 
-const _statusLabel = (s) => ({
-  disetujui_kaprodi: 'Disetujui',
-  disetujui_dosen:   'Disetujui Dosen',
-  ditolak:           'Ditolak',
-  diajukan:          'Diajukan',
-  revisi:            'Revisi',
-  draft:             'Draft',
-  diarsipkan:        'Diarsipkan',
-}[s] || s || '-');
+const _statusLabel = (s) =>
+  ({
+    disetujui_kaprodi: "Disetujui",
+    disetujui_dosen: "Disetujui Dosen",
+    ditolak: "Ditolak",
+    diajukan: "Diajukan",
+    revisi: "Revisi",
+    draft: "Draft",
+    diarsipkan: "Diarsipkan",
+  })[s] ||
+  s ||
+  "-";
 
 const exportPengajuanExcel = async (req, res) => {
   try {
@@ -703,62 +904,105 @@ const exportPengajuanExcel = async (req, res) => {
     const sheet = workbook.addWorksheet("Data Pengajuan MBKM");
 
     sheet.columns = [
-      { width: 5 }, { width: 14 }, { width: 25 }, { width: 25 },
-      { width: 25 }, { width: 35 }, { width: 15 }, { width: 18 },
+      { width: 5 },
+      { width: 14 },
+      { width: 25 },
+      { width: 25 },
+      { width: 25 },
+      { width: 35 },
+      { width: 15 },
+      { width: 18 },
     ];
 
     const headerRow = sheet.addRow([
-      "No", "NIM", "Nama", "Program Studi", "Dosen Pembimbing",
-      "Judul Pelatihan", "Status", "Periode"
+      "No",
+      "NIM",
+      "Nama",
+      "Program Studi",
+      "Dosen Pembimbing",
+      "Judul Pelatihan",
+      "Status",
+      "Periode",
     ]);
     headerRow.height = 25;
-    headerRow.eachCell(cell => {
-      cell.font = { bold: true, color: { argb: 'FFFFFFFF' }, size: 9 };
-      cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FF2563EB' } };
-      cell.alignment = { horizontal: 'center', vertical: 'middle', wrapText: true };
+    headerRow.eachCell((cell) => {
+      cell.font = { bold: true, color: { argb: "FFFFFFFF" }, size: 9 };
+      cell.fill = {
+        type: "pattern",
+        pattern: "solid",
+        fgColor: { argb: "FF2563EB" },
+      };
+      cell.alignment = {
+        horizontal: "center",
+        vertical: "middle",
+        wrapText: true,
+      };
       cell.border = {
-        top: { style: 'medium', color: { argb: 'FF1D4ED8' } },
-        bottom: { style: 'medium', color: { argb: 'FF1D4ED8' } },
-        left: { style: 'thin', color: { argb: 'FF1D4ED8' } },
-        right: { style: 'thin', color: { argb: 'FF1D4ED8' } },
+        top: { style: "medium", color: { argb: "FF1D4ED8" } },
+        bottom: { style: "medium", color: { argb: "FF1D4ED8" } },
+        left: { style: "thin", color: { argb: "FF1D4ED8" } },
+        right: { style: "thin", color: { argb: "FF1D4ED8" } },
       };
     });
 
     const cellBorder = {
-      top: { style: 'thin', color: { argb: 'FFE2E8F0' } },
-      bottom: { style: 'thin', color: { argb: 'FFE2E8F0' } },
-      left: { style: 'thin', color: { argb: 'FFD1D5DB' } },
-      right: { style: 'thin', color: { argb: 'FFD1D5DB' } },
+      top: { style: "thin", color: { argb: "FFE2E8F0" } },
+      bottom: { style: "thin", color: { argb: "FFE2E8F0" } },
+      left: { style: "thin", color: { argb: "FFD1D5DB" } },
+      right: { style: "thin", color: { argb: "FFD1D5DB" } },
     };
 
     rows.forEach((r, i) => {
-      const bgArgb = i % 2 === 0 ? 'FFFFFFFF' : 'FFF8FAFF';
+      const bgArgb = i % 2 === 0 ? "FFFFFFFF" : "FFF8FAFF";
       const row = sheet.addRow([
-        i + 1, r.nim, r.nama, r.program_studi || '-', r.nama_dosen || '-',
-        r.nama_pelatihan || '-', _statusLabel(r.status), r.nama_periode,
+        i + 1,
+        r.nim,
+        r.nama,
+        r.program_studi || "-",
+        r.nama_dosen || "-",
+        r.nama_pelatihan || "-",
+        _statusLabel(r.status),
+        r.nama_periode,
       ]);
       row.height = 20;
       row.eachCell({ includeEmpty: true }, (cell, colNum) => {
-        cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: bgArgb } };
+        cell.fill = {
+          type: "pattern",
+          pattern: "solid",
+          fgColor: { argb: bgArgb },
+        };
         cell.border = cellBorder;
-        cell.font = { size: 9, color: { argb: 'FF111827' } };
-        cell.alignment = { vertical: 'middle', horizontal: colNum === 1 ? 'center' : 'left', wrapText: true };
+        cell.font = { size: 9, color: { argb: "FF111827" } };
+        cell.alignment = {
+          vertical: "middle",
+          horizontal: colNum === 1 ? "center" : "left",
+          wrapText: true,
+        };
 
         if (colNum === 7) {
           const statusColor =
-            r.status === 'disetujui_kaprodi' ? 'FF16a34a' :
-            r.status === 'ditolak' ? 'FFdc2626' :
-            r.status === 'revisi' ? 'FFd97706' :
-            'FF6b7280';
+            r.status === "disetujui_kaprodi"
+              ? "FF16a34a"
+              : r.status === "ditolak"
+                ? "FFdc2626"
+                : r.status === "revisi"
+                  ? "FFd97706"
+                  : "FF6b7280";
           cell.font = { size: 9, bold: true, color: { argb: statusColor } };
         }
       });
     });
 
-    sheet.views = [{ state: 'frozen', ySplit: 1 }];
+    sheet.views = [{ state: "frozen", ySplit: 1 }];
 
-    res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
-    res.setHeader('Content-Disposition', 'attachment; filename=pengajuan_mbkm.xlsx');
+    res.setHeader(
+      "Content-Type",
+      "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+    );
+    res.setHeader(
+      "Content-Disposition",
+      "attachment; filename=pengajuan_mbkm.xlsx",
+    );
 
     await workbook.xlsx.write(res);
     res.end();
@@ -775,29 +1019,36 @@ const exportPengajuanPDF = async (req, res) => {
 
     const isSingle = !!mahasiswa_id && rows.length === 1;
 
-    const doc = new PDFDocument({ margin: 50, size: 'A4' });
+    const doc = new PDFDocument({ margin: 50, size: "A4" });
 
-    res.setHeader('Content-Type', 'application/pdf');
+    res.setHeader("Content-Type", "application/pdf");
     res.setHeader(
-      'Content-Disposition',
+      "Content-Disposition",
       `attachment; filename=${
-        isSingle ? `detail_${rows[0]?.nim || 'mahasiswa'}.pdf` : 'rekap_pengajuan_mbkm.pdf'
-      }`
+        isSingle
+          ? `detail_${rows[0]?.nim || "mahasiswa"}.pdf`
+          : "rekap_pengajuan_mbkm.pdf"
+      }`,
     );
 
     doc.pipe(res);
 
-    doc.fontSize(14).font('Helvetica-Bold').text('REKAP DATA PENGAJUAN MBKM', { align: 'center' });
-    doc.fontSize(10).font('Helvetica')
-      .text('Program Studi Sistem dan Teknologi Informasi', { align: 'center' })
-      .text('Institut Teknologi & Bisnis Sabda Setia', { align: 'center' });
+    doc
+      .fontSize(14)
+      .font("Helvetica-Bold")
+      .text("REKAP DATA PENGAJUAN MBKM", { align: "center" });
+    doc
+      .fontSize(10)
+      .font("Helvetica")
+      .text("Program Studi Sistem dan Teknologi Informasi", { align: "center" })
+      .text("Institut Teknologi & Bisnis Sabda Setia", { align: "center" });
 
     if (rows.length) {
-      doc.text(`Periode: ${rows[0].nama_periode}`, { align: 'center' });
+      doc.text(`Periode: ${rows[0].nama_periode}`, { align: "center" });
     }
 
     doc.moveDown(1);
-    doc.moveTo(50, doc.y).lineTo(545, doc.y).lineWidth(1).stroke('#94a3b8');
+    doc.moveTo(50, doc.y).lineTo(545, doc.y).lineWidth(1).stroke("#94a3b8");
     doc.moveDown(1);
 
     if (isSingle) {
@@ -805,54 +1056,81 @@ const exportPengajuanPDF = async (req, res) => {
 
       const field = (label, value) => {
         const y = doc.y;
-        doc.font('Helvetica-Bold').fontSize(9).text(label, 50, y, { width: 155 });
-        doc.font('Helvetica').fontSize(9).text(': ' + String(value || '-'), 205, y, { width: 330 });
+        doc
+          .font("Helvetica-Bold")
+          .fontSize(9)
+          .text(label, 50, y, { width: 155 });
+        doc
+          .font("Helvetica")
+          .fontSize(9)
+          .text(": " + String(value || "-"), 205, y, { width: 330 });
         doc.moveDown(0.5);
       };
 
-      doc.font('Helvetica-Bold').fontSize(10).fillColor('#1e3a8a').text('Informasi Mahasiswa');
-      doc.fillColor('black');
+      doc
+        .font("Helvetica-Bold")
+        .fontSize(10)
+        .fillColor("#1e3a8a")
+        .text("Informasi Mahasiswa");
+      doc.fillColor("black");
       doc.moveDown(0.5);
 
-      field('NIM', r.nim);
-      field('Nama', r.nama);
-      field('Program Studi', r.program_studi);
-      field('Dosen Pembimbing', r.nama_dosen || '-');
-      field('Periode', r.nama_periode);
-      field('Judul Pelatihan', r.nama_pelatihan);
+      field("NIM", r.nim);
+      field("Nama", r.nama);
+      field("Program Studi", r.program_studi);
+      field("Dosen Pembimbing", r.nama_dosen || "-");
+      field("Periode", r.nama_periode);
+      field("Judul Pelatihan", r.nama_pelatihan);
     } else {
-      const COL = { no: 50, nim: 70, nama: 130, dosen: 230, judul: 335, status: 490 };
-      const WID = { no: 20, nim: 60, nama: 95, dosen: 100, judul: 145, status: 55 };
+      const COL = {
+        no: 50,
+        nim: 70,
+        nama: 130,
+        dosen: 230,
+        judul: 335,
+        status: 490,
+      };
+      const WID = {
+        no: 20,
+        nim: 60,
+        nama: 95,
+        dosen: 100,
+        judul: 145,
+        status: 55,
+      };
       const FONT_SIZE = 8;
       const LINE_H = 13;
       const ROW_PAD = 6;
 
       const textHeight = (text, width) => {
         const chars = Math.floor(width / (FONT_SIZE * 0.52));
-        const lines = Math.ceil(String(text || '-').length / chars);
+        const lines = Math.ceil(String(text || "-").length / chars);
         return Math.max(1, lines) * LINE_H;
       };
 
       const drawHeader = () => {
         const y = doc.y;
-        doc.rect(50, y, 495, 22).fill('#2563EB');
-        doc.fillColor('white').font('Helvetica-Bold').fontSize(FONT_SIZE);
+        doc.rect(50, y, 495, 22).fill("#2563EB");
+        doc.fillColor("white").font("Helvetica-Bold").fontSize(FONT_SIZE);
 
-        doc.text('No', COL.no, y + 6, { width: WID.no });
-        doc.text('NIM', COL.nim, y + 6, { width: WID.nim });
-        doc.text('Nama', COL.nama, y + 6, { width: WID.nama });
-        doc.text('Dosen Pembimbing', COL.dosen, y + 6, { width: WID.dosen });
-        doc.text('Judul Pelatihan', COL.judul, y + 6, { width: WID.judul });
-        doc.text('Status', COL.status, y + 6, { width: WID.status });
+        doc.text("No", COL.no, y + 6, { width: WID.no });
+        doc.text("NIM", COL.nim, y + 6, { width: WID.nim });
+        doc.text("Nama", COL.nama, y + 6, { width: WID.nama });
+        doc.text("Dosen Pembimbing", COL.dosen, y + 6, { width: WID.dosen });
+        doc.text("Judul Pelatihan", COL.judul, y + 6, { width: WID.judul });
+        doc.text("Status", COL.status, y + 6, { width: WID.status });
 
-        doc.fillColor('black');
+        doc.fillColor("black");
         doc.y = y + 22;
       };
 
       drawHeader();
 
       rows.forEach((r, i) => {
-        const judulH = Math.max(LINE_H, textHeight(r.nama_pelatihan, WID.judul));
+        const judulH = Math.max(
+          LINE_H,
+          textHeight(r.nama_pelatihan, WID.judul),
+        );
         const totalH = judulH + ROW_PAD * 2;
 
         if (doc.y + totalH > 760) {
@@ -861,30 +1139,39 @@ const exportPengajuanPDF = async (req, res) => {
         }
 
         const y = doc.y;
-        const bg = i % 2 === 0 ? '#ffffff' : '#f0f6ff';
+        const bg = i % 2 === 0 ? "#ffffff" : "#f0f6ff";
 
         doc.rect(50, y, 495, totalH).fill(bg);
-        doc.fillColor('#111827').font('Helvetica').fontSize(FONT_SIZE);
+        doc.fillColor("#111827").font("Helvetica").fontSize(FONT_SIZE);
 
         const centerY = y + (totalH - LINE_H) / 2;
 
         doc.text(`${i + 1}`, COL.no, centerY, { width: WID.no });
         doc.text(r.nim, COL.nim, centerY, { width: WID.nim });
         doc.text(r.nama, COL.nama, centerY, { width: WID.nama });
-        doc.text(r.nama_dosen || '-', COL.dosen, centerY, { width: WID.dosen });
-        doc.text(r.nama_pelatihan || '-', COL.judul, y + ROW_PAD, { width: WID.judul });
+        doc.text(r.nama_dosen || "-", COL.dosen, centerY, { width: WID.dosen });
+        doc.text(r.nama_pelatihan || "-", COL.judul, y + ROW_PAD, {
+          width: WID.judul,
+        });
 
-        doc.font('Helvetica-Bold').fillColor('#16a34a').text(
-          _statusLabel(r.status), COL.status, y + ROW_PAD, { width: WID.status }
-        );
-        doc.fillColor('#111827').font('Helvetica');
+        doc
+          .font("Helvetica-Bold")
+          .fillColor("#16a34a")
+          .text(_statusLabel(r.status), COL.status, y + ROW_PAD, {
+            width: WID.status,
+          });
+        doc.fillColor("#111827").font("Helvetica");
 
         const bottom = y + totalH;
-        doc.moveTo(50, bottom).lineTo(545, bottom).lineWidth(1).stroke('#64748b');
+        doc
+          .moveTo(50, bottom)
+          .lineTo(545, bottom)
+          .lineWidth(1)
+          .stroke("#64748b");
         doc.y = bottom + 1;
       });
 
-      doc.moveTo(50, doc.y).lineTo(545, doc.y).lineWidth(1.5).stroke('#334155');
+      doc.moveTo(50, doc.y).lineTo(545, doc.y).lineWidth(1.5).stroke("#334155");
     }
 
     doc.end();
@@ -898,9 +1185,10 @@ const getProfil = async (req, res) => {
   try {
     const [rows] = await db.query(
       `SELECT id_users AS id, username, role, nama, email, created_at FROM users WHERE id_users = ?`,
-      [req.user.id]
+      [req.user.id],
     );
-    if (!rows.length) return res.status(404).json({ message: "User tidak ditemukan." });
+    if (!rows.length)
+      return res.status(404).json({ message: "User tidak ditemukan." });
     res.json({ data: rows[0] });
   } catch (error) {
     console.error(error);
@@ -911,7 +1199,11 @@ const getProfil = async (req, res) => {
 const updateProfil = async (req, res) => {
   try {
     const { nama, email } = req.body;
-    await db.query("UPDATE users SET nama = ?, email = ? WHERE id_users = ?", [nama, email, req.user.id]);
+    await db.query("UPDATE users SET nama = ?, email = ? WHERE id_users = ?", [
+      nama,
+      email,
+      req.user.id,
+    ]);
     res.json({ message: "Profil berhasil diperbarui." });
   } catch (error) {
     console.error(error);
@@ -921,11 +1213,13 @@ const updateProfil = async (req, res) => {
 
 const getPeriode = async (req, res) => {
   try {
-    const [rows] = await db.query('SELECT id_periode AS id, nama_periode, is_active FROM periode ORDER BY id_periode DESC');
+    const [rows] = await db.query(
+      "SELECT id_periode AS id, nama_periode, is_active FROM periode ORDER BY id_periode DESC",
+    );
     res.json({ data: rows });
   } catch (error) {
     console.error(error);
-    res.status(500).json({ message: 'Terjadi kesalahan server.' });
+    res.status(500).json({ message: "Terjadi kesalahan server." });
   }
 };
 
@@ -954,7 +1248,7 @@ const getRekapNilai = async (req, res) => {
       LEFT JOIN users d ON d.id_users = pn.dosen_id
       ${where}
       ORDER BY u.nama ASC`,
-      params
+      params,
     );
 
     res.json({ data: rows });
@@ -964,6 +1258,9 @@ const getRekapNilai = async (req, res) => {
   }
 };
 
+// Ditambah: LEFT JOIN ke users (alias pa) via detail_pengajuan.dosen_pa_id, plus nama_pelatihan
+// di SELECT -- sebelumnya Dosen PA & Pelatihan tidak pernah di-select sama sekali di sini,
+// makanya selalu tampil "-" di frontend (StaffMonitoring.jsx) walau datanya sudah ada di DB.
 const getDaftarMahasiswaMBKM = async (req, res) => {
   try {
     const { periode_id } = req.query;
@@ -972,16 +1269,19 @@ const getDaftarMahasiswaMBKM = async (req, res) => {
         u.nim, u.nama,
         p.id_pengajuan as pengajuan_id, p.status as status_pengajuan,
         dp.judul as program_mbkm, dp.penyelenggara as instansi,
+        dp.nama_pelatihan,
         d.nama as dosen_pembimbing,
+        pa.nama as dosen_pa,
         pn.nilai_akhir, pn.grade
       FROM users u
       INNER JOIN pengajuan p ON p.mahasiswa_id = u.id_users ${periode_id ? "AND p.periode_id = ?" : ""}
       LEFT JOIN detail_pengajuan dp ON dp.pengajuan_id = p.id_pengajuan
       LEFT JOIN users d ON d.id_users = p.dosen_id
+      LEFT JOIN users pa ON pa.id_users = dp.dosen_pa_id
       LEFT JOIN penilaian pn ON pn.pengajuan_id = p.id_pengajuan AND pn.finalized_at IS NOT NULL
       WHERE u.role = 'mahasiswa'
       ORDER BY u.nama ASC`,
-      periode_id ? [periode_id] : []
+      periode_id ? [periode_id] : [],
     );
     res.json({ data: rows });
   } catch (error) {
@@ -995,12 +1295,13 @@ const getDaftarMahasiswaMBKM = async (req, res) => {
 const getLogbookMahasiswa = async (req, res) => {
   try {
     const { pengajuan_id } = req.query;
-    if (!pengajuan_id) return res.status(400).json({ message: "pengajuan_id wajib diisi." });
+    if (!pengajuan_id)
+      return res.status(400).json({ message: "pengajuan_id wajib diisi." });
 
     const [rows] = await db.query(
       `SELECT id_logbook AS id, tanggal, jam_mulai, jam_selesai, kegiatan, durasi_menit, status, bukti_link, cloudinary_public_id
        FROM logbook WHERE pengajuan_id = ? ORDER BY tanggal DESC`,
-      [pengajuan_id]
+      [pengajuan_id],
     );
     res.json({ data: rows });
   } catch (error) {
@@ -1012,11 +1313,12 @@ const getLogbookMahasiswa = async (req, res) => {
 const getDokumenMahasiswa = async (req, res) => {
   try {
     const { pengajuan_id } = req.query;
-    if (!pengajuan_id) return res.status(400).json({ message: "pengajuan_id wajib diisi." });
+    if (!pengajuan_id)
+      return res.status(400).json({ message: "pengajuan_id wajib diisi." });
 
     const [rows] = await db.query(
       `SELECT id_dokumen AS id, jenis, nama_file, cloudinary_url, status FROM dokumen WHERE pengajuan_id = ?`,
-      [pengajuan_id]
+      [pengajuan_id],
     );
     res.json({ data: rows });
   } catch (error) {
@@ -1028,7 +1330,8 @@ const getDokumenMahasiswa = async (req, res) => {
 const getNilaiMahasiswa = async (req, res) => {
   try {
     const { pengajuan_id } = req.query;
-    if (!pengajuan_id) return res.status(400).json({ message: "pengajuan_id wajib diisi." });
+    if (!pengajuan_id)
+      return res.status(400).json({ message: "pengajuan_id wajib diisi." });
 
     const [rows] = await db.query(
       `SELECT
@@ -1039,7 +1342,7 @@ const getNilaiMahasiswa = async (req, res) => {
       FROM penilaian pn
       LEFT JOIN users d ON d.id_users = pn.dosen_id
       WHERE pn.pengajuan_id = ? AND pn.finalized_at IS NOT NULL`,
-      [pengajuan_id]
+      [pengajuan_id],
     );
 
     res.json({ data: rows[0] || null });

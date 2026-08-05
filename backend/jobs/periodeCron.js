@@ -123,12 +123,6 @@ const runAutoToggle = async () => {
   }
 };
 
-// Reminder deadline logbook (H-3 / H-1) — email (sudah ada) + push
-//
-// FIX: threshold jam logbook sebelumnya di-hardcode 2880 menit (48 jam).
-// Sekarang diambil dari periode.min_jam_pengajuan (target jam logbook
-// per periode, bisa beda-beda tiap periode). Fallback ke 48 jam kalau
-// kolom itu NULL/0 supaya tidak crash di periode lama yang belum diisi.
 const runDeadlineReminderLogbook = async (conn, todayStr) => {
   try {
     const [periodeList] = await conn.query(
