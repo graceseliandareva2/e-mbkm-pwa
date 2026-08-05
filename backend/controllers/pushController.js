@@ -1,10 +1,9 @@
 const db = require("../config/db");
 
 const subscribe = async (req, res) => {
-  console.log("===== PUSH SUBSCRIBE =====");
-  console.log("User:", req.user);
-  console.log("Body:", req.body);
-
+  console.log("=== PUSH SUBSCRIBE MASUK ===");
+  console.log(req.body);
+  console.log(req.user);
   try {
     const { endpoint, keys } = req.body;
 
