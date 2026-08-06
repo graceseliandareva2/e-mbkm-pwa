@@ -171,8 +171,7 @@ export default function MahasiswaPengajuan() {
 
   const handleSubmit = async (e) => {
     e.preventDefault()
-
-    // Normalisasi defensif -- jaga-jaga kalau user submit tanpa sempat blur dari field link
+    
     const normalizedLink = normalizeUrl(form.link_pelatihan)
     if (normalizedLink !== form.link_pelatihan) {
       setForm(f => ({ ...f, link_pelatihan: normalizedLink }))

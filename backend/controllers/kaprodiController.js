@@ -652,7 +652,7 @@ const getDashboardStats = async (req, res) => {
       nama_periode = periodeRow?.nama_periode || "";
     }
 
-    // roster_mahasiswa_mbkm/roster_dosen_mbkm sudah dihapus -- diganti users.current_periode_id.
+    
     const [[{ total_mahasiswa }]] = await db.query(
       `SELECT COUNT(*) AS total_mahasiswa FROM users WHERE role = 'mahasiswa' AND current_periode_id = ?`,
       [periode_id]

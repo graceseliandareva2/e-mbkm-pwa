@@ -40,6 +40,22 @@ const resolveFileUrl = (path) => {
   return `/uploads/${path.replace(/^.*uploads\//, '')}`
 }
 
+// Cloudinary resource_type=raw (dipakai buat PDF kita) default dikirim
+// dengan header Content-Disposition: attachment (kebijakan keamanan
+// Cloudinary). Browser desktop sering tetap render di iframe meski ada
+// header itu, tapi browser mobile (Chrome Android, WebView PWA) patuh ke
+// header ini dan memaksa download alih-alih preview inline -- ini yang
+// bikin muncul kartu "PDF - nama file - tombol Buka" di HP. Sisip flag
+// fl_attachment:false setelah "/upload/" supaya Cloudinary kirim
+// Content-Disposition: inline, konsisten di semua platform.
+const toInlineCloudinaryUrl = (url) => {
+  if (!url) return url
+  if (!/res\.cloudinary\.com/i.test(url)) return url
+  if (/fl_attachment/i.test(url)) return url
+
+  return url.replace(/\/upload\//, '/upload/fl_attachment:false/')
+}
+
 // Dipakai HANYA untuk bukti hasil upload file (bukti_path -> Cloudinary).
 // Tidak pernah dipanggil untuk link yang diinput manual oleh user.
 export function FileBuktiPreview({
@@ -66,7 +82,7 @@ export function FileBuktiPreview({
   if (type === 'pdf') {
     return (
       <iframe
-        src={`${url}#toolbar=1&navpanes=0`}
+        src={`${toInlineCloudinaryUrl(url)}#toolbar=1&navpanes=0`}
         className="w-full h-full"
         title={filename}
       />
@@ -134,10 +150,6 @@ export default function BuktiPreview({
     )
   }
 
-  // Link input user -> selalu hyperlink polos, apapun bentuk URL-nya.
-  // Sengaja TIDAK cek getFileType(link) lagi -- link yang kebetulan
-  // mengandung ".pdf" di query string (mis. Google Drive) tidak boleh
-  // ikut di-iframe seperti file upload.
   if (link) {
     return <LinkBukti url={link} />
   }

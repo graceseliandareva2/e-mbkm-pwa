@@ -27,7 +27,7 @@ export default function DosenDashboard() {
   // ─── ambil periode dari sumber tunggal (global, auto-init kalau kosong) ───
   const { periodeId, activePeriode: selectedPeriode } = usePeriodeFilter('dosen_pembimbing')
 
-  // re-fetch setiap kali periode berubah
+  
   useEffect(() => { fetchData() }, [periodeId])
 
   const fetchData = async () => {

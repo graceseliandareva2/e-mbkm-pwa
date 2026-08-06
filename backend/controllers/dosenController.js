@@ -20,10 +20,7 @@ async function isDosenPembimbingPengajuan(dosenId, pengajuanId) {
   return rows.length > 0;
 }
 
-// Ditambah: LEFT JOIN users (alias pa) via detail_pengajuan.dosen_pa_id, select pa.nama AS
-// dosen_pembimbing_akademik -- sebelumnya kolom ini tidak pernah di-select, padahal frontend
-// (DosenMahasiswaBimbingan.jsx) sudah membaca m.dosen_pembimbing_akademik. pa.nama ditambahkan
-// ke GROUP BY karena query ini pakai GROUP BY manual.
+
 const getMahasiswaBimbingan = async (req, res) => {
   try {
     const dsn = await getDosenProfile(req.user.id);

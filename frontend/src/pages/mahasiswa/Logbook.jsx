@@ -148,7 +148,6 @@ export default function MahasiswaLogbook() {
   const handleSubmit = async (e) => {
     e.preventDefault()
 
-    // Normalisasi defensif -- jaga-jaga kalau user submit tanpa sempat blur dari field link
     const normalizedBuktiLink = buktiType === 'link' ? normalizeUrl(buktiLink) : buktiLink
     if (buktiType === 'link' && normalizedBuktiLink !== buktiLink) {
       setBuktiLink(normalizedBuktiLink)

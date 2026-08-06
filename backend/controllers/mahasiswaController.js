@@ -205,9 +205,6 @@ const tambahPengajuan = async (req, res) => {
     const periode = periodeAktif[0];
     const minJam = periode.min_jam_pengajuan ?? 48;
 
-    // periode.jenis & roster_mahasiswa_mbkm sudah dihapus -- gak ada lagi
-    // pembedaan mbkm/studi-independen/keduanya, jadi cek roster dibuang.
-
     const {
   judul, penyelenggara, deskripsi, lokasi,
   nama_pelatihan, link_pelatihan, durasi_pelatihan_jam,
@@ -219,7 +216,6 @@ if (!judul || !penyelenggara || !nama_pelatihan) {
   return res.status(400).json({ message: "Judul, penyelenggara, dan pelatihan wajib diisi." });
 }
 
-// dosen_pa_id wajib -- setiap pengajuan harus punya dosen pembimbing akademik.
 if (!dosen_pa_id) {
   connection.release();
   return res.status(400).json({ message: "Dosen Pembimbing Akademik wajib dipilih." });

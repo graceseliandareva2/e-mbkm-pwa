@@ -60,7 +60,6 @@ export default function StaffDosen() {
     try {
       const formData = new FormData()
       formData.append('file', file)
-      // periode_id sengaja tidak dikirim -> backend otomatis pakai periode aktif
       const res = await api.post('/staff/import-dosen', formData, {
         headers: { 'Content-Type': 'multipart/form-data' }
       })

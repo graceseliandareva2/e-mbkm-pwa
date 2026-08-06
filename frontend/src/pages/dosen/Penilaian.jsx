@@ -264,25 +264,24 @@ export default function DosenPenilaian() {
     }
   };
 
-  const handleEksporSatu = async () => {
-    try {
-      const res = await api.get(
-        `/dosen/penilaian/ekspor?mahasiswa_id=${selectedMhs.id}&periode_id=${selectedMhs.periode_id}`,
-        { responseType: "blob" },
-      );
-      const url = window.URL.createObjectURL(
-        new Blob([res.data], { type: "application/pdf" }),
-      );
-      const a = document.createElement("a");
-      a.href = url;
-      a.download = `penilaian_${selectedMhs.nim}.pdf`;
-      a.click();
-      window.URL.revokeObjectURL(url);
-    } catch {
-      toast.error("Gagal mengunduh PDF.");
-    }
-  };
-
+ const handleEksporSatu = async () => {
+  try {
+    const res = await api.get(
+      `/dosen/penilaian/ekspor?pengajuan_id=${selectedMhs.pengajuan_id}`,
+      { responseType: "blob" },
+    );
+    const url = window.URL.createObjectURL(
+      new Blob([res.data], { type: "application/pdf" }),
+    );
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = `penilaian_${selectedMhs.nim}.pdf`;
+    a.click();
+    window.URL.revokeObjectURL(url);
+  } catch {
+    toast.error("Gagal mengunduh PDF.");
+  }
+};
   const handleEksporSemua = async () => {
     const periodeId = selectedPeriode || mahasiswaList[0]?.periode_id;
     if (!periodeId) return toast.error("Belum ada data penilaian.");

@@ -21,7 +21,6 @@ export default function KaprodiDashboard() {
 
   const { periodeId: selectedPeriodeId, periodeList: periode } = usePeriodeFilter('kaprodi')
 
-// eslint-disable-next-line react-hooks/exhaustive-deps
   useEffect(() => { fetchData() }, [selectedPeriodeId])
 
   const fetchData = async () => {
