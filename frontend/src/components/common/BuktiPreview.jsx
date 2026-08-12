@@ -44,8 +44,7 @@ const toInlineCloudinaryUrl = (url) => {
   if (!url) return url
   if (!/res\.cloudinary\.com/i.test(url)) return url
 
-
-  return url.replace(/\/upload\//, '/upload/fl_attachment:false/')
+  return url.replace(/\/fl_attachment(:[^/]*)?\//, '/')
 }
 
 
