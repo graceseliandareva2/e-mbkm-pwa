@@ -139,7 +139,7 @@ const getPengajuan = async (req, res) => {
         p.cloudinary_logbook_link,
         dp.judul, dp.penyelenggara, dp.waktu_studi_independen,
         dp.nama_pelatihan, dp.link_pelatihan, dp.durasi_pelatihan_jam,
-        dp.deskripsi, dp.lokasi, dp.tanggal_mulai, dp.tanggal_selesai,
+        dp.tanggal_mulai, dp.tanggal_selesai,
         dp.dosen_pa_id, dpa.nama AS nama_dosen_pa,
         per.nama_periode, per.form_pengajuan_buka, per.min_jam_pengajuan,
         p.dosen_id, d.nama as nama_dosen
@@ -206,28 +206,28 @@ const tambahPengajuan = async (req, res) => {
     const minJam = periode.min_jam_pengajuan ?? 48;
 
     const {
-  judul, penyelenggara, deskripsi, lokasi,
-  nama_pelatihan, link_pelatihan, durasi_pelatihan_jam,
-  tanggal_mulai, tanggal_selesai, dosen_pa_id,
-} = req.body;
+      judul, penyelenggara,
+      nama_pelatihan, link_pelatihan, durasi_pelatihan_jam,
+      tanggal_mulai, tanggal_selesai, dosen_pa_id,
+    } = req.body;
 
-if (!judul || !penyelenggara || !nama_pelatihan) {
-  connection.release();
-  return res.status(400).json({ message: "Judul, penyelenggara, dan pelatihan wajib diisi." });
-}
+    if (!judul || !penyelenggara || !nama_pelatihan) {
+      connection.release();
+      return res.status(400).json({ message: "Judul, penyelenggara, dan pelatihan wajib diisi." });
+    }
 
-if (!dosen_pa_id) {
-  connection.release();
-  return res.status(400).json({ message: "Dosen Pembimbing Akademik wajib dipilih." });
-}
-const [dosenPaRows] = await db.query(
-  `SELECT id_users FROM users WHERE id_users = ? AND role = 'dosen' AND current_periode_id = ?`,
-  [dosen_pa_id, periode.id_periode]
-);
-if (!dosenPaRows.length) {
-  connection.release();
-  return res.status(400).json({ message: "Dosen PA yang dipilih tidak valid." });
-}
+    if (!dosen_pa_id) {
+      connection.release();
+      return res.status(400).json({ message: "Dosen Pembimbing Akademik wajib dipilih." });
+    }
+    const [dosenPaRows] = await db.query(
+      `SELECT id_users FROM users WHERE id_users = ? AND role = 'dosen' AND current_periode_id = ?`,
+      [dosen_pa_id, periode.id_periode]
+    );
+    if (!dosenPaRows.length) {
+      connection.release();
+      return res.status(400).json({ message: "Dosen PA yang dipilih tidak valid." });
+    }
 
     // Skema baru: 1 pengajuan = 1 pelatihan (field tunggal, bukan array 1-3 lagi).
     const durasiJam = Number(durasi_pelatihan_jam) || 0;
@@ -260,12 +260,12 @@ if (!dosenPaRows.length) {
 
     await connection.query(
       `INSERT INTO detail_pengajuan
-        (id_detail_pengajuan, pengajuan_id, judul, penyelenggara, deskripsi, lokasi,
+        (id_detail_pengajuan, pengajuan_id, judul, penyelenggara,
          nama_pelatihan, link_pelatihan, durasi_pelatihan_jam, dosen_pa_id,
          tanggal_mulai, tanggal_selesai)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
       [
-        detailId, pengajuanId, judul, penyelenggara, deskripsi || null, lokasi || null,
+        detailId, pengajuanId, judul, penyelenggara,
         nama_pelatihan, link_pelatihan || null, durasiJam, dosen_pa_id || null,
         tanggal_mulai || null, tanggal_selesai || null,
       ]
@@ -301,7 +301,7 @@ const updatePengajuan = async (req, res) => {
     }
 
     const {
-      judul, penyelenggara, deskripsi, lokasi,
+      judul, penyelenggara,
       nama_pelatihan, link_pelatihan, durasi_pelatihan_jam,
       tanggal_mulai, tanggal_selesai, dosen_pa_id,
     } = req.body;
@@ -311,18 +311,18 @@ const updatePengajuan = async (req, res) => {
       return res.status(400).json({ message: "Judul, penyelenggara, dan pelatihan wajib diisi." });
     }
 
-   if (!dosen_pa_id) {
-  connection.release();
-  return res.status(400).json({ message: "Dosen Pembimbing Akademik wajib dipilih." });
-}
-const [dosenPaRows] = await db.query(
-  `SELECT id_users FROM users WHERE id_users = ? AND role = 'dosen' AND current_periode_id = ?`,
-  [dosen_pa_id, pengajuan[0].periode_id]
-);
-if (!dosenPaRows.length) {
-  connection.release();
-  return res.status(400).json({ message: "Dosen PA yang dipilih tidak valid." });
-}
+    if (!dosen_pa_id) {
+      connection.release();
+      return res.status(400).json({ message: "Dosen Pembimbing Akademik wajib dipilih." });
+    }
+    const [dosenPaRows] = await db.query(
+      `SELECT id_users FROM users WHERE id_users = ? AND role = 'dosen' AND current_periode_id = ?`,
+      [dosen_pa_id, pengajuan[0].periode_id]
+    );
+    if (!dosenPaRows.length) {
+      connection.release();
+      return res.status(400).json({ message: "Dosen PA yang dipilih tidak valid." });
+    }
 
     const [periodeRow] = await db.query(
       "SELECT min_jam_pengajuan FROM periode WHERE id_periode = ?",
@@ -342,12 +342,12 @@ if (!dosenPaRows.length) {
 
     await connection.query(
       `UPDATE detail_pengajuan
-       SET judul=?, penyelenggara=?, deskripsi=?, lokasi=?,
+       SET judul=?, penyelenggara=?,
            nama_pelatihan=?, link_pelatihan=?, durasi_pelatihan_jam=?, dosen_pa_id=?,
            tanggal_mulai=?, tanggal_selesai=?
        WHERE pengajuan_id = ?`,
       [
-        judul, penyelenggara, deskripsi || null, lokasi || null,
+        judul, penyelenggara,
         nama_pelatihan, link_pelatihan || null, durasiJam, dosen_pa_id,
         tanggal_mulai || null, tanggal_selesai || null, id,
       ]
@@ -442,6 +442,7 @@ const tambahLogbook = async (req, res) => {
   try {
     const mahasiswa = await getMahasiswaProfile(req.user.id);
     // hasil & kendala sudah dihapus dari request/response.
+    // CATATAN: kolom deskripsi di tabel `logbook` masih ada dan tetap dipakai di sini.
     const { tanggal, jam_mulai, jam_selesai, kegiatan, deskripsi } = req.body;
 
     if (!tanggal || !jam_mulai || !jam_selesai || !kegiatan || !deskripsi) {
