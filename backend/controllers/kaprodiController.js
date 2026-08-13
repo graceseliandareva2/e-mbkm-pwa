@@ -396,8 +396,8 @@ const getVerifikasiPengajuan = async (req, res) => {
         p.id_pengajuan AS id, p.mahasiswa_id, p.periode_id, p.status,
         p.catatan_kaprodi,
         p.created_at, p.updated_at, p.archived_at, p.archived_by,
-        dp.nama_pelatihan, dp.link_pelatihan, dp.durasi_pelatihan_jam, dp.judul, dp.penyelenggara, dp.waktu_studi_independen, dp.deskripsi,
-dp.lokasi, dp.tanggal_mulai, dp.tanggal_selesai,
+        dp.nama_pelatihan, dp.link_pelatihan, dp.durasi_pelatihan_jam, dp.judul, dp.penyelenggara, dp.waktu_studi_independen, 
+          dp.tanggal_mulai, dp.tanggal_selesai,
         u.nim, u.nama as nama_mahasiswa, u.email,
         p.dosen_id, d.nama as nama_dosen,
         dp.dosen_pa_id, dpa.nama as nama_dosen_pa
