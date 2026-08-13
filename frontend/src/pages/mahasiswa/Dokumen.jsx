@@ -6,7 +6,7 @@ import {
 import api from '../../utils/api'
 import toast from 'react-hot-toast'
 import { useSyncOnline } from '../../utils/useSyncOnline'
-import { saveToQueue } from '../../utils/offlineQueue'
+import { saveToQueue, getPendingCount } from '../../utils/offlineQueue'
 import { FileBuktiPreview } from '../../components/common/BuktiPreview'
 
 const LS_DOKUMEN   = 'cache_dokumen'
@@ -241,6 +241,7 @@ export default function MahasiswaDokumen() {
   const [detailDoc, setDetailDoc]     = useState(null)
   const [resubmitDoc, setResubmitDoc] = useState(null)
   const [form, setForm]               = useState({ jenis: '', file: null })
+  const [pendingCount, setPendingCount] = useState(0)
   const fileRef = useRef(null)
 
   useEffect(() => {
@@ -273,9 +274,26 @@ export default function MahasiswaDokumen() {
     finally { setLoading(false) }
   }
 
-  useSyncOnline(fetchAll)
+  
+  const refreshPendingCount = async () => {
+    try {
+      const count = await getPendingCount()
+      setPendingCount(count)
+    } catch (err) {
+      console.error('[MahasiswaDokumen] Gagal ambil pending count:', err)
+    }
+  }
 
-  useEffect(() => { fetchAll() }, [])
+  
+  useSyncOnline(async () => {
+    await fetchAll()
+    await refreshPendingCount()
+  })
+
+  useEffect(() => {
+    fetchAll()
+    refreshPendingCount()
+  }, [])
 
   const resetForm = () => setForm({ jenis: '', file: null })
 
@@ -308,6 +326,7 @@ export default function MahasiswaDokumen() {
         toast.success('Offline! Dokumen tersimpan lokal, akan otomatis terupload saat online.')
         setModalOpen(false)
         resetForm()
+        refreshPendingCount()
       } catch {
         toast.error('Gagal menyimpan data offline')
       }
@@ -341,7 +360,7 @@ export default function MahasiswaDokumen() {
     } catch { toast.error('Gagal menghapus dokumen') }
   }
 
-  // Terkunci jika pengajuan belum disetujui kaprodi ATAU sudah disetujui tapi dosen pembimbing belum di-assign
+ 
   const isDisabled = pengajuan?.status !== 'disetujui_kaprodi' || !pengajuan?.dosen_id
   const VERIFIED_STATUSES = ['diverifikasi']
   const activeDokumen = dokumen.filter(d => !VERIFIED_STATUSES.includes(d.status))
@@ -442,7 +461,15 @@ export default function MahasiswaDokumen() {
       {/* Banner offline*/}
       {!navigator.onLine && (
         <div className="bg-yellow-50 border border-yellow-200 rounded-xl px-4 py-3 text-sm text-yellow-700 font-medium">
-          ⚠️ Kamu sedang offline. Hapus dokumen memerlukan koneksi internet.
+          ⚠️ Kamu sedang offline.
+        </div>
+      )}
+
+      {/* Banner dokumen pending sync dari antrian offline */}
+      {pendingCount > 0 && (
+        <div className="bg-blue-50 border border-blue-200 rounded-xl px-4 py-3 text-sm text-blue-700 font-medium flex items-center gap-2">
+          <Clock className="w-4 h-4 flex-shrink-0" />
+          {pendingCount} dokumen menunggu diupload. Akan otomatis tersinkronisasi saat kamu online.
         </div>
       )}
 
