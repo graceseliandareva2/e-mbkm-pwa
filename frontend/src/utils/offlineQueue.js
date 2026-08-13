@@ -49,43 +49,70 @@ export async function deleteFromQueue(id) {
 }
 
 export async function syncQueue(apiInstance) {
+  console.log('🔄 [offlineQueue] syncQueue DIPANGGIL')
+
   const queue = await getAllQueue()
+
+  console.log('📦 [offlineQueue] Jumlah queue:', queue.length)
+  console.log('📦 [offlineQueue] Isi queue:', queue)
+
   if (queue.length === 0) return 0
 
   let successCount = 0
+
   for (const item of queue) {
     try {
-      // ✅ Kalau item punya file (mis. bukti logbook yang diupload saat
-      // offline), kirim sebagai FormData (multipart) supaya file ikut
-      // ter-upload ke Cloudinary saat sinkronisasi -- bukan JSON biasa.
+      console.log('🚀 [offlineQueue] Mulai sync item:', item.id)
+      console.log('📄 URL:', item.url)
+      console.log('📄 Data:', item.data)
+
       if (item.file && item.file.blob) {
+        console.log('📎 File ditemukan:', item.file.filename)
+
         const formData = new FormData()
+
         Object.entries(item.data || {}).forEach(([key, value]) => {
-          if (value !== undefined && value !== null) formData.append(key, value)
+          if (value !== undefined && value !== null) {
+            formData.append(key, value)
+          }
         })
-        formData.append(item.file.fieldName, item.file.blob, item.file.filename)
+
+        formData.append(
+          item.file.fieldName,
+          item.file.blob,
+          item.file.filename
+        )
 
         if (item.method === 'POST') {
-          await apiInstance.post(item.url, formData, { headers: { 'Content-Type': 'multipart/form-data' } })
+          await apiInstance.post(item.url, formData)
         } else if (item.method === 'PUT') {
-          await apiInstance.put(item.url, formData, { headers: { 'Content-Type': 'multipart/form-data' } })
+          await apiInstance.put(item.url, formData)
         }
       } else if (item.method === 'POST') {
         await apiInstance.post(item.url, item.data)
       } else if (item.method === 'PUT') {
         await apiInstance.put(item.url, item.data)
       }
+
       await deleteFromQueue(item.id)
+
+      console.log('✅ [offlineQueue] Sync BERHASIL:', item.id)
+
       successCount++
     } catch (err) {
-      // Biarkan item tetap di antrian jika gagal (akan dicoba lagi)
-      console.error('[offlineQueue] Sync gagal untuk item:', item.id, err?.response?.data || err.message)
+      console.error(
+        '❌ [offlineQueue] Sync GAGAL:',
+        item.id,
+        err?.response?.status,
+        err?.response?.data || err.message
+      )
     }
   }
+
   return successCount
 }
 
-// Utilitas: berapa item yang masih menunggu di antrian
+
 export async function getPendingCount() {
   const queue = await getAllQueue()
   return queue.length
