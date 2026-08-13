@@ -10,7 +10,8 @@ const allowedOrigins = [
   "http://localhost:5173",
   "http://localhost:4173",
   "https://e-mbkmitbss.online",
-  process.env.FRONTEND_URL, // buat production (Vercel)
+   "https://www.e-mbkmitbss.online",
+  process.env.FRONTEND_URL, 
 ].filter(Boolean);
 
 app.use(
@@ -57,13 +58,6 @@ app.listen(PORT, () => {
   console.log(`Server berjalan di http://localhost:${PORT}`);
 });
 
-// PENTING: runAutoToggle() TIDAK dipanggil manual di sini lagi.
-// Sebelumnya ada `runAutoToggle();` langsung setelah startPeriodeCron() --
-// itu bikin fungsi reminder H-3/H-1 (yang tidak punya guard idempotensi)
-// ikut terpicu setiap kali server di-restart/redeploy. Kalau kebetulan
-// restart terjadi di hari H-3 atau H-1 deadline, mahasiswa bisa dapat
-// notif dobel/triple. Auto-toggle & reminder deadline cukup jalan lewat
-// cron terjadwal (00:01 WIB) di dalam startPeriodeCron().
 startPeriodeCron();
 
 console.log("Static folder:", path.join(__dirname, "uploads"));
