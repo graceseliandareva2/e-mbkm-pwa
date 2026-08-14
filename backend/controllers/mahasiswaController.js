@@ -612,7 +612,14 @@ const getDokumen = async (req, res) => {
   try {
     const mahasiswa = await getMahasiswaProfile(req.user.id);
     const [rows] = await db.query(
-      `SELECT d.*, per.nama_periode
+      `SELECT d.id_dokumen AS id, d.pengajuan_id, d.jenis, d.nama_file,
+              d.cloudinary_public_id, d.cloudinary_url, d.ukuran_file, d.status,
+              d.feedback, d.verified_by, d.verified_at,
+              d.feedback_kaprodi, d.feedback_dospem,
+              d.verified_kaprodi_by, d.verified_kaprodi_at,
+              d.verified_dospem_by, d.verified_dospem_at,
+              d.created_at, d.updated_at,
+              per.nama_periode
        FROM dokumen d
        JOIN pengajuan p ON p.id_pengajuan = d.pengajuan_id
        JOIN periode per ON per.id_periode = p.periode_id

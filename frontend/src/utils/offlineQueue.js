@@ -83,14 +83,6 @@ export async function syncQueue(apiInstance) {
           item.file.filename
         )
 
-        // Instance axios (utils/api.js) set default header Content-Type:
-        // 'application/json' secara global. Kalau header itu tidak di-override,
-        // axios TIDAK akan auto-generate 'multipart/form-data; boundary=...'
-        // untuk body FormData -- karena header eksplisit sudah ada duluan.
-        // Akibatnya multer di backend gagal parsing, req.file selalu undefined,
-        // backend balas 400 "File tidak ditemukan." meski file-nya ada.
-        // Set Content-Type: undefined supaya axios yang generate boundary
-        // otomatis (behaviour default axios untuk FormData).
         const fileHeaders = { headers: { 'Content-Type': undefined } }
 
         if (item.method === 'POST') {
