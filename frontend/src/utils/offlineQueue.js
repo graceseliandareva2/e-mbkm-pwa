@@ -49,12 +49,12 @@ export async function deleteFromQueue(id) {
 }
 
 export async function syncQueue(apiInstance) {
-  console.log('🔄 [offlineQueue] syncQueue DIPANGGIL')
+  console.log('[offlineQueue] syncQueue DIPANGGIL')
 
   const queue = await getAllQueue()
 
-  console.log('📦 [offlineQueue] Jumlah queue:', queue.length)
-  console.log('📦 [offlineQueue] Isi queue:', queue)
+  console.log('[offlineQueue] Jumlah queue:', queue.length)
+  console.log('[offlineQueue] Isi queue:', queue)
 
   if (queue.length === 0) return 0
 
@@ -62,12 +62,12 @@ export async function syncQueue(apiInstance) {
 
   for (const item of queue) {
     try {
-      console.log('🚀 [offlineQueue] Mulai sync item:', item.id)
-      console.log('📄 URL:', item.url)
-      console.log('📄 Data:', item.data)
+      console.log('[offlineQueue] Mulai sync item:', item.id)
+      console.log('URL:', item.url)
+      console.log('Data:', item.data)
 
       if (item.file && item.file.blob) {
-        console.log('📎 File ditemukan:', item.file.filename)
+        console.log('File ditemukan:', item.file.filename)
 
         const formData = new FormData()
 
@@ -83,10 +83,20 @@ export async function syncQueue(apiInstance) {
           item.file.filename
         )
 
+        // Instance axios (utils/api.js) set default header Content-Type:
+        // 'application/json' secara global. Kalau header itu tidak di-override,
+        // axios TIDAK akan auto-generate 'multipart/form-data; boundary=...'
+        // untuk body FormData -- karena header eksplisit sudah ada duluan.
+        // Akibatnya multer di backend gagal parsing, req.file selalu undefined,
+        // backend balas 400 "File tidak ditemukan." meski file-nya ada.
+        // Set Content-Type: undefined supaya axios yang generate boundary
+        // otomatis (behaviour default axios untuk FormData).
+        const fileHeaders = { headers: { 'Content-Type': undefined } }
+
         if (item.method === 'POST') {
-          await apiInstance.post(item.url, formData)
+          await apiInstance.post(item.url, formData, fileHeaders)
         } else if (item.method === 'PUT') {
-          await apiInstance.put(item.url, formData)
+          await apiInstance.put(item.url, formData, fileHeaders)
         }
       } else if (item.method === 'POST') {
         await apiInstance.post(item.url, item.data)
@@ -96,12 +106,12 @@ export async function syncQueue(apiInstance) {
 
       await deleteFromQueue(item.id)
 
-      console.log('✅ [offlineQueue] Sync BERHASIL:', item.id)
+      console.log('[offlineQueue] Sync BERHASIL:', item.id)
 
       successCount++
     } catch (err) {
       console.error(
-        '❌ [offlineQueue] Sync GAGAL:',
+        '[offlineQueue] Sync GAGAL:',
         item.id,
         err?.response?.status,
         err?.response?.data || err.message

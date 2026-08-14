@@ -25,26 +25,16 @@ export const useSyncOnline = (onSyncDone) => {
       }
     }
 
-    // 1) Coba sync begitu hook ini mount. Ini yang selama ini bolong:
-    //    kalau app dibuka ulang pas udah online (misal ditutup saat offline,
-    //    dibuka lagi nanti), event 'online' ga akan pernah nembak karena
-    //    ga ada transisi offline->online yang kedetect browser.
     attemptSync()
 
-    // 2) Event 'online' bawaan browser -- tetap dipasang, ini yang bikin
-    //    berhasil di desktop (tab-nya selalu aktif jadi event-nya reliable).
-    window.addEventListener('online', attemptSync)
 
-    // 3) Di Android, kalau PWA di-background/di-suspend pas koneksi balik,
-    //    event 'online' sering ga fired karena JS-nya lagi di-throttle OS.
-    //    visibilitychange nembak begitu app di-foreground lagi -- re-check di situ.
+    window.addEventListener('online', attemptSync)
+   
     const handleVisibility = () => {
       if (document.visibilityState === 'visible') attemptSync()
     }
     document.addEventListener('visibilitychange', handleVisibility)
 
-    // 4) Jaring pengaman terakhir: cek berkala. syncQueue sendiri no-op
-    //    kalau antrian kosong, jadi ini murah.
     const interval = setInterval(attemptSync, 30000)
 
     return () => {
