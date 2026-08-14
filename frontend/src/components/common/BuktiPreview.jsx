@@ -6,7 +6,9 @@ import {
   ChevronRight,
   ZoomIn,
   ZoomOut,
-  Download
+  Download,
+  RotateCw,
+  Printer
 } from 'lucide-react'
 import { Document, Page, pdfjs } from 'react-pdf'
 import 'react-pdf/dist/Page/AnnotationLayer.css'
@@ -77,7 +79,18 @@ function PdfBuktiPreview({ url, filename }) {
   const [numPages, setNumPages] = useState(null)
   const [pageNumber, setPageNumber] = useState(1)
   const [scale, setScale] = useState(1)
+  const [rotation, setRotation] = useState(0)
   const [error, setError] = useState(false)
+
+  const handlePrint = () => {
+    const win = window.open(url, '_blank')
+    if (win) {
+      win.addEventListener('load', () => {
+        win.focus()
+        win.print()
+      })
+    }
+  }
 
   if (error) {
     return (
@@ -152,6 +165,20 @@ function PdfBuktiPreview({ url, filename }) {
         </div>
 
         <div className="flex items-center gap-1 shrink-0 border-l pl-1 sm:pl-3">
+          <button
+            onClick={() => setRotation((r) => (r + 90) % 360)}
+            className="p-1.5 rounded hover:bg-gray-100 text-gray-600"
+            aria-label="Putar"
+          >
+            <RotateCw className="w-4 h-4" />
+          </button>
+          <button
+            onClick={handlePrint}
+            className="p-1.5 rounded hover:bg-gray-100 text-gray-600"
+            aria-label="Print"
+          >
+            <Printer className="w-4 h-4" />
+          </button>
           <a
             href={url}
             download={filename || undefined}
@@ -184,6 +211,7 @@ function PdfBuktiPreview({ url, filename }) {
         >
           <Page
             pageNumber={pageNumber}
+            rotate={rotation}
             renderAnnotationLayer={false}
             renderTextLayer={false}
             width={Math.min(window.innerWidth - 32, BASE_WIDTH) * scale}
