@@ -42,8 +42,8 @@ const tambahPeriode = async (req, res) => {
       min_jam_pengajuan,
       tanggal_mulai_pengajuan, tanggal_selesai_pengajuan,
       tanggal_mulai_logbook, tanggal_selesai_logbook,
-      tanggal_mulai_dokumen,
-      tanggal_selesai_ppt, tanggal_selesai_laporan,
+      tanggal_mulai_ppt, tanggal_selesai_ppt,
+      tanggal_mulai_laporan, tanggal_selesai_laporan,
       is_active,
     } = req.body;
 
@@ -59,16 +59,18 @@ const tambahPeriode = async (req, res) => {
       `INSERT INTO periode (nama_periode, tanggal_mulai, tanggal_selesai, min_jam_pengajuan,
       tanggal_mulai_pengajuan, tanggal_selesai_pengajuan,
       tanggal_mulai_logbook, tanggal_selesai_logbook,
-      tanggal_mulai_dokumen, tanggal_selesai_ppt, tanggal_selesai_laporan,
+      tanggal_mulai_ppt, tanggal_selesai_ppt,
+      tanggal_mulai_laporan, tanggal_selesai_laporan,
       form_pengajuan_buka, form_logbook_buka, form_ppt_buka, form_laporan_buka, is_active)
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 0, 0, 0, 0, ?)`,
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 0, 0, 0, 0, ?)`,
       [
         nama_periode,
         tanggal_mulai || null, tanggal_selesai || null,
         Number(min_jam_pengajuan) || 0,
         tanggal_mulai_pengajuan || null, tanggal_selesai_pengajuan || null,
         tanggal_mulai_logbook || null, tanggal_selesai_logbook || null,
-        tanggal_mulai_dokumen || null, tanggal_selesai_ppt || null, tanggal_selesai_laporan || null,
+        tanggal_mulai_ppt || null, tanggal_selesai_ppt || null,
+        tanggal_mulai_laporan || null, tanggal_selesai_laporan || null,
         jadiAktif ? 1 : 0,
       ]
     );
@@ -92,8 +94,8 @@ const updatePeriode = async (req, res) => {
       min_jam_pengajuan,
       tanggal_mulai_pengajuan, tanggal_selesai_pengajuan,
       tanggal_mulai_logbook, tanggal_selesai_logbook,
-      tanggal_mulai_dokumen,
-      tanggal_selesai_ppt, tanggal_selesai_laporan,
+      tanggal_mulai_ppt, tanggal_selesai_ppt,
+      tanggal_mulai_laporan, tanggal_selesai_laporan,
       form_pengajuan_buka, form_logbook_buka, form_ppt_buka, form_laporan_buka,
       is_active,
     } = req.body;
@@ -116,8 +118,10 @@ const updatePeriode = async (req, res) => {
 
     const mulaiPengajuanBerubah    = toDateStr(lama.tanggal_mulai_pengajuan)  !== toDateStr(tanggal_mulai_pengajuan);
     const mulaiLogbookBerubah      = toDateStr(lama.tanggal_mulai_logbook)    !== toDateStr(tanggal_mulai_logbook);
-    // satu kolom gabungan -- perubahannya reset status buka PPT & Laporan sekaligus.
-    const mulaiDokumenBerubah      = toDateStr(lama.tanggal_mulai_dokumen)    !== toDateStr(tanggal_mulai_dokumen);
+    // tanggal_mulai_ppt & tanggal_mulai_laporan sekarang kolom terpisah -- masing-masing
+    // punya trigger reset sendiri, gak lagi digabung lewat tanggal_mulai_dokumen.
+    const mulaiPptBerubah          = toDateStr(lama.tanggal_mulai_ppt)        !== toDateStr(tanggal_mulai_ppt);
+    const mulaiLaporanBerubah      = toDateStr(lama.tanggal_mulai_laporan)    !== toDateStr(tanggal_mulai_laporan);
     const selesaiPengajuanBerubah  = toDateStr(lama.tanggal_selesai_pengajuan) !== toDateStr(tanggal_selesai_pengajuan);
     const selesaiLogbookBerubah    = toDateStr(lama.tanggal_selesai_logbook)   !== toDateStr(tanggal_selesai_logbook);
     const selesaiPptBerubah        = toDateStr(lama.tanggal_selesai_ppt)       !== toDateStr(tanggal_selesai_ppt);
@@ -136,8 +140,10 @@ const updatePeriode = async (req, res) => {
     if (mulaiLogbookBerubah) {
       extraClauses.push('auto_opened_logbook_at = NULL', 'form_logbook_buka = 0');
     }
-    if (mulaiDokumenBerubah) {
+    if (mulaiPptBerubah) {
       extraClauses.push('auto_opened_ppt_at = NULL', 'form_ppt_buka = 0');
+    }
+    if (mulaiLaporanBerubah) {
       extraClauses.push('auto_opened_laporan_at = NULL', 'form_laporan_buka = 0');
     }
 
@@ -174,7 +180,8 @@ const updatePeriode = async (req, res) => {
         tanggal_mulai=?, tanggal_selesai=?, min_jam_pengajuan=?,
         tanggal_mulai_pengajuan=?, tanggal_selesai_pengajuan=?,
         tanggal_mulai_logbook=?, tanggal_selesai_logbook=?,
-        tanggal_mulai_dokumen=?, tanggal_selesai_ppt=?, tanggal_selesai_laporan=?,
+        tanggal_mulai_ppt=?, tanggal_selesai_ppt=?,
+        tanggal_mulai_laporan=?, tanggal_selesai_laporan=?,
         form_pengajuan_buka=?, form_logbook_buka=?, form_ppt_buka=?, form_laporan_buka=?,
         is_active=?
         ${extraSQL}
@@ -184,7 +191,8 @@ const updatePeriode = async (req, res) => {
         tanggal_mulai || null, tanggal_selesai || null, Number(min_jam_pengajuan) || 0,
         tanggal_mulai_pengajuan, tanggal_selesai_pengajuan,
         tanggal_mulai_logbook, tanggal_selesai_logbook,
-        tanggal_mulai_dokumen || null, tanggal_selesai_ppt, tanggal_selesai_laporan,
+        tanggal_mulai_ppt || null, tanggal_selesai_ppt,
+        tanggal_mulai_laporan || null, tanggal_selesai_laporan,
         form_pengajuan_buka, form_logbook_buka,
         form_ppt_buka ?? lama.form_ppt_buka, form_laporan_buka ?? lama.form_laporan_buka,
         is_active, id,
@@ -207,7 +215,7 @@ const toggleForm = async (req, res) => {
 
     const [[periode]] = await db.query(
       `SELECT form_pengajuan_buka, form_logbook_buka, form_ppt_buka, form_laporan_buka,
-              tanggal_mulai_pengajuan, tanggal_mulai_logbook, tanggal_mulai_dokumen
+              tanggal_mulai_pengajuan, tanggal_mulai_logbook, tanggal_mulai_ppt, tanggal_mulai_laporan
        FROM periode WHERE id_periode = ?`,
       [id]
     );
@@ -225,7 +233,8 @@ const toggleForm = async (req, res) => {
     const today = new Date().toISOString().slice(0, 10);
     const mulaiPengajuan = toDateStr(periode.tanggal_mulai_pengajuan);
     const mulaiLogbook   = toDateStr(periode.tanggal_mulai_logbook);
-    const mulaiDokumen   = toDateStr(periode.tanggal_mulai_dokumen); // shared: PPT & Laporan
+    const mulaiPpt       = toDateStr(periode.tanggal_mulai_ppt);
+    const mulaiLaporan   = toDateStr(periode.tanggal_mulai_laporan);
 
     if (form_pengajuan_buka == 1 && mulaiPengajuan && mulaiPengajuan > today) {
       return res.status(400).json({ message: `Form pengajuan belum bisa dibuka -- tanggal mulai pengajuan masih ${mulaiPengajuan}.` });
@@ -233,11 +242,11 @@ const toggleForm = async (req, res) => {
     if (form_logbook_buka == 1 && mulaiLogbook && mulaiLogbook > today) {
       return res.status(400).json({ message: `Form logbook belum bisa dibuka -- tanggal mulai logbook masih ${mulaiLogbook}.` });
     }
-    if (pptVal == 1 && mulaiDokumen && mulaiDokumen > today) {
-      return res.status(400).json({ message: `Form PPT belum bisa dibuka -- tanggal mulai dokumen masih ${mulaiDokumen}.` });
+    if (pptVal == 1 && mulaiPpt && mulaiPpt > today) {
+      return res.status(400).json({ message: `Form PPT belum bisa dibuka -- tanggal mulai PPT masih ${mulaiPpt}.` });
     }
-    if (laporanVal == 1 && mulaiDokumen && mulaiDokumen > today) {
-      return res.status(400).json({ message: `Form Laporan Akhir belum bisa dibuka -- tanggal mulai dokumen masih ${mulaiDokumen}.` });
+    if (laporanVal == 1 && mulaiLaporan && mulaiLaporan > today) {
+      return res.status(400).json({ message: `Form Laporan Akhir belum bisa dibuka -- tanggal mulai laporan masih ${mulaiLaporan}.` });
     }
 
     const resetFields = [];
