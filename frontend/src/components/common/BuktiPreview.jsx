@@ -1,5 +1,13 @@
 import { useState } from 'react'
-import { ExternalLink, FileText, ChevronLeft, ChevronRight } from 'lucide-react'
+import {
+  ExternalLink,
+  FileText,
+  ChevronLeft,
+  ChevronRight,
+  ZoomIn,
+  ZoomOut,
+  Download
+} from 'lucide-react'
 import { Document, Page, pdfjs } from 'react-pdf'
 import 'react-pdf/dist/Page/AnnotationLayer.css'
 import 'react-pdf/dist/Page/TextLayer.css'
@@ -56,11 +64,19 @@ const toInlineCloudinaryUrl = (url) => {
   return url.replace(/\/fl_attachment(:[^/]*)?\//, '/')
 }
 
+const ZOOM_STEP = 0.2
+const ZOOM_MIN = 0.4
+const ZOOM_MAX = 2.5
+const BASE_WIDTH = 700
+
 // Komponen khusus render PDF pakai PDF.js (canvas), bukan iframe,
 // supaya tampilannya konsisten di mobile & desktop.
+// Toolbar (nama file, halaman, zoom, download, buka tab baru) dibuat manual
+// supaya mirip viewer bawaan Chrome, karena mobile browser tidak punya itu.
 function PdfBuktiPreview({ url, filename }) {
   const [numPages, setNumPages] = useState(null)
   const [pageNumber, setPageNumber] = useState(1)
+  const [scale, setScale] = useState(1)
   const [error, setError] = useState(false)
 
   if (error) {
@@ -83,6 +99,80 @@ function PdfBuktiPreview({ url, filename }) {
 
   return (
     <div className="w-full h-full flex flex-col bg-gray-100">
+      {/* Toolbar ala native PDF viewer */}
+      <div className="flex items-center gap-1 sm:gap-3 px-2 sm:px-3 py-2 border-b bg-white overflow-x-auto">
+        <span className="text-xs sm:text-sm text-gray-600 truncate max-w-[90px] sm:max-w-[220px] shrink-0">
+          {filename || 'Dokumen.pdf'}
+        </span>
+
+        {numPages > 1 && (
+          <div className="flex items-center gap-1 shrink-0 border-l pl-1 sm:pl-3 ml-auto sm:ml-0">
+            <button
+              onClick={() => setPageNumber((p) => Math.max(1, p - 1))}
+              disabled={pageNumber <= 1}
+              className="p-1.5 rounded hover:bg-gray-100 disabled:opacity-30"
+              aria-label="Halaman sebelumnya"
+            >
+              <ChevronLeft className="w-4 h-4" />
+            </button>
+            <span className="text-xs sm:text-sm text-gray-600 whitespace-nowrap px-1">
+              {pageNumber} / {numPages}
+            </span>
+            <button
+              onClick={() => setPageNumber((p) => Math.min(numPages, p + 1))}
+              disabled={pageNumber >= numPages}
+              className="p-1.5 rounded hover:bg-gray-100 disabled:opacity-30"
+              aria-label="Halaman berikutnya"
+            >
+              <ChevronRight className="w-4 h-4" />
+            </button>
+          </div>
+        )}
+
+        <div className="flex items-center gap-1 shrink-0 border-l pl-1 sm:pl-3 ml-auto">
+          <button
+            onClick={() => setScale((s) => Math.max(ZOOM_MIN, +(s - ZOOM_STEP).toFixed(2)))}
+            disabled={scale <= ZOOM_MIN}
+            className="p-1.5 rounded hover:bg-gray-100 disabled:opacity-30"
+            aria-label="Perkecil"
+          >
+            <ZoomOut className="w-4 h-4" />
+          </button>
+          <span className="text-xs sm:text-sm text-gray-600 w-10 text-center shrink-0">
+            {Math.round(scale * 100)}%
+          </span>
+          <button
+            onClick={() => setScale((s) => Math.min(ZOOM_MAX, +(s + ZOOM_STEP).toFixed(2)))}
+            disabled={scale >= ZOOM_MAX}
+            className="p-1.5 rounded hover:bg-gray-100 disabled:opacity-30"
+            aria-label="Perbesar"
+          >
+            <ZoomIn className="w-4 h-4" />
+          </button>
+        </div>
+
+        <div className="flex items-center gap-1 shrink-0 border-l pl-1 sm:pl-3">
+          <a
+            href={url}
+            download={filename || undefined}
+            className="p-1.5 rounded hover:bg-gray-100 text-gray-600"
+            aria-label="Download"
+          >
+            <Download className="w-4 h-4" />
+          </a>
+          <a
+            href={url}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="p-1.5 rounded hover:bg-gray-100 text-gray-600"
+            aria-label="Buka di tab baru"
+          >
+            <ExternalLink className="w-4 h-4" />
+          </a>
+        </div>
+      </div>
+
+      {/* Canvas PDF */}
       <div className="flex-1 overflow-auto flex justify-center p-2">
         <Document
           file={url}
@@ -96,32 +186,10 @@ function PdfBuktiPreview({ url, filename }) {
             pageNumber={pageNumber}
             renderAnnotationLayer={false}
             renderTextLayer={false}
-            width={Math.min(window.innerWidth - 32, 700)}
+            width={Math.min(window.innerWidth - 32, BASE_WIDTH) * scale}
           />
         </Document>
       </div>
-
-      {numPages > 1 && (
-        <div className="flex items-center justify-center gap-4 py-2 border-t bg-white">
-          <button
-            onClick={() => setPageNumber((p) => Math.max(1, p - 1))}
-            disabled={pageNumber <= 1}
-            className="p-1 disabled:opacity-30"
-          >
-            <ChevronLeft className="w-5 h-5" />
-          </button>
-          <span className="text-sm text-gray-600">
-            {pageNumber} / {numPages}
-          </span>
-          <button
-            onClick={() => setPageNumber((p) => Math.min(numPages, p + 1))}
-            disabled={pageNumber >= numPages}
-            className="p-1 disabled:opacity-30"
-          >
-            <ChevronRight className="w-5 h-5" />
-          </button>
-        </div>
-      )}
     </div>
   )
 }
