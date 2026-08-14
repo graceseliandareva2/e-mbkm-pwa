@@ -4,12 +4,10 @@ import { Document, Page, pdfjs } from 'react-pdf'
 import 'react-pdf/dist/Page/AnnotationLayer.css'
 import 'react-pdf/dist/Page/TextLayer.css'
 
-// Worker PDF.js - wajib di-set sekali di awal, pakai versi yang sama dengan pdfjs-dist
-// yang otomatis terinstall lewat react-pdf
-pdfjs.GlobalWorkerOptions.workerSrc = new URL(
-  'pdfjs-dist/build/pdf.worker.min.mjs',
-  import.meta.url
-).toString()
+// Worker PDF.js - wajib di-set sekali di awal.
+// Pakai CDN (bukan file lokal hasil bundle) supaya gak kena masalah MIME type
+// ".mjs" yang sering salah konfigurasi di server (OpenLiteSpeed/Apache/Nginx).
+pdfjs.GlobalWorkerOptions.workerSrc = `https://unpkg.com/pdfjs-dist@${pdfjs.version}/build/pdf.worker.min.mjs`
 
 const IMAGE_EXT = ['jpg', 'jpeg', 'png', 'gif', 'webp']
 const PDF_EXT = ['pdf']
