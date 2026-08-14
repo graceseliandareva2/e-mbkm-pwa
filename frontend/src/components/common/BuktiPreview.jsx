@@ -8,7 +8,8 @@ import {
   ZoomOut,
   Download,
   RotateCw,
-  Printer
+  Printer,
+  Menu
 } from 'lucide-react'
 import { Document, Page, pdfjs } from 'react-pdf'
 import 'react-pdf/dist/Page/AnnotationLayer.css'
@@ -81,6 +82,8 @@ function PdfBuktiPreview({ url, filename }) {
   const [scale, setScale] = useState(1)
   const [rotation, setRotation] = useState(0)
   const [error, setError] = useState(false)
+  const [sidebarOpen, setSidebarOpen] = useState(false)
+  const [downloading, setDownloading] = useState(false)
 
   const handlePrint = () => {
     const win = window.open(url, '_blank')
@@ -89,6 +92,31 @@ function PdfBuktiPreview({ url, filename }) {
         win.focus()
         win.print()
       })
+    }
+  }
+
+  // Atribut <a download> diabaikan browser untuk URL beda origin (Cloudinary),
+  // jadi malah dibuka sebagai preview, bukan disimpan. Fix: fetch sebagai blob
+  // lalu paksa save lewat objectURL, yang selalu jalan terlepas dari origin.
+  const handleDownload = async () => {
+    if (downloading) return
+    setDownloading(true)
+    try {
+      const res = await fetch(url)
+      const blob = await res.blob()
+      const blobUrl = window.URL.createObjectURL(blob)
+      const link = document.createElement('a')
+      link.href = blobUrl
+      link.download = filename || 'dokumen.pdf'
+      document.body.appendChild(link)
+      link.click()
+      link.remove()
+      window.URL.revokeObjectURL(blobUrl)
+    } catch {
+      // Fallback kalau fetch gagal (misal CORS diblokir server) -> buka tab baru
+      window.open(url, '_blank')
+    } finally {
+      setDownloading(false)
     }
   }
 
@@ -111,30 +139,38 @@ function PdfBuktiPreview({ url, filename }) {
   }
 
   return (
-    <div className="w-full h-full flex flex-col bg-gray-100">
-      {/* Toolbar ala native PDF viewer */}
-      <div className="flex items-center gap-1 sm:gap-3 px-2 sm:px-3 py-2 border-b bg-white overflow-x-auto">
-        <span className="text-xs sm:text-sm text-gray-600 truncate max-w-[90px] sm:max-w-[220px] shrink-0">
+    <div className="w-full h-full flex flex-col bg-neutral-800">
+      {/* Toolbar ala native PDF viewer - tema gelap */}
+      <div className="flex items-center gap-1 sm:gap-3 px-2 sm:px-3 py-2 border-b border-neutral-700 bg-neutral-900 overflow-x-auto">
+        <button
+          onClick={() => setSidebarOpen((v) => !v)}
+          className={`p-1.5 rounded hover:bg-neutral-700 shrink-0 ${sidebarOpen ? 'bg-neutral-700 text-white' : 'text-neutral-300'}`}
+          aria-label="Buka daftar halaman"
+        >
+          <Menu className="w-4 h-4" />
+        </button>
+
+        <span className="text-xs sm:text-sm text-neutral-200 truncate max-w-[90px] sm:max-w-[220px] shrink-0">
           {filename || 'Dokumen.pdf'}
         </span>
 
         {numPages > 1 && (
-          <div className="flex items-center gap-1 shrink-0 border-l pl-1 sm:pl-3 ml-auto sm:ml-0">
+          <div className="flex items-center gap-1 shrink-0 border-l border-neutral-700 pl-1 sm:pl-3 ml-auto sm:ml-0">
             <button
               onClick={() => setPageNumber((p) => Math.max(1, p - 1))}
               disabled={pageNumber <= 1}
-              className="p-1.5 rounded hover:bg-gray-100 disabled:opacity-30"
+              className="p-1.5 rounded hover:bg-neutral-700 text-neutral-300 disabled:opacity-30"
               aria-label="Halaman sebelumnya"
             >
               <ChevronLeft className="w-4 h-4" />
             </button>
-            <span className="text-xs sm:text-sm text-gray-600 whitespace-nowrap px-1">
+            <span className="text-xs sm:text-sm text-neutral-200 whitespace-nowrap px-1">
               {pageNumber} / {numPages}
             </span>
             <button
               onClick={() => setPageNumber((p) => Math.min(numPages, p + 1))}
               disabled={pageNumber >= numPages}
-              className="p-1.5 rounded hover:bg-gray-100 disabled:opacity-30"
+              className="p-1.5 rounded hover:bg-neutral-700 text-neutral-300 disabled:opacity-30"
               aria-label="Halaman berikutnya"
             >
               <ChevronRight className="w-4 h-4" />
@@ -142,56 +178,56 @@ function PdfBuktiPreview({ url, filename }) {
           </div>
         )}
 
-        <div className="flex items-center gap-1 shrink-0 border-l pl-1 sm:pl-3 ml-auto">
+        <div className="flex items-center gap-1 shrink-0 border-l border-neutral-700 pl-1 sm:pl-3 ml-auto">
           <button
             onClick={() => setScale((s) => Math.max(ZOOM_MIN, +(s - ZOOM_STEP).toFixed(2)))}
             disabled={scale <= ZOOM_MIN}
-            className="p-1.5 rounded hover:bg-gray-100 disabled:opacity-30"
+            className="p-1.5 rounded hover:bg-neutral-700 text-neutral-300 disabled:opacity-30"
             aria-label="Perkecil"
           >
             <ZoomOut className="w-4 h-4" />
           </button>
-          <span className="text-xs sm:text-sm text-gray-600 w-10 text-center shrink-0">
+          <span className="text-xs sm:text-sm text-neutral-200 w-10 text-center shrink-0">
             {Math.round(scale * 100)}%
           </span>
           <button
             onClick={() => setScale((s) => Math.min(ZOOM_MAX, +(s + ZOOM_STEP).toFixed(2)))}
             disabled={scale >= ZOOM_MAX}
-            className="p-1.5 rounded hover:bg-gray-100 disabled:opacity-30"
+            className="p-1.5 rounded hover:bg-neutral-700 text-neutral-300 disabled:opacity-30"
             aria-label="Perbesar"
           >
             <ZoomIn className="w-4 h-4" />
           </button>
         </div>
 
-        <div className="flex items-center gap-1 shrink-0 border-l pl-1 sm:pl-3">
+        <div className="flex items-center gap-1 shrink-0 border-l border-neutral-700 pl-1 sm:pl-3">
           <button
             onClick={() => setRotation((r) => (r + 90) % 360)}
-            className="p-1.5 rounded hover:bg-gray-100 text-gray-600"
+            className="p-1.5 rounded hover:bg-neutral-700 text-neutral-300"
             aria-label="Putar"
           >
             <RotateCw className="w-4 h-4" />
           </button>
           <button
             onClick={handlePrint}
-            className="p-1.5 rounded hover:bg-gray-100 text-gray-600"
+            className="p-1.5 rounded hover:bg-neutral-700 text-neutral-300"
             aria-label="Print"
           >
             <Printer className="w-4 h-4" />
           </button>
-          <a
-            href={url}
-            download={filename || undefined}
-            className="p-1.5 rounded hover:bg-gray-100 text-gray-600"
+          <button
+            onClick={handleDownload}
+            disabled={downloading}
+            className="p-1.5 rounded hover:bg-neutral-700 text-neutral-300 disabled:opacity-40"
             aria-label="Download"
           >
             <Download className="w-4 h-4" />
-          </a>
+          </button>
           <a
             href={url}
             target="_blank"
             rel="noopener noreferrer"
-            className="p-1.5 rounded hover:bg-gray-100 text-gray-600"
+            className="p-1.5 rounded hover:bg-neutral-700 text-neutral-300"
             aria-label="Buka di tab baru"
           >
             <ExternalLink className="w-4 h-4" />
@@ -199,23 +235,51 @@ function PdfBuktiPreview({ url, filename }) {
         </div>
       </div>
 
-      {/* Canvas PDF */}
-      <div className="flex-1 overflow-auto flex justify-center p-2">
+      {/* Body: sidebar thumbnail halaman (toggle via hamburger) + canvas PDF */}
+      <div className="flex-1 flex overflow-hidden">
         <Document
           file={url}
           onLoadSuccess={({ numPages }) => setNumPages(numPages)}
           onLoadError={() => setError(true)}
           loading={
-            <p className="text-sm text-gray-400 py-10">Memuat PDF...</p>
+            <p className="text-sm text-neutral-400 py-10">Memuat PDF...</p>
           }
+          className="contents"
         >
-          <Page
-            pageNumber={pageNumber}
-            rotate={rotation}
-            renderAnnotationLayer={false}
-            renderTextLayer={false}
-            width={Math.min(window.innerWidth - 32, BASE_WIDTH) * scale}
-          />
+          {sidebarOpen && (
+            <div className="w-28 sm:w-36 shrink-0 border-r border-neutral-700 bg-neutral-900 overflow-y-auto p-2 space-y-3">
+              {Array.from({ length: numPages || 0 }, (_, i) => i + 1).map((p) => (
+                <button
+                  key={p}
+                  onClick={() => setPageNumber(p)}
+                  className={`w-full rounded overflow-hidden border-2 ${
+                    p === pageNumber ? 'border-blue-500' : 'border-transparent hover:border-neutral-600'
+                  }`}
+                >
+                  <Page
+                    pageNumber={p}
+                    width={112}
+                    renderAnnotationLayer={false}
+                    renderTextLayer={false}
+                    loading=""
+                  />
+                  <span className="block text-center text-[11px] text-neutral-400 bg-neutral-800 py-0.5">
+                    {p}
+                  </span>
+                </button>
+              ))}
+            </div>
+          )}
+
+          <div className="flex-1 overflow-auto flex justify-center p-2">
+            <Page
+              pageNumber={pageNumber}
+              rotate={rotation}
+              renderAnnotationLayer={false}
+              renderTextLayer={false}
+              width={Math.min(window.innerWidth - 32, BASE_WIDTH) * scale}
+            />
+          </div>
         </Document>
       </div>
     </div>
