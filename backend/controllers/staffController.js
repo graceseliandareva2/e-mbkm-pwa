@@ -809,8 +809,7 @@ const getDaftarPengajuan = async (req, res) => {
   }
 };
 
-// Skema baru: 1 pengajuan = 1 pelatihan (nama_pelatihan/link_pelatihan/durasi_pelatihan_jam
-// langsung sebagai kolom di detail_pengajuan), jadi tidak perlu lagi parsing JSON pelatihan array.
+
 const getDetailPengajuan = async (req, res) => {
   try {
     const { id } = req.params;
@@ -819,7 +818,7 @@ const getDetailPengajuan = async (req, res) => {
       `
       SELECT
         p.id_pengajuan AS id, p.mahasiswa_id, p.periode_id,
-        dp.judul, dp.deskripsi, dp.penyelenggara,
+        dp.judul, dp.penyelenggara,
         dp.nama_pelatihan, dp.link_pelatihan, dp.durasi_pelatihan_jam,
         dp.tanggal_mulai, dp.tanggal_selesai,
         p.status, p.catatan_kaprodi,
