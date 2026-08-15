@@ -314,12 +314,12 @@ export default function DosenPenilaian() {
             <h1 className="text-xl font-bold text-gray-800">Penilaian Akhir</h1>
           </div>
           {mahasiswaList.some((m) => m.penilaian_id) && (
-            <button
-              onClick={handleEksporSemua}
-              className="flex items-center gap-2 px-4 py-2 rounded-xl border border-green-200 text-green-600 text-sm font-semibold hover:bg-green-50 transition"
-            >
-              <Users className="w-4 h-4" /> Ekspor PDF Semua
-            </button>
+           <button
+  onClick={handleEksporSemua}
+  className="flex items-center gap-2 px-4 py-2 rounded-xl bg-green-600 text-white text-sm font-semibold hover:bg-green-700 transition"
+>
+  <Users className="w-4 h-4" /> Ekspor PDF Semua
+</button>
           )}
         </div>
 
@@ -401,7 +401,7 @@ export default function DosenPenilaian() {
 
                     {mhsLocked ? (
                       <span className="flex items-center gap-1 text-xs text-violet-600 bg-violet-50 px-2 py-1 rounded-lg font-semibold">
-                        <Lock className="w-3 h-3" /> Terkunci ({mhs.grade})
+                      <Lock className="w-3 h-3" /> Terkunci
                       </span>
                     ) : mhs.penilaian_id ? (
                       <span className="flex items-center gap-1 text-xs text-green-600 bg-green-50 px-2 py-1 rounded-lg font-semibold">
@@ -448,24 +448,24 @@ export default function DosenPenilaian() {
           </div>
         </div>
         {(saved || hasPenilaian) && (
-          <button
-            onClick={handleEksporSatu}
-            className="flex items-center gap-2 px-4 py-2 rounded-xl border border-blue-200 text-blue-600 text-sm font-semibold hover:bg-blue-50 transition"
-          >
-            <FileDown className="w-4 h-4" /> Ekspor PDF
-          </button>
+         <button
+  onClick={handleEksporSatu}
+  className="flex items-center gap-2 px-4 py-2 rounded-xl bg-blue-600 text-white text-sm font-semibold hover:bg-blue-700 transition"
+>
+  <FileDown className="w-4 h-4" /> Ekspor PDF
+</button>
         )}
       </div>
 
-      {/* Banner nilai terkunci */}
+     {/* Banner nilai terkunci */}
       {isLocked && (
-        <div className="flex items-center gap-3 bg-violet-50 border border-violet-100 rounded-2xl px-4 py-3.5">
-          <div className="w-9 h-9 bg-violet-100 rounded-xl flex items-center justify-center flex-shrink-0">
-            <Lock className="w-4 h-4 text-violet-600" />
+        <div className="flex items-center gap-3 bg-blue-600 border border-blue-600 rounded-2xl px-4 py-3.5">
+          <div className="w-9 h-9 bg-blue-500 rounded-xl flex items-center justify-center flex-shrink-0">
+            <Lock className="w-4 h-4 text-white" />
           </div>
           <div>
-            <p className="text-sm font-semibold text-violet-700">Nilai Sudah Dikunci</p>
-            <p className="text-xs text-violet-500 mt-0.5">
+            <p className="text-sm font-semibold text-white">Nilai Sudah Dikunci</p>
+            <p className="text-xs text-blue-100 mt-0.5">
               Nilai ini sudah difinalisasi dan tidak bisa diubah lagi. 
             </p>
           </div>
