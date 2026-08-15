@@ -3,6 +3,10 @@ const db = require("../config/db");
 const PDFDocument = require("pdfkit");
 const { sendEmail } = require("../utils/mailer");
 const { sendPushToUser } = require("../utils/pushSender");
+const {
+  buildExportFilename,
+  buildContentDispositionHeader,
+} = require("../utils/exportFilename");
 
 async function getDosenProfile(userId) {
   const [rows] = await db.query(
@@ -220,8 +224,15 @@ const eksporPenilaianPDF = async (req, res) => {
     const data = rows[0];
     const doc = new PDFDocument({ margin: 50 });
 
+    const filename = buildExportFilename({
+      nama: data.nama,
+      nim: data.nim,
+      isSingle: true,
+      ext: "pdf",
+    });
+
     res.setHeader("Content-Type", "application/pdf");
-    res.setHeader("Content-Disposition", `attachment; filename=penilaian_${data.nim}.pdf`);
+    res.setHeader("Content-Disposition", buildContentDispositionHeader(filename));
     doc.pipe(res);
 
     doc.fontSize(16).font("Helvetica-Bold").text("REKAP PENILAIAN AKHIR", { align: "center" });
@@ -323,8 +334,15 @@ const eksporSemuaPenilaianPDF = async (req, res) => {
     if (!rows.length) return res.status(404).json({ message: "Belum ada data penilaian." });
 
     const doc = new PDFDocument({ margin: 50 });
+
+    const filename = buildExportFilename({
+      namaPeriode: rows[0].nama_periode,
+      isSingle: false,
+      ext: "pdf",
+    });
+
     res.setHeader("Content-Type", "application/pdf");
-    res.setHeader("Content-Disposition", "attachment; filename=rekap_penilaian_semua.pdf");
+    res.setHeader("Content-Disposition", buildContentDispositionHeader(filename));
     doc.pipe(res);
 
     doc.fontSize(16).font("Helvetica-Bold").text("REKAP NILAI AKHIR MAHASISWA", { align: "center" });

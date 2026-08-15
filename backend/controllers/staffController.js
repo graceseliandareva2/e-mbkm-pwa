@@ -5,6 +5,10 @@ const PDFDocument = require("pdfkit");
 const bcrypt = require("bcryptjs");
 const xlsx = require("xlsx");
 const fs = require("fs");
+const {
+  buildExportFilenameFromRows,
+  buildContentDispositionHeader,
+} = require("../utils/exportFilename");
 
 const _getPeriodeAktifId = async () => {
   const [rows] = await db.query(
@@ -893,17 +897,6 @@ const _statusLabel = (s) =>
   s ||
   "-";
 
-const _sanitizeFilename = (s) =>
-  String(s || "").replace(/[\\/:*?"<>|]/g, "").trim();
-
-const _buildExportFilename = (rows, mahasiswa_id, ext) => {
-  const isSingle = !!mahasiswa_id && rows.length === 1;
-  if (isSingle) {
-    return `${_sanitizeFilename(rows[0]?.nama)} - ${_sanitizeFilename(rows[0]?.nim)}.${ext}`;
-  }
-  return `Daftar pengajuan - ${_sanitizeFilename(rows[0]?.nama_periode || "periode")}.${ext}`;
-};
-
 const exportPengajuanExcel = async (req, res) => {
   try {
     const { periode_id, mahasiswa_id } = req.query;
@@ -1004,16 +997,13 @@ const exportPengajuanExcel = async (req, res) => {
 
    sheet.views = [{ state: "frozen", ySplit: 1 }];
 
-    const filename = _buildExportFilename(rows, mahasiswa_id, "xlsx");
+    const filename = buildExportFilenameFromRows(rows, mahasiswa_id, "xlsx");
 
     res.setHeader(
       "Content-Type",
       "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
     );
-    res.setHeader(
-      "Content-Disposition",
-      `attachment; filename*=UTF-8''${encodeURIComponent(filename)}`,
-    );
+    res.setHeader("Content-Disposition", buildContentDispositionHeader(filename));
 
     await workbook.xlsx.write(res);
     res.end();
@@ -1028,17 +1018,14 @@ const exportPengajuanPDF = async (req, res) => {
     const { periode_id, mahasiswa_id } = req.query;
     const rows = await _getExportRows(periode_id, mahasiswa_id);
 
-    const isSingle = !!mahasiswa_id && rows.length === 1;
+    const isSingle = !!mahasiswa_id && rows.length > 0;
 
     const doc = new PDFDocument({ margin: 50, size: "A4" });
 
-    const filename = _buildExportFilename(rows, mahasiswa_id, "pdf");
+    const filename = buildExportFilenameFromRows(rows, mahasiswa_id, "pdf");
 
     res.setHeader("Content-Type", "application/pdf");
-    res.setHeader(
-      "Content-Disposition",
-      `attachment; filename*=UTF-8''${encodeURIComponent(filename)}`,
-    );
+    res.setHeader("Content-Disposition", buildContentDispositionHeader(filename));
 
     doc.pipe(res);
 
