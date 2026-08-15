@@ -1246,7 +1246,7 @@ const getRekapNilai = async (req, res) => {
       `SELECT
         pn.id_penilaian AS id, pn.pengajuan_id, pn.finalized_at,
         pn.nilai_kesesuaian, pn.nilai_proyek, pn.nilai_evaluasi,
-        pn.nilai_laporan, pn.nilai_presentasi, pn.nilai_akhir, pn.grade, pn.catatan,
+        pn.nilai_laporan, pn.nilai_presentasi, pn.nilai_akhir, pn.grade,
         u.nim, u.nama, u.program_studi,
         per.nama_periode,
         d.nama as nama_dosen
@@ -1361,7 +1361,7 @@ const getNilaiMahasiswa = async (req, res) => {
       `SELECT
         pn.id_penilaian AS id, pn.pengajuan_id, pn.finalized_at,
         pn.nilai_kesesuaian, pn.nilai_proyek, pn.nilai_evaluasi,
-        pn.nilai_laporan, pn.nilai_presentasi, pn.nilai_akhir, pn.grade, pn.catatan,
+        pn.nilai_laporan, pn.nilai_presentasi, pn.nilai_akhir, pn.grade,
         d.nama as nama_dosen
       FROM penilaian pn
       LEFT JOIN users d ON d.id_users = pn.dosen_id

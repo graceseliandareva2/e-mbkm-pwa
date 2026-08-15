@@ -271,8 +271,7 @@ const DetailMahasiswaModal = ({ row, onClose }) => {
 
               {/* Nilai Mahasiswa */}
               <div>
-                <h3 className="text-sm font-bold text-gray-700 mb-1">Nilai Mahasiswa</h3>
-                <p className="text-xs text-gray-400 mb-3">{row.nim} - {row.nama}</p>
+                <h3 className="text-sm font-bold text-gray-700 mb-3">Nilai Mahasiswa</h3>
                 <NilaiSection nilai={nilai} />
               </div>
 
