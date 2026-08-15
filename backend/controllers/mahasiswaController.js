@@ -214,7 +214,7 @@ const tambahPengajuan = async (req, res) => {
       return res.status(400).json({ message: "Dosen PA yang dipilih tidak valid." });
     }
 
-    // Skema baru: 1 pengajuan = 1 pelatihan (field tunggal, bukan array 1-3 lagi).
+  
     const durasiJam = Number(durasi_pelatihan_jam) || 0;
     if (durasiJam < minJam) {
       connection.release();
@@ -783,7 +783,7 @@ const getFeedback = async (req, res) => {
        ORDER BY f.created_at DESC`,
       [mahasiswa.id]
     );
-    
+
     res.json({ data: rows });
   } catch (error) {
     console.error(error);

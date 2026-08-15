@@ -310,7 +310,7 @@ const importDosen = async (req, res) => {
 
         if (!nidn || !nama) {
           gagal++;
-          errors.push(`Baris dilewati: NIDN atau Nama kosong`);
+          errors.push(`ID atau Nama kosong`);
           continue;
         }
 
@@ -322,7 +322,7 @@ const importDosen = async (req, res) => {
         if (usernameBentrok.length > 0) {
           gagal++;
           errors.push(
-            `Username ${username} sudah dipakai akun lain, NIDN ${nidn} dilewati.`,
+            `Username ${username} sudah dipakai akun lain, ID ${nidn} dilewati.`,
           );
           continue;
         }
@@ -411,7 +411,7 @@ const tambahDosen = async (req, res) => {
       ) {
         return res
           .status(400)
-          .json({ message: "NIDN ini sudah terdaftar di periode ini." });
+          .json({ message: "ID ini sudah terdaftar di periode ini." });
       }
 
       const [usernameBentrok] = await db.query(
@@ -499,7 +499,7 @@ const updateDosen = async (req, res) => {
     if (nidnBentrok.length > 0) {
       return res
         .status(400)
-        .json({ message: "NIDN ini sudah terdaftar untuk akun lain." });
+        .json({ message: "ID ini sudah terdaftar untuk akun lain." });
     }
     const [emailBentrok] = await db.query(
       "SELECT id_users FROM users WHERE username = ? AND id_users != ?",
@@ -582,7 +582,7 @@ const hapusMahasiswa = async (req, res) => {
       [id],
     );
     if (!mhs.length) {
-      return res.status(404).json({ message: "Mahasiswa tidak ditemukan." }); // gak perlu conn.release() manual
+      return res.status(404).json({ message: "Mahasiswa tidak ditemukan." }); 
     }
 
     await conn.beginTransaction();

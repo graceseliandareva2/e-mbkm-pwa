@@ -265,7 +265,7 @@ export default function StaffDosen() {
             </div>
             <div className="p-6 space-y-4">
               <div>
-                <label className="text-xs font-semibold text-gray-600 block mb-1.5">ID Dosen (NIDN) <span className="text-red-500">*</span></label>
+                <label className="text-xs font-semibold text-gray-600 block mb-1.5">ID Dosen<span className="text-red-500">*</span></label>
                 <input type="text" name="id_dosen" value={tambahForm.id_dosen} onChange={handleTambahChange}
                   placeholder="Contoh: 19.321.008"
                   className="w-full px-3 py-2.5 border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 bg-gray-50" />

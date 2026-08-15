@@ -4,12 +4,11 @@ const { verifyToken, authorizeRoles } = require('../middleware/authMiddleware');
 const multer = require('multer');
 const path = require('path');
 const {
-  // Dipindah dari kaprodiController.js (item #6)
+
   importMahasiswa, tambahMahasiswa,
   importDosen, tambahDosen, updateDosen,
   updateMahasiswa, hapusMahasiswa, resetPasswordMahasiswa,
   getDaftarMahasiswa, getDaftarDosen,
-  // Existing
   getDashboardStats,
   getAktivitasTerbaru,
   getDaftarPengajuan,
@@ -20,15 +19,13 @@ const {
   updateProfil,
   getPeriode,
   getRekapNilai,
-  // Menu Logbook & Dokumen (view-only)
   getDaftarMahasiswaMBKM,
   getLogbookMahasiswa,
   getDokumenMahasiswa,
-  // Nilai mahasiswa (view-only, finalized only)
   getNilaiMahasiswa,
 } = require('../controllers/staffController');
 
-// Sama persis dengan setup multer yang tadinya ada di kaprodiRoutes.js.
+
 const uploadImport = multer({
   dest: 'uploads/temp/',
   fileFilter: (req, file, cb) => {
@@ -62,8 +59,8 @@ router.put('/dosen/:id', auth, updateDosen);
 
 // Pengajuan MBKM
 router.get('/pengajuan',               auth, getDaftarPengajuan);
-router.get('/pengajuan/export-excel',  auth, exportPengajuanExcel);  // ← sebelum /:id
-router.get('/pengajuan/export-pdf',    auth, exportPengajuanPDF);    // ← sebelum /:id
+router.get('/pengajuan/export-excel',  auth, exportPengajuanExcel);  
+router.get('/pengajuan/export-pdf',    auth, exportPengajuanPDF);    
 router.get('/pengajuan/:id',           auth, getDetailPengajuan);
 router.get('/rekap-nilai', auth, getRekapNilai);
 

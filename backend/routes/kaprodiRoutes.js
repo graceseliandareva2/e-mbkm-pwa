@@ -3,8 +3,6 @@ const router = express.Router();
 const { verifyToken, authorizeRoles } = require('../middleware/authMiddleware');
 const {
   getPeriode, tambahPeriode, updatePeriode, toggleForm,
-  // BARU: sumber dropdown assign dosen -- dosen yang ada di
-  // roster_dosen_mbkm untuk periode aktif, bukan seluruh master dosen.
   getDosenRosterMBKM,
    getDosenRosterPA, 
   assignDosen,
@@ -14,10 +12,7 @@ const {
   getPengajuanDisetujui,
   getRekapNilai,
 } = require('../controllers/kaprodiController');
-// PERUBAHAN (item #6): getDaftarMahasiswa & getDaftarDosen sudah pindah ke
-// staffController.js (satu sumber data). Kaprodi tetap butuh baca daftar ini
-// buat assignDosen, jadi di-import langsung dari staffController -- bukan
-// diduplikasi query-nya di sini.
+
 const {
   getDaftarMahasiswa, getDaftarDosen,
 } = require('../controllers/staffController');
