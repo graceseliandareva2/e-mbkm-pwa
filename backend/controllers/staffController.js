@@ -102,7 +102,7 @@ for (const row of data) {
       continue;
     }
 
-    // ✅ Tambahan: cek dulu apakah NIM ini sudah ada, dan sudah di periode yang sama
+    // NIM ini sudah ada, dan sudah di periode yang sama
     const [existingNim] = await db.query(
       "SELECT id_users AS id, current_periode_id FROM users WHERE nim = ?",
       [nim],
@@ -158,7 +158,7 @@ for (const row of data) {
 
     if (berhasil === 0) {
       return res.status(400).json({
-        message: "File kosong atau format tidak sesuai.",
+        message: "Data ini sudah terdaftar di periode ini",
         berhasil,
         gagal,
         errors,
@@ -312,7 +312,7 @@ const importDosen = async (req, res) => {
       continue;
     }
 
-    // ✅ Tambahan: cek dulu apakah NIDN ini sudah ada, dan sudah di periode yang sama
+
     const [existingNidn] = await db.query(
       "SELECT id_users AS id, current_periode_id FROM users WHERE id_dosen = ?",
       [nidn],
@@ -365,7 +365,7 @@ const importDosen = async (req, res) => {
 
     if (berhasil === 0) {
       return res.status(400).json({
-        message: "File kosong atau format tidak sesuai.",
+        message: "Data ini sudah terdaftar di periode ini",
         berhasil,
         gagal,
         errors,
