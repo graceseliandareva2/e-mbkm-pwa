@@ -161,15 +161,6 @@ const berikanPenilaian = async (req, res) => {
         [uuidv4(), pengajuan_id, dsn.id, nilai_kesesuaian, nilai_proyek, nilai_evaluasi, nilai_laporan, nilai_presentasi, nilai_akhir, grade]
       );
     }
-
-    const [pengajuanRow] = await db.query("SELECT mahasiswa_id FROM pengajuan WHERE id_pengajuan = ?", [pengajuan_id]);
-    if (pengajuanRow.length) {
-      const userId = pengajuanRow[0].mahasiswa_id;
-      const pesan = `Dosen pembimbing telah memberikan nilai akhir kamu. Nilai: ${nilai_akhir} (${grade})`;
-      await db.query("INSERT INTO notifikasi (id_notifikasi, user_id, judul, pesan, tipe) VALUES (?, ?, ?, ?, ?)", [uuidv4(), userId, "Nilai Akhir", pesan, "sukses"]);
-      await sendPushToUser(userId, { title: "Nilai Akhir", body: `Nilai akhir kamu: ${nilai_akhir} (${grade})`, url: "/mahasiswa/penilaian" });
-    }
-
     res.json({ message: "nilai berhasil disimpan.", nilai_akhir, grade });
   } catch (error) {
     console.error(error);
