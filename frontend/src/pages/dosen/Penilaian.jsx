@@ -314,9 +314,9 @@ export default function DosenPenilaian() {
             <h1 className="text-xl font-bold text-gray-800">Penilaian Akhir</h1>
           </div>
           {mahasiswaList.some((m) => m.penilaian_id) && (
-         <button
+        <button
   onClick={handleEksporSemua}
-  className="flex items-center gap-2 px-4 py-2 rounded-xl bg-blue-600 text-white text-sm font-semibold hover:bg-blue-700 transition"
+  className="flex items-center gap-2 px-4 py-2 rounded-xl bg-blue-50 text-blue-700 text-sm font-semibold hover:bg-blue-100 transition"
 >
   <Users className="w-4 h-4" /> Export PDF Semua
 </button>
@@ -448,24 +448,23 @@ export default function DosenPenilaian() {
           </div>
         </div>
         {(saved || hasPenilaian) && (
-         <button
+        <button
   onClick={handleEksporSatu}
-  className="flex items-center gap-2 px-4 py-2 rounded-xl bg-blue-600 text-white text-sm font-semibold hover:bg-blue-700 transition"
+  className="flex items-center gap-2 px-4 py-2 rounded-xl bg-blue-50 text-blue-700 text-sm font-semibold hover:bg-blue-100 transition"
 >
   <FileDown className="w-4 h-4" /> Export PDF
 </button>
         )}
       </div>
 
-     {/* Banner nilai terkunci */}
-      {isLocked && (
-        <div className="flex items-center gap-3 bg-blue-600 border border-blue-600 rounded-2xl px-4 py-3.5">
-          <div className="w-9 h-9 bg-blue-500 rounded-xl flex items-center justify-center flex-shrink-0">
-            <Lock className="w-4 h-4 text-white" />
+    {isLocked && (
+        <div className="flex items-center gap-3 bg-blue-50 border border-blue-100 rounded-2xl px-4 py-3.5">
+          <div className="w-9 h-9 bg-blue-100 rounded-xl flex items-center justify-center flex-shrink-0">
+            <Lock className="w-4 h-4 text-blue-600" />
           </div>
           <div>
-            <p className="text-sm font-semibold text-white">Nilai Sudah Dikunci</p>
-            <p className="text-xs text-blue-100 mt-0.5">
+            <p className="text-sm font-semibold text-blue-700">Nilai Sudah Dikunci</p>
+            <p className="text-xs text-blue-500 mt-0.5">
               Nilai ini sudah difinalisasi dan tidak bisa diubah lagi. 
             </p>
           </div>
