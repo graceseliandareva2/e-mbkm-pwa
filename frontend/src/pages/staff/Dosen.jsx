@@ -1,7 +1,8 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useState, useCallback } from 'react'
 import { Upload, Search, Users, X, Check, UserPlus, Pencil } from 'lucide-react'
 import api from '../../utils/api'
 import toast from 'react-hot-toast'
+import usePeriodeFilter from '../../hooks/usePeriodeFilter'
 
 const emptyTambahForm = {
   id_dosen: '',
@@ -33,21 +34,27 @@ export default function StaffDosen() {
   const [editDosenId, setEditDosenId] = useState(null)
   const [editLoading, setEditLoading] = useState(false)
 
-  useEffect(() => {
-    fetchDosen()
-  }, [])
+  const {
+    periodeId: selectedPeriode,
+    periodeList: periode,
+    setLocalPeriode,
+  } = usePeriodeFilter('staff_akademik')
 
-  const fetchDosen = async () => {
+  const fetchDosen = useCallback(async () => {
     setLoading(true)
     try {
-      const res = await api.get('/staff/dosen')
+      const res = await api.get('/staff/dosen', { params: { periode_id: selectedPeriode } })
       setRoster(res.data.data || [])
     } catch {
       toast.error('Gagal memuat daftar dosen!')
     } finally {
       setLoading(false)
     }
-  }
+  }, [selectedPeriode])
+
+  useEffect(() => {
+    if (selectedPeriode) fetchDosen()
+  }, [selectedPeriode, fetchDosen])
 
   const handleImport = async (e) => {
     const file = e.target.files[0]
@@ -56,6 +63,7 @@ export default function StaffDosen() {
     try {
       const formData = new FormData()
       formData.append('file', file)
+      formData.append('periode_id', selectedPeriode)
       const res = await api.post('/staff/import-dosen', formData, {
         headers: { 'Content-Type': 'multipart/form-data' }
       })
@@ -87,6 +95,7 @@ export default function StaffDosen() {
         nama,
         email,
         program_studi,
+        periode_id: selectedPeriode,
       })
       toast.success(res.data.message || 'Dosen berhasil ditambahkan!')
       setShowTambah(false)
@@ -183,14 +192,22 @@ export default function StaffDosen() {
         </div>
       </div>
 
-      {/* Search */}
-      <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-4">
+      {/* Search + Filter Periode */}
+      <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-4 flex flex-col sm:flex-row gap-3">
         <div className="relative flex-1">
           <Search className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
           <input type="text" value={search} onChange={e => setSearch(e.target.value)}
             placeholder="Cari nama atau ID Dosen..."
             className="w-full pl-9 pr-4 py-2 border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 bg-gray-50" />
         </div>
+        <select
+          value={selectedPeriode ?? ''}
+          onChange={e => setLocalPeriode(periode.find(p => String(p.id) === String(e.target.value)))}
+          className="px-3 py-2 border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 bg-gray-50">
+          {periode.map(p => (
+            <option key={p.id} value={p.id}>{p.nama_periode}</option>
+          ))}
+        </select>
       </div>
 
       {/* Tabel */}
