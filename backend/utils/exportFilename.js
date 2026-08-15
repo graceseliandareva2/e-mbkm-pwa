@@ -1,5 +1,8 @@
 const sanitizeFilename = (s) =>
-  String(s || "").replace(/[\\/:*?"<>|]/g, "").trim();
+  String(s || "")
+    .replace(/[\\/]/g, "-") 
+    .replace(/[:*?"<>|]/g, "") 
+    .trim();
 
 const buildExportFilename = ({ nama, nim, namaPeriode, isSingle, ext }) => {
   if (isSingle) {
@@ -7,6 +10,7 @@ const buildExportFilename = ({ nama, nim, namaPeriode, isSingle, ext }) => {
   }
   return `Daftar pengajuan - ${sanitizeFilename(namaPeriode || "periode")}.${ext}`;
 };
+
 
 const buildExportFilenameFromRows = (rows, mahasiswaId, ext) => {
   const isSingle = !!mahasiswaId && rows.length > 0;
