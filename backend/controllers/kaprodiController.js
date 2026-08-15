@@ -451,9 +451,16 @@ const verifikasiPengajuan = async (req, res) => {
         "INSERT INTO notifikasi (id_notifikasi, user_id, judul, pesan, tipe) VALUES (?, ?, ?, ?, ?)",
         [uuidv4(), userId, "Status Pengajuan Capstone", pesan, tipe]
       );
+
       if (status === "disetujui_kaprodi") {
         await sendPushToUser(userId, {
           title: "Pengajuan Disetujui",
+          body: pesan,
+          url: "/mahasiswa/pengajuan",
+        });
+      } else if (status === "ditolak") {
+        await sendPushToUser(userId, {
+          title: "Pengajuan Ditolak",
           body: pesan,
           url: "/mahasiswa/pengajuan",
         });
@@ -528,15 +535,20 @@ const verifikasiDokumen = async (req, res) => {
     );
 
     const pesan = statusAkhir === "diverifikasi"
-      ? "Laporan Akhir kamu telah diverifikasi oleh Dosen Pembimbing dan Kaprodi."
-      : `Laporan Akhir kamu perlu direvisi oleh Kaprodi. Catatan: ${feedback || "-"}`;
-    await db.query(
-      "INSERT INTO notifikasi (id_notifikasi, user_id, judul, pesan, tipe) VALUES (?, ?, ?, ?, ?)",
-      [uuidv4(), dok[0].mahasiswa_id, "Status Dokumen", pesan,
-        statusAkhir === "diverifikasi" ? "sukses" : "peringatan"]
-    );
+  ? "Laporan Akhir kamu telah diverifikasi oleh Dosen Pembimbing dan Kaprodi."
+  : `Laporan Akhir kamu perlu direvisi oleh Kaprodi. Catatan: ${feedback || "-"}`;
+await db.query(
+  "INSERT INTO notifikasi (id_notifikasi, user_id, judul, pesan, tipe) VALUES (?, ?, ?, ?, ?)",
+  [uuidv4(), dok[0].mahasiswa_id, "Status Dokumen", pesan,
+    statusAkhir === "diverifikasi" ? "sukses" : "peringatan"]
+);
+await sendPushToUser(dok[0].mahasiswa_id, {
+  title: "Status Dokumen",
+  body: pesan,
+  url: "/mahasiswa/dokumen",
+});
 
-    res.json({ message: "Status dokumen berhasil diupdate." });
+res.json({ message: "Status dokumen berhasil diupdate." });
   } catch (error) {
     console.error("verifikasiDokumen kaprodi error:", error);
     res.status(500).json({ message: 
