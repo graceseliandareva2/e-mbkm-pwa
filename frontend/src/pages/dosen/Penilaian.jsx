@@ -400,9 +400,9 @@ export default function DosenPenilaian() {
                     </div>
 
                     {mhsLocked ? (
-                      <span className="flex items-center gap-1 text-xs text-violet-600 bg-violet-50 px-2 py-1 rounded-lg font-semibold">
-                      <Lock className="w-3 h-3" /> Terkunci
-                      </span>
+                    <span className="flex items-center gap-1 text-xs text-blue-600 bg-blue-50 px-2 py-1 rounded-lg font-semibold">
+                    <Lock className="w-3 h-3" /> Terkunci
+                    </span>
                     ) : mhs.penilaian_id ? (
                       <span className="flex items-center gap-1 text-xs text-green-600 bg-green-50 px-2 py-1 rounded-lg font-semibold">
                         <CheckSquare className="w-3 h-3" /> Sudah Dinilai ({mhs.grade})
