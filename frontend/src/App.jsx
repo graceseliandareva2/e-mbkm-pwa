@@ -164,6 +164,7 @@ export default function App() {
             <Route path="dashboard" element={<MahasiswaDashboard />} />
             <Route path="pengajuan" element={<MahasiswaPengajuan />} />
             <Route path="logbook" element={<MahasiswaLogbook />} />
+            <Route path="dokumen" element={<MahasiswaDokumen />} />  
             <Route path="biodata" element={<BiodataPage />} />
           </Route>
 
