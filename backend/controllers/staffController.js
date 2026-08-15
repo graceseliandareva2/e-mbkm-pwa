@@ -892,7 +892,25 @@ const _statusLabel = (s) =>
   })[s] ||
   s ||
   "-";
+const _buildExportFilename = (rows, mahasiswa_id, ext) => {
+  const sanitize = (str) =>
+    (str || "")
+      .toString()
+      .trim()
+      .replace(/[^a-zA-Z0-9]+/g, "_")
+      .replace(/^_+|_+$/g, "");
 
+  const tanggal = new Date().toISOString().slice(0, 10);
+
+  if (mahasiswa_id && rows.length === 1) {
+    const nama = sanitize(rows[0].nama) || "mahasiswa";
+    const nim = sanitize(rows[0].nim) || "";
+    return `Pengajuan_${nama}${nim ? "_" + nim : ""}_${tanggal}.${ext}`;
+  }
+
+  const periode = rows.length > 0 ? sanitize(rows[0].nama_periode) : "";
+  return `Pengajuan_${periode ? periode + "_" : ""}Semua_Mahasiswa_${tanggal}.${ext}`;
+};
 const exportPengajuanExcel = async (req, res) => {
   try {
     const { periode_id, mahasiswa_id } = req.query;
