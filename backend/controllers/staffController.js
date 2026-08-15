@@ -76,78 +76,83 @@ const importMahasiswa = async (req, res) => {
     let gagal = 0;
     let errors = [];
 
-    for (const row of data) {
-      try {
-        const nim = String(
-          row["NIM Mahasiswa"] || row["NIM"] || row["nim"] || "",
-        ).trim();
-        const nama = String(
-          row["Nama Mahasiswa"] || row["Nama"] || row["nama"] || "",
-        ).trim();
-        const email = String(
-          row["Email Mahasiswa"] ||
-            row["E-mail Mahasiswa"] ||
-            row["E-Mail Mahasiswa"] ||
-            row["Email"] ||
-            row["email"] ||
-            "",
-        ).trim();
-        const prodi = String(
-          row["Program Studi"] || row["Prodi"] || row["prodi"] || "",
-        ).trim();
+for (const row of data) {
+  try {
+    const nim = String(
+      row["NIM Mahasiswa"] || row["NIM"] || row["nim"] || "",
+    ).trim();
+    const nama = String(
+      row["Nama Mahasiswa"] || row["Nama"] || row["nama"] || "",
+    ).trim();
+    const email = String(
+      row["Email Mahasiswa"] ||
+        row["E-mail Mahasiswa"] ||
+        row["E-Mail Mahasiswa"] ||
+        row["Email"] ||
+        row["email"] ||
+        "",
+    ).trim();
+    const prodi = String(
+      row["Program Studi"] || row["Prodi"] || row["prodi"] || "",
+    ).trim();
 
-        if (!nim || !nama) {
-          gagal++;
-          errors.push("Baris dilewati: NIM atau Nama kosong.");
-          continue;
-        }
-
-        const username = email || nim;
-
-        const [usernameBentrok] = await db.query(
-          "SELECT id_users FROM users WHERE username = ? AND (nim IS NULL OR nim != ?)",
-          [username, nim],
-        );
-        if (usernameBentrok.length > 0) {
-          gagal++;
-          errors.push(
-            `Username ${username} sudah dipakai akun lain, NIM ${nim} dilewati.`,
-          );
-          continue;
-        }
-
-        const userId = uuidv4();
-        const hashedPassword = await bcrypt.hash(nim, 8);
-
-        await db.query(
-          `INSERT INTO users (id_users, username, password, role, nama, email, nim, program_studi, current_periode_id, imported_by)
-           VALUES (?, ?, ?, 'mahasiswa', ?, ?, ?, ?, ?, ?)
-           ON DUPLICATE KEY UPDATE
-             username = VALUES(username),
-             nama = VALUES(nama),
-             email = VALUES(email),
-             program_studi = VALUES(program_studi),
-             current_periode_id = VALUES(current_periode_id),
-             imported_by = VALUES(imported_by)`,
-          [
-            userId,
-            username,
-            hashedPassword,
-            nama,
-            email || null,
-            nim,
-            prodi || null,
-            periodeId,
-            req.user.id,
-          ],
-        );
-
-        berhasil++;
-      } catch (err) {
-        gagal++;
-        errors.push(err.message);
-      }
+    if (!nim || !nama) {
+      gagal++;
+      errors.push("Baris dilewati: NIM atau Nama kosong.");
+      continue;
     }
+
+    // ✅ Tambahan: cek dulu apakah NIM ini sudah ada, dan sudah di periode yang sama
+    const [existingNim] = await db.query(
+      "SELECT id_users AS id, current_periode_id FROM users WHERE nim = ?",
+      [nim],
+    );
+
+    if (
+      existingNim.length > 0 &&
+      String(existingNim[0].current_periode_id) === String(periodeId)
+    ) {
+      gagal++;
+      errors.push(`NIM ${nim} sudah terdaftar di periode ini, dilewati.`);
+      continue;
+    }
+
+    const username = email || nim;
+
+    const [usernameBentrok] = await db.query(
+      "SELECT id_users FROM users WHERE username = ? AND (nim IS NULL OR nim != ?)",
+      [username, nim],
+    );
+    if (usernameBentrok.length > 0) {
+      gagal++;
+      errors.push(
+        `Username ${username} sudah dipakai akun lain, NIM ${nim} dilewati.`,
+      );
+      continue;
+    }
+
+    const userId = uuidv4();
+    const hashedPassword = await bcrypt.hash(nim, 8);
+
+    await db.query(
+      `INSERT INTO users (id_users, username, password, role, nama, email, nim, program_studi, current_periode_id, imported_by)
+       VALUES (?, ?, ?, 'mahasiswa', ?, ?, ?, ?, ?, ?)
+       ON DUPLICATE KEY UPDATE
+         username = VALUES(username),
+         nama = VALUES(nama),
+         email = VALUES(email),
+         program_studi = VALUES(program_studi),
+         current_periode_id = VALUES(current_periode_id),
+         imported_by = VALUES(imported_by)`,
+      [userId, username, hashedPassword, nama, email || null, nim, prodi || null, periodeId, req.user.id],
+    );
+
+    berhasil++;
+  } catch (err) {
+    gagal++;
+    errors.push(err.message);
+  }
+}
 
     fs.unlinkSync(req.file.path);
 
@@ -291,74 +296,70 @@ const importDosen = async (req, res) => {
       gagal = 0,
       errors = [];
 
-    for (const row of data) {
-      try {
-        const nidn = String(
-          row["NIDN"] ||
-            row["ID Dosen"] ||
-            row["id_dosen"] ||
-            row["Id Dosen"] ||
-            "",
-        ).trim();
-        const nama = String(
-          row["Nama"] || row["nama"] || row["NAMA"] || "",
-        ).trim();
-        const email = String(row["Email"] || row["email"] || "").trim();
-        const program_studi =
-          String(row["Program Studi"] || row["program_studi"] || "").trim() ||
-          null;
+   for (const row of data) {
+  try {
+    const nidn = String(
+      row["NIDN"] || row["ID Dosen"] || row["id_dosen"] || row["Id Dosen"] || "",
+    ).trim();
+    const nama = String(row["Nama"] || row["nama"] || row["NAMA"] || "").trim();
+    const email = String(row["Email"] || row["email"] || "").trim();
+    const program_studi =
+      String(row["Program Studi"] || row["program_studi"] || "").trim() || null;
 
-        if (!nidn || !nama) {
-          gagal++;
-          errors.push(`ID atau Nama kosong`);
-          continue;
-        }
-
-        const username = email || nidn;
-        const [usernameBentrok] = await db.query(
-          "SELECT id_users FROM users WHERE username = ? AND (id_dosen IS NULL OR id_dosen != ?)",
-          [username, nidn],
-        );
-        if (usernameBentrok.length > 0) {
-          gagal++;
-          errors.push(
-            `Username ${username} sudah dipakai akun lain, ID ${nidn} dilewati.`,
-          );
-          continue;
-        }
-
-        const userId = uuidv4();
-        const hashedPassword = await bcrypt.hash(nidn, 10);
-
-        await db.query(
-          `INSERT INTO users (id_users, username, password, role, nama, email, id_dosen, program_studi, current_periode_id, imported_by)
-           VALUES (?, ?, ?, 'dosen', ?, ?, ?, ?, ?, ?)
-           ON DUPLICATE KEY UPDATE
-             username = VALUES(username),
-             nama = VALUES(nama),
-             email = VALUES(email),
-             program_studi = VALUES(program_studi),
-             current_periode_id = VALUES(current_periode_id),
-             imported_by = VALUES(imported_by)`,
-          [
-            userId,
-            username,
-            hashedPassword,
-            nama,
-            email || null,
-            nidn,
-            program_studi,
-            periodeId,
-            req.user.id,
-          ],
-        );
-
-        berhasil++;
-      } catch (rowError) {
-        gagal++;
-        errors.push(`Error: ${rowError.message}`);
-      }
+    if (!nidn || !nama) {
+      gagal++;
+      errors.push(`ID atau Nama kosong`);
+      continue;
     }
+
+    // ✅ Tambahan: cek dulu apakah NIDN ini sudah ada, dan sudah di periode yang sama
+    const [existingNidn] = await db.query(
+      "SELECT id_users AS id, current_periode_id FROM users WHERE id_dosen = ?",
+      [nidn],
+    );
+
+    if (
+      existingNidn.length > 0 &&
+      String(existingNidn[0].current_periode_id) === String(periodeId)
+    ) {
+      gagal++;
+      errors.push(`ID ${nidn} sudah terdaftar di periode ini, dilewati.`);
+      continue;
+    }
+
+    const username = email || nidn;
+    const [usernameBentrok] = await db.query(
+      "SELECT id_users FROM users WHERE username = ? AND (id_dosen IS NULL OR id_dosen != ?)",
+      [username, nidn],
+    );
+    if (usernameBentrok.length > 0) {
+      gagal++;
+      errors.push(`Username ${username} sudah dipakai akun lain, ID ${nidn} dilewati.`);
+      continue;
+    }
+
+    const userId = uuidv4();
+    const hashedPassword = await bcrypt.hash(nidn, 10);
+
+    await db.query(
+      `INSERT INTO users (id_users, username, password, role, nama, email, id_dosen, program_studi, current_periode_id, imported_by)
+       VALUES (?, ?, ?, 'dosen', ?, ?, ?, ?, ?, ?)
+       ON DUPLICATE KEY UPDATE
+         username = VALUES(username),
+         nama = VALUES(nama),
+         email = VALUES(email),
+         program_studi = VALUES(program_studi),
+         current_periode_id = VALUES(current_periode_id),
+         imported_by = VALUES(imported_by)`,
+      [userId, username, hashedPassword, nama, email || null, nidn, program_studi, periodeId, req.user.id],
+    );
+
+    berhasil++;
+  } catch (rowError) {
+    gagal++;
+    errors.push(`Error: ${rowError.message}`);
+  }
+}
 
     fs.unlinkSync(req.file.path);
 
