@@ -166,7 +166,7 @@ export default function KaprodiPeriode() {
         <div>
           <h1 className="text-2xl font-bold text-gray-800">Kelola Periode</h1>
           <p className="text-gray-500 text-sm mt-1">
-            Atur periode pengajuan capstone dan MBKM
+            Atur periode pengajuan 
           </p>
         </div>
         <button
@@ -401,7 +401,7 @@ export default function KaprodiPeriode() {
                 </p>
                 <div>
                   <label className="text-xs font-medium text-gray-600 block mb-1.5">
-                    Minimal Total Jam Pelatihan/Bootcamp
+                    Minimal Total Jam Pelatihan
                   </label>
                   <input
                     type="number"

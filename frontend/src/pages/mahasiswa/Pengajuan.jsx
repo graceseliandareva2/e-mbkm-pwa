@@ -1,4 +1,3 @@
-// pages/mahasiswa/MahasiswaPengajuan.jsx
 import { useEffect, useState, useCallback } from 'react'
 import { CheckCircle, Clock, XCircle, AlertCircle, Eye } from 'lucide-react'
 import api from '../../utils/api'
@@ -9,7 +8,7 @@ import { getCache, setCache } from '../../utils/offlineCache'
 import useAuthStore from '../../store/authStore'
 import { normalizeUrl } from '../../utils/normalizeUrl'
 
-// ─────────────────────────── constants ───────────────────────────
+// constants 
 const CACHE_KEY = 'pengajuan'
 const DEFAULT_MIN_JAM = 48
 
@@ -31,7 +30,7 @@ const inputErrorClass =
   'focus:outline-none focus:border-red-500 focus:ring-1 focus:ring-red-500 bg-white ' +
   'disabled:bg-gray-50 disabled:text-gray-500 disabled:cursor-not-allowed'
 
-// ── Validasi URL ────────────────────────────────────────────────
+// Validasi URL
 const isValidUrl = (str) => {
   if (!str || !str.trim()) return false
   try {
@@ -66,7 +65,7 @@ const mapResponseToForm = (data, user) => ({
   durasi_pelatihan_jam: data?.durasi_pelatihan_jam != null ? Number(data.durasi_pelatihan_jam) : '',
 })
 
-// ─────────────────────────── component ───────────────────────────
+// component 
 export default function MahasiswaPengajuan() {
   const { user } = useAuthStore()
 
@@ -80,7 +79,7 @@ export default function MahasiswaPengajuan() {
   const [minJam, setMinJam]           = useState(DEFAULT_MIN_JAM)
   const [dosenPAList, setDosenPAList] = useState([])
 
-  // ── Load cache dulu sebelum fetch ──────────────────────────────
+  
   useEffect(() => {
     const cached = getCache(CACHE_KEY)
     if (cached?.id) {
@@ -126,7 +125,6 @@ export default function MahasiswaPengajuan() {
 
   useSyncOnline(fetchPengajuan)
 
-  // ── Blur handler: normalisasi dulu (http/https/www otomatis), baru validasi ──
   const handleLinkBlur = (value) => {
     const normalized = normalizeUrl(value)
     setForm(f => ({ ...f, link_pelatihan: normalized }))
@@ -159,7 +157,7 @@ export default function MahasiswaPengajuan() {
   }
 
   const buildPayload = (linkOverride) => ({
-    judul: form.nama_pelatihan, // judul capstone = nama pelatihan, tidak ada input terpisah lagi
+    judul: form.nama_pelatihan, 
     penyelenggara: form.penyelenggara,
     nama_pelatihan: form.nama_pelatihan,
     link_pelatihan: linkOverride ?? form.link_pelatihan,
@@ -218,7 +216,7 @@ export default function MahasiswaPengajuan() {
     }
   }
 
-  // ── Render helpers ────────────────────────────────────────────
+  // Render helpers 
   const statusCfg  = pengajuan ? (STATUS_CONFIG[pengajuan.status] || STATUS_CONFIG.menunggu) : null
   const StatusIcon = statusCfg?.icon
   const canEdit    = pengajuan?.status === 'revisi' || pengajuan?.status === 'ditolak'
@@ -238,7 +236,6 @@ export default function MahasiswaPengajuan() {
         <input className={inputClass} value={form.nama_lengkap} disabled readOnly />
       </Field>
 
-      {/* Dosen Pembimbing Akademik -- dropdown dari GET /mahasiswa/dosen-pa */}
       <Field label="Dosen Pembimbing Akademik" required>
         <select
           className={inputClass}
@@ -256,7 +253,7 @@ export default function MahasiswaPengajuan() {
         )}
       </Field>
 
-      {/* Judul Capstone Project sekarang otomatis diambil dari Nama Pelatihan, tidak ada input terpisah */}
+    
       <Field label="Penyelenggara" required>
         <input className={inputClass} value={form.penyelenggara}
           onChange={e => setForm({ ...form, penyelenggara: e.target.value })} disabled={disabled}
@@ -273,7 +270,6 @@ export default function MahasiswaPengajuan() {
         </Field>
       </div>
 
-      {/* Pelatihan -- skema baru: 1 pengajuan = 1 pelatihan (field tunggal) */}
       <div className="space-y-3">
         <label className="block text-xs font-semibold text-gray-500 uppercase tracking-wide">
           Pelatihan / Bootcamp <span className="text-red-500 ml-0.5">*</span>
@@ -321,21 +317,21 @@ export default function MahasiswaPengajuan() {
     </div>
   )
 
-  // ── Offline banner ────────────────────────────────────────────
+
   const OfflineBanner = ({ message }) => (
     <div className="bg-yellow-50 border border-yellow-200 rounded-xl px-4 py-3 text-sm text-yellow-700 font-medium">
       ⚠️ {message}
     </div>
   )
 
-  // ── Loading ───────────────────────────────────────────────────
+  // Loading
   if (loading) return (
     <div className="flex items-center justify-center h-64">
       <div className="w-8 h-8 border-4 border-blue-600 border-t-transparent rounded-full animate-spin" />
     </div>
   )
 
-  // ── Form baru (belum pernah mengajukan) ───────────────────────
+  // Form baru (belum pernah mengajukan)
   if (!pengajuan) return (
     <div className="space-y-5">
       <div>
@@ -359,7 +355,7 @@ export default function MahasiswaPengajuan() {
     </div>
   )
 
-  // ── Sudah ada pengajuan ───────────────────────────────────────
+  //Sudah ada pengajuan 
   return (
     <div className="space-y-5">
       <div>

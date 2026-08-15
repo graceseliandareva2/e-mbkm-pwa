@@ -114,7 +114,7 @@ function DetailModal({ doc, jenisLabel, onClose, onResubmit }) {
   )
 }
 
-// ─── ResubmitModal ────────────────────────────────────────────────────────────
+// ResubmitModal
 
 function ResubmitModal({ doc, onClose, onSuccess }) {
   const [file, setFile]             = useState(null)
@@ -166,7 +166,7 @@ function ResubmitModal({ doc, onClose, onSuccess }) {
         <div className="p-5 space-y-4">
           {!navigator.onLine && (
             <div className="bg-yellow-50 border border-yellow-200 rounded-xl px-3.5 py-2.5 text-xs text-yellow-700 font-medium">
-              ⚠️ Kamu sedang offline. Submit ulang memerlukan koneksi internet.
+              ⚠️ Kamu sedang offline. 
             </div>
           )}
 
@@ -229,7 +229,7 @@ function ResubmitModal({ doc, onClose, onSuccess }) {
   )
 }
 
-// ─── Main Component ───────────────────────────────────────────────────────────
+// Main Component
 
 export default function MahasiswaDokumen() {
   const [dokumen, setDokumen]         = useState([])
@@ -437,7 +437,7 @@ export default function MahasiswaDokumen() {
         </p>
         {!navigator.onLine && (
           <p className="text-xs text-yellow-600 mt-3 bg-yellow-50 border border-yellow-100 rounded-xl px-3 py-2">
-            Kamu sedang offline. Data pengajuan tidak ditemukan di cache lokal.
+            Kamu sedang offline. 
           </p>
         )}
       </div>
@@ -509,7 +509,7 @@ export default function MahasiswaDokumen() {
             <form onSubmit={handleUpload} className="p-5 space-y-4">
               {!navigator.onLine && (
                 <div className="bg-yellow-50 border border-yellow-200 rounded-xl px-3.5 py-2.5 text-xs text-yellow-700 font-medium">
-                  ⚠️ Offline — upload dokumen memerlukan koneksi internet.
+                  ⚠️ Offline 
                 </div>
               )}
 

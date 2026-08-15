@@ -1,4 +1,4 @@
-import api from "./api"; // sesama folder src/utils/
+import api from "./api";
 
 function urlBase64ToUint8Array(base64String) {
   const padding = "=".repeat((4 - (base64String.length % 4)) % 4);

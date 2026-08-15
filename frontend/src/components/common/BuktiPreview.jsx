@@ -15,9 +15,6 @@ import { Document, Page, pdfjs } from 'react-pdf'
 import 'react-pdf/dist/Page/AnnotationLayer.css'
 import 'react-pdf/dist/Page/TextLayer.css'
 
-// Worker PDF.js - wajib di-set sekali di awal.
-// Pakai CDN (bukan file lokal hasil bundle) supaya gak kena masalah MIME type
-// ".mjs" yang sering salah konfigurasi di server (OpenLiteSpeed/Apache/Nginx).
 pdfjs.GlobalWorkerOptions.workerSrc = `https://unpkg.com/pdfjs-dist@${pdfjs.version}/build/pdf.worker.min.mjs`
 
 const IMAGE_EXT = ['jpg', 'jpeg', 'png', 'gif', 'webp']
@@ -43,10 +40,8 @@ const getFileType = (url) => {
   if (IMAGE_EXT.includes(ext)) return 'image'
   if (PDF_EXT.includes(ext)) return 'pdf'
 
-  // Cloudinary image
   if (/\/image\/upload\//i.test(url)) return 'image'
 
-  // Cloudinary raw pdf
   if (/\/raw\/upload\//i.test(url) && ext === 'pdf') return 'pdf'
 
   return 'unknown'
@@ -72,10 +67,6 @@ const ZOOM_MIN = 0.4
 const ZOOM_MAX = 2.5
 const BASE_WIDTH = 700
 
-// Komponen khusus render PDF pakai PDF.js (canvas), bukan iframe,
-// supaya tampilannya konsisten di mobile & desktop.
-// Toolbar (nama file, halaman, zoom, download, buka tab baru) dibuat manual
-// supaya mirip viewer bawaan Chrome, karena mobile browser tidak punya itu.
 function PdfBuktiPreview({ url, filename }) {
   const [numPages, setNumPages] = useState(null)
   const [pageNumber, setPageNumber] = useState(1)
@@ -95,9 +86,6 @@ function PdfBuktiPreview({ url, filename }) {
     }
   }
 
-  // Atribut <a download> diabaikan browser untuk URL beda origin (Cloudinary),
-  // jadi malah dibuka sebagai preview, bukan disimpan. Fix: fetch sebagai blob
-  // lalu paksa save lewat objectURL, yang selalu jalan terlepas dari origin.
   const handleDownload = async () => {
     if (downloading) return
     setDownloading(true)
@@ -113,7 +101,6 @@ function PdfBuktiPreview({ url, filename }) {
       link.remove()
       window.URL.revokeObjectURL(blobUrl)
     } catch {
-      // Fallback kalau fetch gagal (misal CORS diblokir server) -> buka tab baru
       window.open(url, '_blank')
     } finally {
       setDownloading(false)
@@ -140,7 +127,6 @@ function PdfBuktiPreview({ url, filename }) {
 
   return (
     <div className="w-full h-full flex flex-col bg-neutral-800">
-      {/* Toolbar ala native PDF viewer - tema gelap */}
       <div className="flex items-center gap-1 sm:gap-3 px-2 sm:px-3 py-2 border-b border-neutral-700 bg-neutral-900 overflow-x-auto">
         <button
           onClick={() => setSidebarOpen((v) => !v)}
@@ -235,7 +221,6 @@ function PdfBuktiPreview({ url, filename }) {
         </div>
       </div>
 
-      {/* Body: sidebar thumbnail halaman (toggle via hamburger) + canvas PDF */}
       <div className="flex-1 flex overflow-hidden">
         <Document
           file={url}
@@ -313,9 +298,6 @@ export function FileBuktiPreview({
     )
   }
 
-  // File selain pdf/gambar (misal .docx, .zip) yang tetap disimpan di Cloudinary
-  // -> tidak bisa di-embed, jadi kasih tombol buka. URL Cloudinary tidak
-  // ditampilkan sebagai teks ke user, cuma dipakai sebagai href.
   return (
     <div className="w-full h-full flex flex-col items-center justify-center gap-3 bg-gray-50 p-6">
       <FileText className="w-10 h-10 text-gray-400" />
@@ -337,9 +319,6 @@ export function FileBuktiPreview({
   )
 }
 
-// Dipakai untuk SEMUA link yang diinput manual oleh user (YouTube, Pinterest,
-// Google Docs/Drive, GitHub, website apapun) -> selalu hyperlink polos,
-// tidak pernah di-iframe, tidak ada tombol "Buka Link".
 export function LinkBukti({ url }) {
   if (!url) return null
 
@@ -363,7 +342,6 @@ export default function BuktiPreview({
   filename,
   emptyText = 'Tidak ada bukti'
 }) {
-  // Upload file (Cloudinary) -> selalu preview in-app
   if (path) {
     return (
       <FileBuktiPreview

@@ -56,8 +56,6 @@ const STATUS_CONFIG = {
   },
 };
 
-// Total durasi logbook disimpan dalam MENIT di database.
-// Util ini mengubahnya jadi teks "X jam Y menit" untuk ditampilkan.
 const formatDurasi = (menit) => {
   const totalMenit = Math.round(Number(menit) || 0);
   const j = Math.floor(totalMenit / 60);
@@ -149,7 +147,7 @@ export default function MahasiswaDashboard() {
         },
         {
           label: "Laporan Akhir",
-          mulai: null, // periode tidak punya tanggal_mulai_laporan tersendiri
+          mulai: null, 
           selesai: periode.tanggal_selesai_laporan
             ? new Date(periode.tanggal_selesai_laporan)
             : null,
@@ -176,7 +174,6 @@ export default function MahasiswaDashboard() {
 
   return (
     <div className="space-y-4">
-      {/* ── Periode Aktif: gradient biru, full width, item disusun menyamping ── */}
       {deadlines.length > 0 ? (
         <div className="relative overflow-hidden bg-gradient-to-br from-blue-700 via-blue-600 to-blue-500 rounded-2xl shadow-sm text-white">
           <div className="absolute -top-6 -right-6 w-32 h-32 rounded-full bg-white/5" />
@@ -364,7 +361,7 @@ export default function MahasiswaDashboard() {
           </div>
         </div>
 
-        {/* Progres Logbook (hanya muncul kalau disetujui) */}
+        {/* Progres Logbook */}
         {pengajuan?.status === "disetujui_kaprodi" && (
           <div className="bg-white rounded-2xl border border-gray-100 shadow-sm flex flex-col">
             <div className="flex items-center gap-2 px-5 pt-4 pb-3 border-b border-gray-50">

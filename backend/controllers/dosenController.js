@@ -81,7 +81,7 @@ const getMahasiswaSiapDinilai = async (req, res) => {
         pn.id_penilaian as penilaian_id,
         pn.nilai_kesesuaian, pn.nilai_proyek, pn.nilai_evaluasi,
         pn.nilai_laporan, pn.nilai_presentasi,
-        pn.nilai_akhir, pn.grade, pn.catatan, pn.finalized_at
+        pn.nilai_akhir, pn.grade, pn.finalized_at
       FROM pengajuan pc
       JOIN users m ON pc.mahasiswa_id = m.id_users
       JOIN periode per ON pc.periode_id = per.id_periode
@@ -93,7 +93,7 @@ const getMahasiswaSiapDinilai = async (req, res) => {
         pc.id_pengajuan, pc.periode_id, per.nama_periode, per.min_jam_pengajuan,
         dp.judul, dp.nama_pelatihan,
         pn.id_penilaian, pn.nilai_kesesuaian, pn.nilai_proyek, pn.nilai_evaluasi,
-        pn.nilai_laporan, pn.nilai_presentasi, pn.nilai_akhir, pn.grade, pn.catatan, pn.finalized_at
+        pn.nilai_laporan, pn.nilai_presentasi, pn.nilai_akhir, pn.grade, pn.finalized_at
       HAVING punya_ppt >= 1 
         AND punya_laporan >= 1 
         AND total_jam_logbook >= per.min_jam_pengajuan
@@ -114,7 +114,7 @@ const berikanPenilaian = async (req, res) => {
     const dsn = await getDosenProfile(req.user.id);
     if (!dsn) return res.status(404).json({ message: "Data dosen tidak ditemukan." });
 
-    const { pengajuan_id, nilai_kesesuaian, nilai_proyek, nilai_evaluasi, nilai_laporan, nilai_presentasi, catatan } = req.body;
+    const { pengajuan_id, nilai_kesesuaian, nilai_proyek, nilai_evaluasi, nilai_laporan, nilai_presentasi } = req.body;
 
     if (!pengajuan_id) {
       return res.status(400).json({ message: "pengajuan_id wajib diisi." });
@@ -147,18 +147,17 @@ const berikanPenilaian = async (req, res) => {
 
     if (existing.length) {
       await db.query(
-        `UPDATE penilaian SET nilai_kesesuaian=?, nilai_proyek=?, nilai_evaluasi=?, nilai_laporan=?, nilai_presentasi=?, nilai_akhir=?, grade=?, catatan=? WHERE id_penilaian=?`,
-        [nilai_kesesuaian, nilai_proyek, nilai_evaluasi, nilai_laporan, nilai_presentasi, nilai_akhir, grade, catatan, existing[0].id_penilaian]
+        `UPDATE penilaian SET nilai_kesesuaian=?, nilai_proyek=?, nilai_evaluasi=?, nilai_laporan=?, nilai_presentasi=?, nilai_akhir=?, grade=? WHERE id_penilaian=?`,
+        [nilai_kesesuaian, nilai_proyek, nilai_evaluasi, nilai_laporan, nilai_presentasi, nilai_akhir, grade, existing[0].id_penilaian]
       );
     } else {
       await db.query(
-        `INSERT INTO penilaian (id_penilaian, pengajuan_id, dosen_id, nilai_kesesuaian, nilai_proyek, nilai_evaluasi, nilai_laporan, nilai_presentasi, nilai_akhir, grade, catatan)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-        [uuidv4(), pengajuan_id, dsn.id, nilai_kesesuaian, nilai_proyek, nilai_evaluasi, nilai_laporan, nilai_presentasi, nilai_akhir, grade, catatan]
+        `INSERT INTO penilaian (id_penilaian, pengajuan_id, dosen_id, nilai_kesesuaian, nilai_proyek, nilai_evaluasi, nilai_laporan, nilai_presentasi, nilai_akhir, grade)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+        [uuidv4(), pengajuan_id, dsn.id, nilai_kesesuaian, nilai_proyek, nilai_evaluasi, nilai_laporan, nilai_presentasi, nilai_akhir, grade]
       );
     }
 
-    // mahasiswa_id di pengajuan sudah langsung = users.id_users, gak perlu JOIN ke tabel lain.
     const [pengajuanRow] = await db.query("SELECT mahasiswa_id FROM pengajuan WHERE id_pengajuan = ?", [pengajuan_id]);
     if (pengajuanRow.length) {
       const userId = pengajuanRow[0].mahasiswa_id;
@@ -167,7 +166,7 @@ const berikanPenilaian = async (req, res) => {
       await sendPushToUser(userId, { title: "Nilai Akhir", body: `Nilai akhir kamu: ${nilai_akhir} (${grade})`, url: "/mahasiswa/penilaian" });
     }
 
-    res.json({ message: "Penilaian berhasil disimpan.", nilai_akhir, grade });
+    res.json({ message: "nilai berhasil disimpan.", nilai_akhir, grade });
   } catch (error) {
     console.error(error);
     res.status(500).json({ message: "Terjadi kesalahan server." });
@@ -292,12 +291,6 @@ const eksporPenilaianPDF = async (req, res) => {
     doc.text(`Nilai Akhir : ${data.nilai_akhir}`, { align: "right" });
     doc.text(`Grade       : ${data.grade}`, { align: "right" });
 
-    if (data.catatan) {
-      doc.moveDown();
-      doc.font("Helvetica-Bold").text("Catatan Dosen:");
-      doc.font("Helvetica").text(data.catatan);
-    }
-
     doc.moveDown(2);
     doc.font("Helvetica").fontSize(10).text(`Dicetak pada: ${new Date().toLocaleDateString("id-ID", { day: "2-digit", month: "long", year: "numeric" })}`, { align: "right" });
 
@@ -378,9 +371,6 @@ const eksporSemuaPenilaianPDF = async (req, res) => {
   }
 };
 
-// pelatihan_id & tabel pelatihan sudah dihapus -- 1 pengajuan = 1 pelatihan (di detail_pengajuan),
-// jadi join ke pl dibuang. SELECT l.* otomatis cuma balikin kolom yang masih ada
-// (gak ada lagi hasil/kendala di hasilnya).
 const getLogbookMahasiswa = async (req, res) => {
   try {
     const dsn = await getDosenProfile(req.user.id);
@@ -582,7 +572,6 @@ const verifikasiDokumen = async (req, res) => {
       );
     }
 
-    // mahasiswa_id di pengajuan sudah = users.id_users langsung.
     const [pengajuanRow] = await db.query("SELECT mahasiswa_id FROM pengajuan WHERE id_pengajuan = ?", [dok[0].pengajuan_id]);
 
     if (pengajuanRow.length) {

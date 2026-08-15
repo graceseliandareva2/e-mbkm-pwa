@@ -118,8 +118,6 @@ const updatePeriode = async (req, res) => {
 
     const mulaiPengajuanBerubah    = toDateStr(lama.tanggal_mulai_pengajuan)  !== toDateStr(tanggal_mulai_pengajuan);
     const mulaiLogbookBerubah      = toDateStr(lama.tanggal_mulai_logbook)    !== toDateStr(tanggal_mulai_logbook);
-    // tanggal_mulai_ppt & tanggal_mulai_laporan sekarang kolom terpisah -- masing-masing
-    // punya trigger reset sendiri, gak lagi digabung lewat tanggal_mulai_dokumen.
     const mulaiPptBerubah          = toDateStr(lama.tanggal_mulai_ppt)        !== toDateStr(tanggal_mulai_ppt);
     const mulaiLaporanBerubah      = toDateStr(lama.tanggal_mulai_laporan)    !== toDateStr(tanggal_mulai_laporan);
     const selesaiPengajuanBerubah  = toDateStr(lama.tanggal_selesai_pengajuan) !== toDateStr(tanggal_selesai_pengajuan);
@@ -288,10 +286,6 @@ const toggleForm = async (req, res) => {
   }
 };
 
-// roster_dosen_mbkm & roster_dosen_pa sudah dihapus -- keduanya sekarang sumbernya sama:
-// users yang di-import untuk periode tsb (current_periode_id). Kedua endpoint di bawah
-// sekarang identik -- dipertahankan sebagai 2 fungsi biar route lama gak perlu diubah,
-// tapi worth dipertimbangkan buat digabung jadi satu endpoint aja ke depannya.
 const getDosenRosterMBKM = async (req, res) => {
   try {
     const { periode_id } = req.query;
@@ -328,11 +322,6 @@ const getDosenRosterPA = async (req, res) => {
   }
 };
 
-// Assign dosen SEKARANG TERPISAH dari approve. Approve (set status='disetujui_kaprodi')
-// dilakukan lewat verifikasiPengajuan() -- fungsi ini cuma boleh dipakai SETELAH pengajuan
-// sudah berstatus 'disetujui_kaprodi', dan cuma mengisi/mengganti dosen_id.
-// Gerbang resmi logbook & dokumen (status='disetujui_kaprodi' AND dosen_id IS NOT NULL)
-// baru terpenuhi penuh setelah langkah ini.
 const assignDosen = async (req, res) => {
   try {
     const { mahasiswa_id, dosen_id, periode_id } = req.body;
@@ -351,7 +340,7 @@ const assignDosen = async (req, res) => {
     const pengajuanId = pengajuanRows[0].id_pengajuan;
 
     if (pengajuanRows[0].status !== 'disetujui_kaprodi') {
-      return res.status(400).json({ message: "Pengajuan harus diverifikasi (disetujui) Kaprodi terlebih dahulu sebelum dosen pembimbing bisa di-assign." });
+      return res.status(400).json({ message: "Pengajuan harus diverifikasi Kaprodi terlebih dahulu sebelum dosen pembimbing bisa di-assign." });
     }
 
     const [dosenRows] = await db.query(
@@ -397,9 +386,6 @@ const getVerifikasiPengajuan = async (req, res) => {
       periode_id = periodeRow.id;
     }
 
-    // dosen_pembimbing_akademik lama sudah gak punya kolom penyimpanan (dropdown "Dosen PA"
-    // sekarang cuma buat tampilan pilihan, gak disimpan) -- yang ditampilkan sekarang cuma
-    // p.dosen_id, yang NULL sampai kaprodi assign lewat assignDosen().
     const [rows] = await db.query(
       `SELECT
         p.id_pengajuan AS id, p.mahasiswa_id, p.periode_id, p.status,
@@ -426,11 +412,6 @@ const getVerifikasiPengajuan = async (req, res) => {
   }
 };
 
-// Menyetujui (disetujui_kaprodi), menolak (ditolak), atau minta revisi (revisi).
-// Approve DI SINI TIDAK mengisi dosen_id -- dosen_id baru diisi belakangan lewat
-// assignDosen(), setelah mahasiswa muncul di halaman Assign Dosen (yang memfilter
-// status='disetujui_kaprodi'). Gerbang logbook/dokumen baru penuh terbuka setelah
-// assignDosen dijalankan.
 const verifikasiPengajuan = async (req, res) => {
   try {
     const { id } = req.params;
@@ -451,7 +432,7 @@ const verifikasiPengajuan = async (req, res) => {
     );
 
     if (pengajuan.length > 0) {
-      const userId = pengajuan[0].mahasiswa_id; // mahasiswa_id == users.id_users
+      const userId = pengajuan[0].mahasiswa_id; 
 
       let pesan;
       let tipe;
@@ -499,10 +480,8 @@ const hapusPengajuan = async (req, res) => {
 
     await conn.beginTransaction();
 
-    // mahasiswa_id sudah langsung = users.id_users, gak perlu subquery lagi ke tabel mahasiswa.
     await conn.query("DELETE FROM notifikasi WHERE user_id = ?", [pengajuan[0].mahasiswa_id]);
 
-    // detail_pengajuan/dokumen/logbook/feedback/penilaian ikut kehapus otomatis (ON DELETE CASCADE).
     await conn.query("DELETE FROM pengajuan WHERE id_pengajuan = ?", [id]);
 
     await conn.commit();
@@ -548,7 +527,6 @@ const verifikasiDokumen = async (req, res) => {
       [statusAkhir, feedback || null, req.user.id, id]
     );
 
-    // dok[0].mahasiswa_id sudah = users.id_users, gak perlu query tambahan.
     const pesan = statusAkhir === "diverifikasi"
       ? "Laporan Akhir kamu telah diverifikasi oleh Dosen Pembimbing dan Kaprodi."
       : `Laporan Akhir kamu perlu direvisi oleh Kaprodi. Catatan: ${feedback || "-"}`;
@@ -791,9 +769,6 @@ const getDetailMonitoring = async (req, res) => {
       [pengajuan_id]
     );
     if (!info.length) return res.status(404).json({ message: "Pengajuan tidak ditemukan." });
-
-    // pelatihan_id di logbook & tabel pelatihan sudah dihapus -- 1 pengajuan = 1 pelatihan,
-    // nama_pelatihan sudah ada di info[0] di atas.
     const [logbook] = await db.query(
       `SELECT id_logbook AS id, tanggal, jam_mulai, jam_selesai, kegiatan, durasi_menit, status, bukti_link, cloudinary_public_id
        FROM logbook WHERE pengajuan_id = ? ORDER BY tanggal DESC`,

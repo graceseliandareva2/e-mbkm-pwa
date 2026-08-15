@@ -132,9 +132,6 @@ const LogbookSection = ({ logbook, onPreview }) => {
           </thead>
           <tbody className="divide-y divide-gray-100">
             {logbook.map((l) => {
-              // Sama seperti MahasiswaLogbook.jsx: file upload (Cloudinary) punya
-              // cloudinary_public_id, sedangkan link manual (YouTube/Drive/dll)
-              // cuma punya bukti_link tanpa public_id.
               const isFileUpload = !!l.cloudinary_public_id
               const isLinkOnly = !isFileUpload && !!l.bukti_link
               return (
@@ -178,43 +175,19 @@ const LogbookSection = ({ logbook, onPreview }) => {
 }
 const NilaiSection = ({ nilai }) => {
   if (!nilai) {
-    return (
-      <p className="text-sm text-gray-400 italic">
-        Nilai belum tersedia
-      </p>
-    )
+    return <p className="text-sm text-gray-400 italic">Nilai belum tersedia</p>
   }
 
   return (
-    <div className="space-y-4">
-      <div className="flex flex-col sm:flex-row gap-3">
-        <div className="flex-1 bg-blue-50 border border-blue-100 rounded-xl px-4 py-3">
-          <p className="text-xs text-blue-500 mb-0.5">Nilai Akhir</p>
-          <p className="text-xl font-bold text-blue-700">{nilai.nilai_akhir ?? '-'}</p>
-        </div>
-        <div className="flex-1 bg-green-50 border border-green-100 rounded-xl px-4 py-3">
-          <p className="text-xs text-green-600 mb-0.5">Grade</p>
-          <p className="text-xl font-bold text-green-700">{nilai.grade ?? '-'}</p>
-        </div>
-        <div className="flex-1 bg-gray-50 border border-gray-100 rounded-xl px-4 py-3">
-          <p className="text-xs text-gray-400 mb-0.5">Dosen Pembimbing</p>
-          <p className="text-sm font-semibold text-gray-800">{nilai.nama_dosen || '-'}</p>
-        </div>
+    <div className="flex flex-col sm:flex-row gap-3">
+      <div className="flex-1 bg-gray-50 border border-gray-100 rounded-xl px-4 py-3">
+        <p className="text-xs text-gray-400 mb-0.5">Nilai Akhir</p>
+        <p className="text-sm font-semibold text-gray-800">{nilai.nilai_akhir ?? '-'}</p>
       </div>
-
-      {nilai.catatan && (
-        <div className="bg-yellow-50 border border-yellow-100 rounded-xl px-4 py-3">
-          <p className="text-xs text-yellow-600 mb-1">Catatan Dosen</p>
-          <p className="text-sm text-gray-700">{nilai.catatan}</p>
-        </div>
-      )}
-
-      <p className="text-xs text-gray-400">
-        Difinalisasi pada{' '}
-        {new Date(nilai.finalized_at).toLocaleDateString('id-ID', {
-          day: 'numeric', month: 'long', year: 'numeric',
-        })}
-      </p>
+      <div className="flex-1 bg-gray-50 border border-gray-100 rounded-xl px-4 py-3">
+        <p className="text-xs text-gray-400 mb-0.5">Dosen Pembimbing</p>
+        <p className="text-sm font-semibold text-gray-800">{nilai.nama_dosen || '-'}</p>
+      </div>
     </div>
   )
 }

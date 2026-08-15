@@ -36,10 +36,6 @@ self.addEventListener("activate", (event) => {
   event.waitUntil(self.clients.claim());
 });
 
-// ── APP BADGE HELPERS ──────────────────────────────────────
-// Service worker gak punya state persisten antar event, jadi counter
-// badge disimpan lewat Cache API (bukan localStorage -- gak bisa diakses
-// dari SW context).
 async function getBadgeCount() {
   try {
     const cache = await caches.open("badge-store");
@@ -74,7 +70,7 @@ self.addEventListener("push", (event) => {
 
   event.waitUntil(
     (async () => {
-      // Increment & set app badge (Android/desktop PWA, iOS 16.4+ PWA installed)
+    
       try {
         const newCount = (await getBadgeCount()) + 1;
         await setBadgeCount(newCount);
@@ -109,7 +105,7 @@ self.addEventListener("notificationclick", (event) => {
 
   event.waitUntil(
     (async () => {
-      // Reset badge begitu notif diklik
+    
       await setBadgeCount(0);
       if ("clearAppBadge" in self.navigator) {
         await self.navigator.clearAppBadge();
@@ -128,8 +124,6 @@ self.addEventListener("notificationclick", (event) => {
   );
 });
 
-// Dipanggil dari React app (lewat navigator.serviceWorker.controller.postMessage)
-// pas app dibuka/difokus, buat clear badge tanpa harus klik notifikasi dulu.
 self.addEventListener("message", (event) => {
   if (event.data?.type === "CLEAR_BADGE") {
     event.waitUntil(

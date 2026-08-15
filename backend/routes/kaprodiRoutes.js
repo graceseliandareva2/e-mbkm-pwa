@@ -31,14 +31,8 @@ router.post('/periode', auth, tambahPeriode);
 router.put('/periode/:id', auth, updatePeriode);
 router.patch('/periode/:id/toggle-form', auth, toggleForm);
 
-// BARU: daftar dosen di roster MBKM periode aktif -- sumber dropdown
-// assign-dosen (bukan getDaftarDosen yang berisi seluruh master dosen).
 router.get('/dosen-roster-mbkm', auth, getDosenRosterMBKM);
 router.get('/dosen-roster-pa',   auth, getDosenRosterPA);
-
-// PERUBAHAN (item #6): import-mahasiswa, import-dosen, dan seluruh CRUD
-// tulis mahasiswa/dosen (POST/PUT/DELETE/reset-password) sudah pindah ke
-// staffRoutes.js. Di sini cuma disisakan GET buat kebutuhan assignDosen.
 
 router.get('/mahasiswa', auth, getDaftarMahasiswa);
 

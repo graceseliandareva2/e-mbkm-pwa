@@ -273,7 +273,7 @@ export default function DosenLogbook() {
       {/* Banner offline */}
       {isOffline && (
         <div className="bg-yellow-50 border border-yellow-200 rounded-xl px-4 py-3 text-sm text-yellow-700 font-medium">
-          ⚠️ Kamu sedang offline. Menampilkan data terakhir yang tersimpan. Verifikasi tidak bisa dilakukan saat offline.
+          ⚠️ Kamu sedang offline. 
         </div>
       )}
 
@@ -390,7 +390,7 @@ export default function DosenLogbook() {
                     </div>
                   )}
 
-                  {/* Panel verifikasi — nonaktif saat offline */}
+                  {/* Panel verifikasi */}
                   {log.status === 'disubmit' && (
                     <div className="pt-2 space-y-3 border-t border-gray-100">
                       {isOffline ? (

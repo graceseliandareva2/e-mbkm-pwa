@@ -4,7 +4,6 @@ import api from './api'
 import toast from 'react-hot-toast'
 
 export const useSyncOnline = (onSyncDone) => {
-  // Simpan referensi terbaru ke onSyncDone tanpa memicu re-register listener
   const callbackRef = useRef(onSyncDone)
   useEffect(() => { callbackRef.current = onSyncDone }, [onSyncDone])
 

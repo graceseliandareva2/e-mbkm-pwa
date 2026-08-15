@@ -256,7 +256,7 @@ const tambahMahasiswa = async (req, res) => {
   }
 };
 
-// ========== IMPORT / TAMBAH DOSEN ==========
+// IMPORT / TAMBAH DOSEN 
 const importDosen = async (req, res) => {
   try {
     if (!req.file)
@@ -595,7 +595,7 @@ const hapusMahasiswa = async (req, res) => {
       .status(500)
       .json({ message: "Gagal menghapus mahasiswa.", detail: error.message });
   } finally {
-    conn.release(); // satu-satunya tempat release
+    conn.release(); 
   }
 };
 
@@ -639,7 +639,7 @@ const resetPasswordMahasiswa = async (req, res) => {
   }
 };
 
-// ========== MONITORING ==========
+//  MONITORING 
 const getDaftarMahasiswa = async (req, res) => {
   try {
     const { periode_id } = req.query;
@@ -889,7 +889,6 @@ const _statusLabel = (s) =>
     diajukan: "Diajukan",
     revisi: "Revisi",
     draft: "Draft",
-    diarsipkan: "Diarsipkan",
   })[s] ||
   s ||
   "-";
@@ -992,7 +991,9 @@ const exportPengajuanExcel = async (req, res) => {
       });
     });
 
-    sheet.views = [{ state: "frozen", ySplit: 1 }];
+       sheet.views = [{ state: "frozen", ySplit: 1 }];
+
+    const filename = _buildExportFilename(rows, mahasiswa_id, "xlsx");
 
     res.setHeader(
       "Content-Type",
@@ -1000,7 +1001,7 @@ const exportPengajuanExcel = async (req, res) => {
     );
     res.setHeader(
       "Content-Disposition",
-      "attachment; filename=pengajuan_mbkm.xlsx",
+      `attachment; filename*=UTF-8''${encodeURIComponent(filename)}`,
     );
 
     await workbook.xlsx.write(res);
@@ -1020,14 +1021,12 @@ const exportPengajuanPDF = async (req, res) => {
 
     const doc = new PDFDocument({ margin: 50, size: "A4" });
 
+    const filename = _buildExportFilename(rows, mahasiswa_id, "pdf");
+
     res.setHeader("Content-Type", "application/pdf");
     res.setHeader(
       "Content-Disposition",
-      `attachment; filename=${
-        isSingle
-          ? `detail_${rows[0]?.nim || "mahasiswa"}.pdf`
-          : "rekap_pengajuan_mbkm.pdf"
-      }`,
+      `attachment; filename*=UTF-8''${encodeURIComponent(filename)}`,
     );
 
     doc.pipe(res);
@@ -1257,9 +1256,6 @@ const getRekapNilai = async (req, res) => {
   }
 };
 
-// Ditambah: LEFT JOIN ke users (alias pa) via detail_pengajuan.dosen_pa_id, plus nama_pelatihan
-// di SELECT -- sebelumnya Dosen PA & Pelatihan tidak pernah di-select sama sekali di sini,
-// makanya selalu tampil "-" di frontend (StaffMonitoring.jsx) walau datanya sudah ada di DB.
 const getDaftarMahasiswaMBKM = async (req, res) => {
   try {
     const { periode_id } = req.query;
@@ -1308,8 +1304,7 @@ const getDaftarMahasiswaMBKM = async (req, res) => {
     res.status(500).json({ message: "Terjadi kesalahan server." });
   }
 };
-// pelatihan_id di logbook sudah dihapus dari skema (1 pengajuan = 1 pelatihan, disimpan di detail_pengajuan).
-// durasi_menit adalah GENERATED COLUMN (auto-hitung dari jam_mulai/jam_selesai) -- read-only, jangan pernah di-INSERT/UPDATE manual.
+
 const getLogbookMahasiswa = async (req, res) => {
   try {
     const { pengajuan_id } = req.query;

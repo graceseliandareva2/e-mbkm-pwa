@@ -25,10 +25,6 @@ const {
 
 const auth = [verifyToken, authorizeRoles("mahasiswa")];
 
-// PERUBAHAN: file logbook & dokumen sekarang disimpan ke Cloudinary
-// (cloudinaryService.uploadFile pakai req.file.buffer lewat upload_stream),
-// jadi multer tetap pakai memoryStorage() -- bukan disk storage -- karena
-// controller butuh buffer di memori, bukan path file di disk.
 const uploadMemory = multer({ storage: multer.memoryStorage() });
 
 // Periode aktif
@@ -40,14 +36,11 @@ router.post("/pengajuan", auth, tambahPengajuan);
 router.put("/pengajuan/:id", auth, updatePengajuan);
 router.delete("/pengajuan/:id", auth, hapusPengajuan);
 
-// BARU: daftar Dosen PA (is_dosen_pa = true) buat dropdown di form pengajuan
 router.get("/dosen-pa", auth, getDosenPA);
 
-// Pelatihan (dalam pengajuan yang disetujui) -- dipakai dropdown/tab di halaman Logbook
 router.get("/pelatihan", auth, getPelatihanAktif);
 
 // Logbook
-// GET /logbook mendukung query opsional ?pelatihan_id=... untuk filter per pelatihan
 router.get("/logbook", auth, getLogbook);
 router.post(
   "/logbook",

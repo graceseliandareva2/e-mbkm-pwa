@@ -7,10 +7,6 @@ import PeriodeDropdown from '../../components/common/PeriodeDropdown'
 import BuktiPreview, { FileBuktiPreview } from '../../components/common/BuktiPreview'
 const BASE_URL = ''
 
-// Ambil URL file yang bisa dipreview -- utamakan cloudinary_url (upload baru),
-// fallback ke path_file (dokumen lama sebelum migrasi Cloudinary yang belum
-// punya cloudinary_url). Sama persis dengan getFileUrl di Dokumen_mahasiswa.jsx
-// supaya preview bukti konsisten antara dosen & mahasiswa.
 const getFileUrl = (doc) => {
   if (!doc) return null
   return doc.cloudinary_url || doc.path_file || null
@@ -38,7 +34,7 @@ const JENIS_TABS = [
   { key: 'ppt',           label: 'PPT' },
 ]
 
-// ── Modal Detail ──────────────────────────────────────────────────────────────
+//Modal Detail 
 function DetailModal({ doc, onClose, onRefresh }) {
   const [feedback, setFeedback]     = useState('')
   const [processing, setProcessing] = useState(false)
@@ -46,10 +42,6 @@ function DetailModal({ doc, onClose, onRefresh }) {
   const statusCfg  = STATUS_CONFIG[doc.status] || STATUS_CONFIG.diupload
   const StatusIcon = statusCfg.icon
 
-  // FIX: urutan verifikasi laporan_akhir sekarang Dospem DULU, baru Kaprodi
-  // (sebelumnya di sini kebalik: nunggu 'disetujui_kaprodi' dulu, padahal
-  // backend/dosenController.js & kaprodiController.js sudah pakai urutan
-  // dospem-duluan sejak revisi terakhir).
   const canAksi = doc.jenis === 'ppt'
     ? ['diupload', 'revisi_dospem'].includes(doc.status)
     : doc.status === 'diupload'
@@ -291,8 +283,7 @@ export default function DosenDokumen() {
           options={periodeList}
         />
       </div>
-
-      {/* Tabs — selalu tampil */}
+      
       <div className="flex items-center gap-2 flex-wrap">
         {JENIS_TABS.map(tab => {
           const count    = countByJenis(tab.key)

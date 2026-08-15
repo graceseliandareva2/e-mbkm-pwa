@@ -279,7 +279,6 @@ export default function MahasiswaLogbook() {
     } catch { toast.error('Gagal menghapus logbook') }
   }
 
-  // Terkunci jika pengajuan belum disetujui kaprodi ATAU sudah disetujui tapi dosen pembimbing belum di-assign
   const isDisabled = pengajuan?.status !== 'disetujui_kaprodi' || !pengajuan?.dosen_id
 
   const activeLogbooks = logbooks.filter(l => l.status !== 'diverifikasi')
@@ -450,7 +449,7 @@ export default function MahasiswaLogbook() {
         </p>
         {!navigator.onLine && (
           <p className="text-xs text-yellow-600 mt-3 bg-yellow-50 border border-yellow-100 rounded-xl px-3 py-2">
-            Kamu sedang offline. Data pengajuan tidak ditemukan di cache lokal.
+            Kamu sedang offline. 
           </p>
         )}
       </div>
@@ -514,7 +513,7 @@ export default function MahasiswaLogbook() {
             <form onSubmit={handleSubmit} className="p-5 space-y-4">
               {!navigator.onLine && (
                 <div className="bg-yellow-50 border border-yellow-200 rounded-xl px-3.5 py-2.5 text-xs text-yellow-700 font-medium">
-                  ⚠️ Offline — data & bukti akan tersimpan lokal dan otomatis terupload saat online.
+                  ⚠️ Offline — data & bukti akan otomatis terupload saat online.
                 </div>
               )}
               {pelatihanList.length > 1 && (

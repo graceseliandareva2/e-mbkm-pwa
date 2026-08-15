@@ -47,7 +47,6 @@ const auth = [verifyToken, authorizeRoles('staff_akademik')];
 router.get('/dashboard-stats',   auth, getDashboardStats);
 router.get('/aktivitas-terbaru', auth, getAktivitasTerbaru);
 
-// Manajemen Mahasiswa & Dosen (CRUD) -- dipindah dari kaprodiRoutes.js (item #6)
 router.post('/import-mahasiswa', auth, uploadImport.single('file'), importMahasiswa);
 router.post('/import-dosen',     auth, uploadImport.single('file'), importDosen);
 
@@ -68,14 +67,12 @@ router.get('/pengajuan/export-pdf',    auth, exportPengajuanPDF);    // ← sebe
 router.get('/pengajuan/:id',           auth, getDetailPengajuan);
 router.get('/rekap-nilai', auth, getRekapNilai);
 
-// Menu Logbook & Dokumen (view-only). getDaftarMahasiswaMBKM sekarang
-// membawa nilai_akhir & grade (bukan lagi jumlah_logbook) untuk kolom
-// "Nilai" di tabel list utama Staff Monitoring.
+// Menu Logbook & Dokumen (view-only)
 router.get('/mahasiswa-mbkm',       auth, getDaftarMahasiswaMBKM);
 router.get('/logbook',              auth, getLogbookMahasiswa);
 router.get('/dokumen',              auth, getDokumenMahasiswa);
 
-// Nilai Mahasiswa (view-only, finalized only) -- dipakai modal detail
+// Nilai Mahasiswa (view-only)
 router.get('/nilai', auth, getNilaiMahasiswa);
 
 // Profil

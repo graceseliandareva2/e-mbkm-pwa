@@ -24,10 +24,9 @@ export default function DosenDashboard() {
   const [loading, setLoading] = useState(true)
   const navigate = useNavigate()
 
-  // ─── ambil periode dari sumber tunggal (global, auto-init kalau kosong) ───
   const { periodeId, activePeriode: selectedPeriode } = usePeriodeFilter('dosen_pembimbing')
 
-  
+   // eslint-disable-next-line react-hooks/exhaustive-deps  
   useEffect(() => { fetchData() }, [periodeId])
 
   const fetchData = async () => {

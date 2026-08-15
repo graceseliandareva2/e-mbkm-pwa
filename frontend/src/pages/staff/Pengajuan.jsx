@@ -27,6 +27,9 @@ const getStatusBadge = (status) => {
   return map[status] || { cls: "bg-gray-100 text-gray-600", label: status };
 };
 
+const sanitizeFilename = (name) =>
+  (name || "").replace(/[\\/:*?"<>|]/g, "").trim();
+
 export default function StaffPengajuan() {
   const [pengajuan, setPengajuan] = useState([]);
   const [search, setSearch] = useState("");
@@ -54,7 +57,7 @@ export default function StaffPengajuan() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [selectedPeriode, filterStatus]);
 
-const fetchPengajuan = async () => {
+  const fetchPengajuan = async () => {
     setLoading(true);
     try {
       const params = {};
@@ -70,7 +73,6 @@ const fetchPengajuan = async () => {
   };
 
   const openDetail = async (p) => {
- 
     setShowDetail(p);
     setDetailData(null);
     setLoadingDetail(true);
@@ -108,23 +110,28 @@ const fetchPengajuan = async () => {
     }
   };
 
- const exportAll = (format) => {
-  if (!selectedPeriode) return toast.error("Pilih periode terlebih dahulu");
-  const ext = format === "excel" ? "xlsx" : "pdf";
-  downloadWithAuth(
-    `${BASE_URL}/staff/pengajuan/export-${format}?periode_id=${selectedPeriode}`,
-    `pengajuan_mbkm.${ext}`,
-  );
-  setShowExportMenu(false);
-};
+  const exportAll = (format) => {
+    if (!selectedPeriode) return toast.error("Pilih periode terlebih dahulu");
+    const ext = format === "excel" ? "xlsx" : "pdf";
+    const periodeObj = periode.find(
+      (p) => String(p.id) === String(selectedPeriode),
+    );
+    const namaPeriode = sanitizeFilename(periodeObj?.nama_periode || "periode");
+    downloadWithAuth(
+      `${BASE_URL}/staff/pengajuan/export-${format}?periode_id=${selectedPeriode}`,
+      `Daftar pengajuan - ${namaPeriode}.${ext}`,
+    );
+    setShowExportMenu(false);
+  };
 
-const exportSingle = (mahasiswaId, format) => {
-  const ext = format === "excel" ? "xlsx" : "pdf";
-  downloadWithAuth(
-    `${BASE_URL}/staff/pengajuan/export-${format}?mahasiswa_id=${mahasiswaId}&periode_id=${selectedPeriode}`,
-    `detail_mahasiswa.${ext}`,
-  );
-};
+  const exportSingle = (mahasiswaId, nama, nim, format) => {
+    const ext = format === "excel" ? "xlsx" : "pdf";
+    const namaFile = `${sanitizeFilename(nama)} - ${sanitizeFilename(nim)}`;
+    downloadWithAuth(
+      `${BASE_URL}/staff/pengajuan/export-${format}?mahasiswa_id=${mahasiswaId}&periode_id=${selectedPeriode}`,
+      `${namaFile}.${ext}`,
+    );
+  };
 
   const filtered = pengajuan.filter(
     (p) =>
@@ -161,19 +168,19 @@ const exportSingle = (mahasiswaId, format) => {
           <option value="disetujui_kaprodi">Disetujui</option>
           <option value="ditolak">Ditolak</option>
         </select>
-<select
-  value={selectedPeriode ?? ""}
-  onChange={(e) =>
-    setLocalPeriode(periode.find(p => String(p.id) === String(e.target.value)))
-  }
-  className="px-3 py-2 border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 bg-gray-50"
->
-  {periode.map((p) => (
-    <option key={p.id} value={p.id}>
-      {p.nama_periode}
-    </option>
-  ))}
-</select>
+        <select
+          value={selectedPeriode ?? ""}
+          onChange={(e) =>
+            setLocalPeriode(periode.find(p => String(p.id) === String(e.target.value)))
+          }
+          className="px-3 py-2 border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 bg-gray-50"
+        >
+          {periode.map((p) => (
+            <option key={p.id} value={p.id}>
+              {p.nama_periode}
+            </option>
+          ))}
+        </select>
 
         <div className="relative" onClick={(e) => e.stopPropagation()}>
           <button
@@ -405,7 +412,12 @@ const exportSingle = (mahasiswaId, format) => {
                       <div className="flex gap-2">
                         <button
                           onClick={() =>
-                            exportSingle(showDetail.mahasiswa_id, "excel")
+                            exportSingle(
+                              showDetail.mahasiswa_id,
+                              showDetail.nama,
+                              showDetail.nim,
+                              "excel",
+                            )
                           }
                           className="flex-1 flex items-center justify-center gap-2 py-2.5 bg-emerald-50 text-emerald-700 hover:bg-emerald-100 border border-emerald-200 rounded-xl text-xs font-semibold transition-colors"
                         >
@@ -414,7 +426,12 @@ const exportSingle = (mahasiswaId, format) => {
                         </button>
                         <button
                           onClick={() =>
-                            exportSingle(showDetail.mahasiswa_id, "pdf")
+                            exportSingle(
+                              showDetail.mahasiswa_id,
+                              showDetail.nama,
+                              showDetail.nim,
+                              "pdf",
+                            )
                           }
                           className="flex-1 flex items-center justify-center gap-2 py-2.5 bg-red-50 text-red-600 hover:bg-red-100 border border-red-200 rounded-xl text-xs font-semibold transition-colors"
                         >

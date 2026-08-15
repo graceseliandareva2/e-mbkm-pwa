@@ -3,13 +3,7 @@ const db = require("../config/db");
 const cloudinaryService = require("../utils/cloudinaryService");
 const { generateLogbookDocx } = require("../utils/logbookDocxGenerator");
 
-// Gate resmi: mahasiswa boleh isi logbook/upload dokumen HANYA kalau
-// pengajuan.status='disetujui_kaprodi' DAN pengajuan.dosen_id IS NOT NULL.
-// (bukan tabel bimbingan lagi -- itu sudah dihapus)
-
 async function getMahasiswaProfile(userId) {
-  // Profil mahasiswa sekarang cuma baris users dengan role='mahasiswa' -- tidak ada lagi
-  // tabel mahasiswa terpisah.
   const [rows] = await db.query(
     `SELECT id_users AS id, nim, nama, email, program_studi
      FROM users
@@ -35,11 +29,7 @@ async function getPengajuanDisetujui(mahasiswaId) {
   return rows[0] || null;
 }
 
-// Tabel pelatihan sudah dihapus -- 1 pengajuan = 1 pelatihan, jadi getPelatihanList()
-// tidak diperlukan lagi (dihapus dari file ini).
-
 async function getDosenPembimbingCapstone(pengajuanId) {
-  // Dulu lewat tabel bimbingan; sekarang langsung dari pengajuan.dosen_id.
   const [rows] = await db.query(
     `SELECT u.nama, u.id_dosen AS nidn
      FROM pengajuan p
@@ -51,7 +41,6 @@ async function getDosenPembimbingCapstone(pengajuanId) {
 }
 
 async function regenerateLogbookDocx(pengajuan, mahasiswa) {
-  // hasil & kendala sudah dihapus dari logbook -- jangan di-SELECT lagi.
   const [entries] = await db.query(
     `SELECT tanggal, jam_mulai, jam_selesai, kegiatan, deskripsi, status
      FROM logbook
@@ -92,7 +81,6 @@ async function regenerateLogbookDocx(pengajuan, mahasiswa) {
 
 async function _notifikasiDokumenKeReviewer(pengajuanId, mahasiswa, jenisLabel, pesanTambahan = "") {
   try {
-    // Dosen penerima notifikasi = pengajuan.dosen_id langsung (bukan lagi lewat tabel bimbingan).
     const [pengajuanRows] = await db.query(
       `SELECT dosen_id FROM pengajuan WHERE id_pengajuan = ?`,
       [pengajuanId]
@@ -108,7 +96,6 @@ async function _notifikasiDokumenKeReviewer(pengajuanId, mahasiswa, jenisLabel, 
       );
     }
 
-    // Tabel kaprodi sudah dihapus -- sekarang query dari users WHERE role='kaprodi'.
     const [kaprodiList] = await db.query("SELECT id_users FROM users WHERE role = 'kaprodi'");
     for (const kap of kaprodiList) {
       await db.query(
@@ -124,7 +111,7 @@ async function _notifikasiDokumenKeReviewer(pengajuanId, mahasiswa, jenisLabel, 
 const JENIS_LABEL_MAP = { laporan_akhir: "Laporan Akhir", ppt: "PPT" };
 const JENIS_SUBFOLDER_MAP = { laporan_akhir: "laporan", ppt: "ppt" };
 
-// ========== PENGAJUAN CAPSTONE ==========
+// PENGAJUAN CAPSTONE
 
 const getPengajuan = async (req, res) => {
   try {
@@ -160,8 +147,6 @@ const getPengajuan = async (req, res) => {
       nim: mahasiswa.nim,
       nama_lengkap: mahasiswa.nama,
       email: mahasiswa.email,
-      // riwayat lintas periode sekarang cukup dari pengajuan.periode_id -- gak perlu
-      // pengajuan_sebelumnya_id lagi (kolom itu sudah dihapus).
       riwayat: rows.slice(1),
     });
   } catch (error) {
@@ -250,8 +235,6 @@ const tambahPengajuan = async (req, res) => {
 
     await connection.beginTransaction();
 
-    // Tanpa pengajuan_sebelumnya_id (kolom sudah dihapus) dan tanpa dosen_id
-    // (baru diisi kaprodi saat approve).
     await connection.query(
       `INSERT INTO pengajuan (id_pengajuan, mahasiswa_id, periode_id, status)
        VALUES (?, ?, ?, 'diajukan')`,
@@ -384,7 +367,6 @@ const hapusPengajuan = async (req, res) => {
   }
 };
 
-// Skema baru: 1 pengajuan = 1 pelatihan -- balikin objek tunggal, bukan array lagi.
 const getPelatihanAktif = async (req, res) => {
   try {
     const mahasiswa = await getMahasiswaProfile(req.user.id);
@@ -406,12 +388,11 @@ const getPelatihanAktif = async (req, res) => {
   }
 };
 
-// ========== LOGBOOK ==========
+//LOGBOOK 
 
 const getLogbook = async (req, res) => {
   try {
     const mahasiswa = await getMahasiswaProfile(req.user.id);
-    // pelatihan_id sudah dihapus dari logbook -- filter sekarang (opsional) pakai pengajuan_id.
     const { pengajuan_id } = req.query;
     const params = [mahasiswa.id];
     let filterClause = "";
@@ -441,15 +422,13 @@ const getLogbook = async (req, res) => {
 const tambahLogbook = async (req, res) => {
   try {
     const mahasiswa = await getMahasiswaProfile(req.user.id);
-    // hasil & kendala sudah dihapus dari request/response.
-    // CATATAN: kolom deskripsi di tabel `logbook` masih ada dan tetap dipakai di sini.
     const { tanggal, jam_mulai, jam_selesai, kegiatan, deskripsi } = req.body;
 
     if (!tanggal || !jam_mulai || !jam_selesai || !kegiatan || !deskripsi) {
       return res.status(400).json({ message: "Tanggal, jam mulai/selesai, kegiatan, dan deskripsi wajib diisi." });
     }
     if (!req.file && !req.body.bukti_link) {
-      return res.status(400).json({ message: "Bukti kegiatan wajib diisi (upload file atau link)." });
+      return res.status(400).json({ message: "Bukti kegiatan wajib diisi" });
     }
 
     const pengajuan = await getPengajuanDisetujui(mahasiswa.id);
@@ -554,7 +533,7 @@ const updateLogbook = async (req, res) => {
       buktiLink = req.body.bukti_link;
     }
     if (!buktiLink) {
-      return res.status(400).json({ message: "Bukti kegiatan wajib diisi (upload file atau link)." });
+      return res.status(400).json({ message: "Bukti kegiatan wajib diisi" });
     }
 
     await db.query(
@@ -606,7 +585,7 @@ const hapusLogbook = async (req, res) => {
   }
 };
 
-// ========== DOKUMEN ==========
+//DOKUMEN
 
 const getDokumen = async (req, res) => {
   try {
@@ -789,7 +768,7 @@ const resubmitDokumen = async (req, res) => {
   }
 };
 
-// ========== FEEDBACK & PENILAIAN ==========
+//FEEDBACK & PENILAIAN
 
 const getFeedback = async (req, res) => {
   try {
@@ -804,7 +783,7 @@ const getFeedback = async (req, res) => {
        ORDER BY f.created_at DESC`,
       [mahasiswa.id]
     );
-    // is_read sudah dihapus dari feedback -- gak ada lagi UPDATE "tandai terbaca" di sini.
+    
     res.json({ data: rows });
   } catch (error) {
     console.error(error);

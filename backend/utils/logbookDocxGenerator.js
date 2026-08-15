@@ -17,7 +17,6 @@ const {
   Header,
 } = require('docx');
 
-// Sesuaikan path ini ke lokasi logo di project kamu
 const LOGO_PATH = path.join(__dirname, '../assets/logo-itbss (1).png');
 
 const FONT = 'Cambria';
@@ -47,7 +46,6 @@ function formatTanggalIndo(dateInput) {
   return `${d.getDate()} ${BULAN_ID[d.getMonth()]} ${d.getFullYear()}`;
 }
 
-/** Format waktu "09:00:00" (dari MySQL TIME) jadi "09.00" (pakai titik, sesuai template) */
 function formatJam(timeString) {
   if (!timeString) return '-';
   const [h, m] = timeString.split(':');
@@ -103,7 +101,6 @@ function tableBodyCell(text, opts = {}) {
   });
 }
 
-/** Gabungkan hasil + kendala jadi satu isi kolom "Hasil dan Kendala (jika ada)" */
 function formatHasilKendala(hasil, kendala) {
   const hasilText = hasil && hasil.trim() ? hasil.trim() : '-';
   const kendalaText = kendala && kendala.trim() && kendala.trim() !== '-' ? kendala.trim() : null;
@@ -204,10 +201,10 @@ function buildSignatureBlock({ dosenNama, dosenNidn, mahasiswaNama, mahasiswaNim
 
 /**
  * @param {Object} data
- * @param {Object} data.mahasiswa - { nim, nama }
- * @param {Object} data.detailPengajuan - { penyelenggara, waktu_studi_independen, judul }
- * @param {Object} data.dosenPembimbing - { nama, nidn } - dosen pembimbing capstone (dari tabel bimbingan, BUKAN dospem akademik)
- * @param {Array}  data.logbookEntries - array baris logbook dari DB, urut by tanggal ASC
+ * @param {Object} data.mahasiswa 
+ * @param {Object} data.detailPengajuan 
+ * @param {Object} data.dosenPembimbing 
+ * @param {Array}  data.logbookEntries
  * @returns {Promise<Buffer>}
  */
 async function generateLogbookDocx(data) {

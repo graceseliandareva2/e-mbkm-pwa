@@ -27,7 +27,6 @@ export default function ProfileDropdown() {
   const isDosen = user?.role === 'dosen_pembimbing'
   const showPeriodePicker = false
 
-  // periode yg sedang aktif di store (sesuai role)
   const activePeriode = isDosen ? selectedPeriode : selectedPeriodeKaprodi
   const setActivePeriode = isDosen ? setSelectedPeriode : setSelectedPeriodeKaprodi
 
@@ -45,7 +44,7 @@ export default function ProfileDropdown() {
 
   useEffect(() => {
     if (showPeriode && periodeList.length === 0) fetchPeriode()
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+       // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [showPeriode])
 
   const fetchPeriode = async () => {
@@ -112,7 +111,6 @@ export default function ProfileDropdown() {
 
   return (
     <div className="relative" ref={dropdownRef}>
-      {/* Trigger Button */}
       <button
         onClick={() => { setOpen(!open); setShowPassword(false); setShowPeriode(false) }}
         className="flex items-center gap-2 hover:bg-gray-50 rounded-xl px-2 py-1.5 transition-colors"

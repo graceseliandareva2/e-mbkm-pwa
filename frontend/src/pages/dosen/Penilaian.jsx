@@ -140,7 +140,6 @@ export default function DosenPenilaian() {
     nilai_evaluasi: "",
     nilai_laporan: "",
     nilai_presentasi: "",
-    catatan: "",
   });
 
   const [hasPenilaian, setHasPenilaian] = useState(false); 
@@ -195,7 +194,6 @@ export default function DosenPenilaian() {
       nilai_evaluasi:   mhs.nilai_evaluasi   ?? "",
       nilai_laporan:    mhs.nilai_laporan    ?? "",
       nilai_presentasi: mhs.nilai_presentasi ?? "",
-      catatan:          mhs.catatan          ?? "",
     });
     setView("form");
   };
@@ -233,7 +231,6 @@ export default function DosenPenilaian() {
           RUBRIK.map((r) => [r.field, parseFloat(nilai[r.field])]),
         ),
         nilai_akhir: nilaiAkhir.toFixed(2),
-        catatan: nilai.catatan,
       });
       toast.success("Penilaian berhasil disimpan!");
       setSaved(true);
@@ -375,7 +372,7 @@ export default function DosenPenilaian() {
                   key={mhs.id}
                   className="bg-white rounded-2xl shadow-sm border border-gray-100 p-4 hover:border-blue-200 transition"
                 >
-                  {/* Baris 1: avatar + info mahasiswa */}
+                  {/* info mahasiswa */}
                   <div className="flex items-center gap-3 min-w-0">
                     <div className="w-10 h-10 rounded-xl bg-blue-100 text-blue-700 font-bold text-sm flex items-center justify-center flex-shrink-0">
                       {mhs.nama?.charAt(0)}
@@ -395,7 +392,7 @@ export default function DosenPenilaian() {
                     </div>
                   </div>
 
-                  {/* Baris 2: badge jam, badge status, tombol -- boleh wrap di layar sempit */}
+
                   <div className="flex items-center gap-2 flex-wrap mt-3">
                     <div className="flex items-center gap-1 text-xs text-green-600 bg-green-50 px-2 py-1 rounded-lg">
                       <Clock className="w-3 h-3" />
@@ -576,19 +573,6 @@ export default function DosenPenilaian() {
               </div>
             </div>
           </div>
-        </div>
-
-        <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-5">
-          <label className="block text-xs font-semibold text-gray-500 uppercase tracking-wide mb-2">
-            Catatan (opsional)
-          </label>
-          <textarea
-            value={nilai.catatan}
-            disabled={isLocked}
-            onChange={(e) => setNilai({ ...nilai, catatan: e.target.value })}
-            rows={3}
-            className="w-full border border-gray-200 rounded-xl px-3.5 py-2.5 text-sm focus:outline-none focus:border-blue-500 resize-none disabled:bg-gray-100 disabled:text-gray-400 disabled:cursor-not-allowed"
-          />
         </div>
 
         {!isLocked && (

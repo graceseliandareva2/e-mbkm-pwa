@@ -11,7 +11,6 @@ const useAuthStore = create(
      login: (user, token) => {
   localStorage.setItem('token', token);
   localStorage.setItem('user', JSON.stringify(user));
-  // Bersihkan cache lama saat login user baru
   localStorage.removeItem('cache_pengajuan');
   localStorage.removeItem('cache_logbooks');
   set({ user, token, isAuthenticated: true });

@@ -3,8 +3,6 @@ import usePeriodeStore from "../store/periodeStore";
 import useAuthStore from "../store/authStore";
 import api from "../utils/api";
 
-// Satu sumber konfigurasi per role -- endpoint periode & field store yang dipakai.
-// Nambah role baru = nambah satu entri di sini, nggak perlu duplikat logic.
 const ROLE_CONFIG = {
   dosen_pembimbing: {
     endpoint: "/dosen/periode",
@@ -16,7 +14,7 @@ const ROLE_CONFIG = {
     get: (s) => s.selectedPeriodeKaprodi,
     set: (s) => s.setSelectedPeriodeKaprodi,
   },
-  staff_akademik: {                         // BARU
+  staff_akademik: {                         
     endpoint: "/staff/periode",
     get: (s) => s.selectedPeriodeStaff,
     set: (s) => s.setSelectedPeriodeStaff,
@@ -34,8 +32,6 @@ export default function usePeriodeFilter(role) {
   const [periodeList, setPeriodeList] = useState([]);
   const [loading, setLoading] = useState(true);
 
-  // Override lokal per-halaman -- begitu diisi, menang dari global sampai
-  // komponen yang manggil hook ini di-unmount (pindah halaman = reset).
   const overrideRef = useRef(null);
   const [, bump] = useState(0);
 
@@ -69,7 +65,7 @@ export default function usePeriodeFilter(role) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [resolvedRole]);
 
-  // Dipanggil dari dropdown LOKAL di halaman (bukan dari PeriodeSelector global)
+ 
   const setLocalPeriode = useCallback((periodeObj) => {
     overrideRef.current = periodeObj;
     bump(n => n + 1);

@@ -1,20 +1,3 @@
-/**
- * scripts/backfillPelatihan.js
- *
- * Migrasi data satu kali (one-off): baca JSON `detail_pengajuan.pelatihan`
- * yang sudah ada, lalu isi tabel `pelatihan` baru dengan ID yang stabil
- * per item. JSON lama di `detail_pengajuan.pelatihan` DIPERBARUI supaya
- * setiap item juga menyimpan `id` yang sama persis dengan baris di tabel
- * `pelatihan` -- ini menjaga konsistensi antara sumber lama (JSON, dipakai
- * kaprodi/staff export) dan sumber baru (tabel, dipakai logbook).
- *
- * Jalankan SETELAH migration SQL 001_add_pelatihan_and_logbook_link.sql:
- *   node scripts/backfillPelatihan.js
- *
- * Aman dijalankan berkali-kali (idempotent): baris pengajuan yang sudah
- * punya data di tabel `pelatihan` akan dilewati.
- */
-
 const { v4: uuidv4 } = require("uuid");
 const db = require("../config/db");
 
@@ -33,7 +16,7 @@ async function run() {
     );
     if (existing[0].cnt > 0) {
       skipped++;
-      continue; // sudah pernah dimigrasi
+      continue; 
     }
 
     let parsed;
@@ -45,9 +28,6 @@ async function run() {
     }
     if (!Array.isArray(parsed) || parsed.length === 0) continue;
 
-    // Maks 3 sesuai ketentuan baru -- kalau data lama kebetulan lebih dari
-    // 3 (harusnya tidak mungkin di sistem lama, tapi jaga-jaga), ambil 3
-    // pertama saja dan catat di log supaya bisa dicek manual.
     const items = parsed.slice(0, 3);
     if (parsed.length > 3) {
       console.warn(`[PERHATIAN] pengajuan_id=${row.pengajuan_id} punya ${parsed.length} pelatihan, dipotong jadi 3.`);
@@ -69,7 +49,6 @@ async function run() {
       );
     }
 
-    // Sinkronkan balik ke JSON legacy supaya id konsisten di kedua tempat.
     const newJson = JSON.stringify(
       withIds.map((pl) => ({ id: pl.id, nama: pl.nama, link: pl.link, durasi_jam: pl.durasi_jam }))
     );

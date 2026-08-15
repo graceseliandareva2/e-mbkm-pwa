@@ -46,8 +46,6 @@ export default function StaffDataMahasiswa() {
   // eslint-disable-next-line react-hooks/exhaustive-deps
   useEffect(() => { if (selectedPeriode) fetchMahasiswa() }, [selectedPeriode])
 
-  // Isi default periode_id di form Tambah begitu periode aktif sudah resolve
-  // dari hook (cuma sekali, saat form masih kosong).
   useEffect(() => {
     if (selectedPeriode && !tambahForm.periode_id) {
       setTambahForm(prev => ({ ...prev, periode_id: selectedPeriode }))
@@ -181,7 +179,7 @@ export default function StaffDataMahasiswa() {
     }
   }
 
-  // ── RESET PASSWORD (di dalam modal edit) ──
+  // ── RESET PASSWORD  ──
   const handleResetPassword = async () => {
     if (!editData) return
     if (!window.confirm(`Reset password ${editData.nama} ke NIM (${editData.nim})? Mahasiswa perlu login ulang menggunakan NIM sebagai password.`)) {
@@ -394,7 +392,7 @@ export default function StaffDataMahasiswa() {
         </div>
       )}
 
-      {/* Modal Edit + Reset Password */}
+      {/* Modal Edit  */}
       {showEdit && (
         <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4">
           <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md">
@@ -432,7 +430,7 @@ export default function StaffDataMahasiswa() {
                   {resetLoading ? 'Mereset...' : 'Reset Password ke NIM'}
                 </button>
                 <p className="text-xs text-gray-400 mt-1.5">
-                  Password mahasiswa akan direset menjadi NIM-nya sendiri.
+                  Password mahasiswa akan direset menjadi NIM mahasiswa
                 </p>
               </div>
 

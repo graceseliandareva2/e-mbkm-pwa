@@ -1,7 +1,3 @@
-// pages/staff/StaffDosen.jsx
-// Menggantikan StaffDosenAkademik.jsx & StaffDosenMBKM.jsx.
-// Dosen cuma satu tabel (`users` role='dosen'), tidak ada lagi konsep roster
-// per-periode (PA / MBKM) -- makanya cukup satu halaman.
 import { useEffect, useState } from 'react'
 import { Upload, Search, Users, X, Check, UserPlus, Pencil } from 'lucide-react'
 import api from '../../utils/api'
@@ -168,7 +164,7 @@ export default function StaffDosen() {
       <div className="flex items-center justify-between flex-wrap gap-3">
         <div>
           <h1 className="text-2xl font-bold text-gray-800">Dosen</h1>
-          <p className="text-gray-500 text-sm mt-1">Kelola data dosen (dipakai sebagai Dosen Pembimbing Akademik & MBKM)</p>
+          <p className="text-gray-500 text-sm mt-1">Kelola data dosen</p>
         </div>
         <div className="flex items-center gap-2">
           <button
@@ -324,7 +320,7 @@ export default function StaffDosen() {
             </div>
             <div className="p-6 space-y-4">
               <div>
-                <label className="text-xs font-semibold text-gray-600 block mb-1.5">ID Dosen (NIDN) <span className="text-red-500">*</span></label>
+                <label className="text-xs font-semibold text-gray-600 block mb-1.5">ID Dosen<span className="text-red-500">*</span></label>
                 <input type="text" name="id_dosen" value={editForm.id_dosen} onChange={handleEditChange}
                   placeholder="Contoh: 19.321.008"
                   className="w-full px-3 py-2.5 border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-amber-400 bg-gray-50" />

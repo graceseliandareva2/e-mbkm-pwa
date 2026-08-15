@@ -105,12 +105,6 @@ toast.success(res.data.message)
                 </button>
               </div>
               {errors.password && <p className="text-red-500 text-xs mt-1">{errors.password.message}</p>}
-              <div className="flex justify-end mt-2">
-                <button type="button" onClick={() => navigate('/forgot-password')}
-  className="text-xs text-blue-600 hover:text-blue-800 font-medium transition-colors">
-  Lupa Password?
-</button>
-              </div>
             </div>
 
             {/* Submit */}

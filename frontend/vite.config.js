@@ -11,7 +11,6 @@ export default defineConfig({
       filename: "sw.js",
       registerType: "autoUpdate",
       injectManifest: {
-        // File besar (misal chunk JS aplikasi) tetap boleh di-precache
         maximumFileSizeToCacheInBytes: 5 * 1024 * 1024,
       },
       manifest: {

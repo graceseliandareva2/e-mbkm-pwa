@@ -3,12 +3,7 @@ const db = require("../config/db");
 
 const sendPushToUser = async (userId, { title, body, url = "/" }) => {
   try {
-    // FIX: kolom primary key di tabel push_subscriptions namanya
-    // `id_push_subscriptions`, bukan `id` -- sebelumnya query ini selalu
-    // throw "Unknown column 'id' in 'field list'" dan ke-catch diam-diam
-    // di bawah, jadi push TIDAK PERNAH terkirim sama sekali. Di-alias
-    // `AS id` biar baris-baris di bawah (sub.id, DELETE ... WHERE id = ?)
-    // tidak perlu diubah.
+
     const [subs] = await db.query(
       "SELECT id_push_subscriptions AS id, endpoint, p256dh, auth FROM push_subscriptions WHERE user_id = ?",
       [userId]

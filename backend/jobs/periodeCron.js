@@ -15,7 +15,7 @@ const runAutoToggle = async () => {
       String(today.getDate()).padStart(2, '0')
     ].join('-');
 
-    // ── AUTO OPEN PENGAJUAN ────────────────────────────────
+    //AUTO OPEN PENGAJUAN 
     await conn.query(
       `UPDATE periode
        SET form_pengajuan_buka = 1,
@@ -25,8 +25,7 @@ const runAutoToggle = async () => {
       [todayStr]
     );
 
-    // ── AUTO OPEN LOGBOOK ──────────────────────────────────
-    // Independen dari pengajuan -- dipicu tanggal_mulai_logbook sendiri.
+    // AUTO OPEN LOGBOOK
     await conn.query(
       `UPDATE periode
        SET form_logbook_buka      = 1,
@@ -36,8 +35,7 @@ const runAutoToggle = async () => {
       [todayStr]
     );
 
-    // ── AUTO OPEN PPT ──────────────────────────────────────
-    // Independen -- dipicu tanggal_mulai_dokumen (kolom baru).
+    // AUTO OPEN PPT
     await conn.query(
       `UPDATE periode
        SET form_ppt_buka      = 1,
@@ -47,8 +45,7 @@ const runAutoToggle = async () => {
       [todayStr]
     );
 
-    // ── AUTO OPEN LAPORAN AKHIR ────────────────────────────
-    // Independen -- dipicu tanggal_mulai_dokumen (kolom baru).
+    //AUTO OPEN LAPORAN AKHIR
     await conn.query(
       `UPDATE periode
        SET form_laporan_buka      = 1,
@@ -58,7 +55,7 @@ const runAutoToggle = async () => {
       [todayStr]
     );
 
-    // ── AUTO CLOSE PENGAJUAN ───────────────────────────────
+    // AUTO CLOSE PENGAJUAN
     await conn.query(
       `UPDATE periode
        SET form_pengajuan_buka      = 0,
@@ -70,7 +67,7 @@ const runAutoToggle = async () => {
       [todayStr]
     );
 
-    // ── AUTO CLOSE LOGBOOK ─────────────────────────────────
+    //AUTO CLOSE LOGBOOK
     await conn.query(
       `UPDATE periode
        SET form_logbook_buka      = 0,
@@ -82,7 +79,7 @@ const runAutoToggle = async () => {
       [todayStr]
     );
 
-    // ── AUTO CLOSE PPT ─────────────────────────────────────
+    //AUTO CLOSE PPT
     await conn.query(
       `UPDATE periode
        SET form_ppt_buka      = 0,
@@ -94,7 +91,7 @@ const runAutoToggle = async () => {
       [todayStr]
     );
 
-    // ── AUTO CLOSE LAPORAN AKHIR ───────────────────────────
+    //AUTO CLOSE LAPORAN AKHIR
     await conn.query(
       `UPDATE periode
        SET form_laporan_buka      = 0,
@@ -106,13 +103,13 @@ const runAutoToggle = async () => {
       [todayStr]
     );
 
-    // ── PERINGATAN DEADLINE LOGBOOK H-3 dan H-1 ───────────
+    //PERINGATAN DEADLINE LOGBOOK H-3 dan H-1 
     await runDeadlineReminderLogbook(conn, todayStr);
 
-    // ── PERINGATAN DEADLINE PENGAJUAN H-3 dan H-1 ─────────
+    // PERINGATAN DEADLINE PENGAJUAN H-3 dan H-1 
     await runDeadlineReminderPengajuan(conn, todayStr);
 
-    // ── PERINGATAN DEADLINE DOKUMEN (PPT & LAPORAN) H-3 dan H-1 ─
+    //PERINGATAN DEADLINE DOKUMEN (PPT & LAPORAN) H-3 dan H-1
     await runDeadlineReminderDokumen(conn, todayStr);
 
     console.log(`[periodeCron] Auto-toggle selesai ${new Date().toISOString()}`);
@@ -306,9 +303,7 @@ const runDeadlineReminderDokumen = async (conn, todayStr) => {
 };
 
 // Reminder harian logbook — push only, mahasiswa yang belum isi logbook hari ini.
-// Dipanggil 2x sehari (17:00 & 21:00) lewat cron di bawah. Aman dipanggil
-// berkali-kali dalam hari yang sama karena query-nya selalu re-check
-// "belum ada baris logbook hari ini" -- yang sudah isi otomatis ke-skip.
+// Dipanggil 2x sehari (17:00 & 21:00) 
 const runLogbookHarianReminder = async () => {
   const conn = await db.getConnection();
   try {
@@ -355,7 +350,6 @@ const startPeriodeCron = () => {
   cron.schedule('1 0 * * *', runAutoToggle, { timezone: TIMEZONE });
 
   // 17:00 WIB & 21:00 WIB -- reminder harian "belum isi logbook hari ini"
-// 17:00 WIB & 22:00 WIB -- reminder harian "belum isi logbook hari ini"
 cron.schedule('0 17 * * *', runLogbookHarianReminder, { timezone: TIMEZONE });
 cron.schedule('0 22 * * *', runLogbookHarianReminder, { timezone: TIMEZONE });
 
