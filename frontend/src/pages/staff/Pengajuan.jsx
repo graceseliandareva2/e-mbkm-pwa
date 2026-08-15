@@ -28,7 +28,10 @@ const getStatusBadge = (status) => {
 };
 
 const sanitizeFilename = (name) =>
-  (name || "").replace(/[\\/:*?"<>|]/g, "").trim();
+  (name || "")
+    .replace(/[\\/]/g, "-")     
+    .replace(/[:*?"<>|]/g, "")   
+    .trim();
 
 export default function StaffPengajuan() {
   const [pengajuan, setPengajuan] = useState([]);
