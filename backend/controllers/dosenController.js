@@ -461,9 +461,12 @@ const verifikasiLogbook = async (req, res) => {
       await sendPushToUser(mhs.user_id, { title: "Status Logbook", body: pesan, url: "/mahasiswa/logbook" });
 
       if (mhs.email) {
+        const iconSuccessSvg = '<svg width="20" height="20" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg" style="vertical-align:middle;margin-right:6px;"><circle cx="12" cy="12" r="11" fill="#16a34a"/><path d="M7 12.5L10.2 15.7L17 8.5" stroke="white" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" fill="none"/></svg>';
+        const iconWarningSvg = '<svg width="20" height="20" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg" style="vertical-align:middle;margin-right:6px;"><circle cx="12" cy="12" r="11" fill="#dc2626"/><rect x="11" y="6" width="2" height="8" rx="1" fill="white"/><rect x="11" y="16" width="2" height="2" rx="1" fill="white"/></svg>';
+
         await sendEmail({
           to: mhs.email,
-          subject: status === "diverifikasi" ? "✅ Logbook Kamu Telah Diverifikasi" : "⚠️ Logbook Kamu Perlu Direvisi",
+          subject: status === "diverifikasi" ? "Logbook Kamu Telah Diverifikasi" : "Logbook Kamu Perlu Direvisi",
           html: `
             <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
               <div style="background: #1e4db7; padding: 24px; border-radius: 12px 12px 0 0;">
@@ -473,8 +476,8 @@ const verifikasiLogbook = async (req, res) => {
                 <p>Halo <strong>${mhs.nama}</strong>,</p>
                 ${
                   status === "diverifikasi"
-                    ? `<p>Logbook kegiatan <strong>"${mhs.kegiatan}"</strong> kamu telah <span style="color: #16a34a; font-weight: bold;">diverifikasi</span> oleh dosen pembimbing.</p>`
-                    : `<p>Logbook kegiatan <strong>"${mhs.kegiatan}"</strong> kamu memerlukan <span style="color: #dc2626; font-weight: bold;">revisi</span>.</p>
+                    ? `<p>${iconSuccessSvg}Logbook kegiatan <strong>"${mhs.kegiatan}"</strong> kamu telah <span style="color: #16a34a; font-weight: bold;">diverifikasi</span> oleh dosen pembimbing.</p>`
+                    : `<p>${iconWarningSvg}Logbook kegiatan <strong>"${mhs.kegiatan}"</strong> kamu memerlukan <span style="color: #dc2626; font-weight: bold;">revisi</span>.</p>
                      <div style="background: #fef2f2; border-left: 4px solid #dc2626; padding: 12px 16px; border-radius: 4px; margin: 16px 0;">
                        <p style="margin: 0; color: #7f1d1d;"><strong>Feedback Dosen:</strong></p>
                        <p style="margin: 8px 0 0; color: #991b1b;">${feedback_dosen}</p>
