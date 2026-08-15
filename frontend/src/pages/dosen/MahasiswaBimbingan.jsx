@@ -130,16 +130,16 @@ export default function DosenMahasiswaBimbingan() {
                 </div>
               </div>
 
-              {isExpanded && (
+             {isExpanded && (
                 <div className="border-t border-gray-100 p-4 space-y-3">
-                  <div className="grid grid-cols-2 gap-3">
-                    <div>
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                    <div className="min-w-0">
                       <p className="text-xs text-gray-400 mb-0.5">Email</p>
-                      <p className="text-sm text-gray-700">{m.email || '-'}</p>
+                      <p className="text-sm text-gray-700 break-words">{m.email || '-'}</p>
                     </div>
-                    <div>
+                    <div className="min-w-0">
                       <p className="text-xs text-gray-400 mb-0.5">Dosen PA</p>
-                      <p className="text-sm text-gray-700">{m.dosen_pembimbing_akademik || '-'}</p>
+                      <p className="text-sm text-gray-700 break-words">{m.dosen_pembimbing_akademik || '-'}</p>
                     </div>
                   </div>
                   <button
@@ -226,9 +226,9 @@ export default function DosenMahasiswaBimbingan() {
                 </div>
               )}
 
-              <button
+             <button
                 onClick={() => setShowDetail(null)}
-                className="w-full py-2.5 border border-gray-200 text-gray-600 rounded-xl text-sm font-semibold hover:bg-gray-50"
+                className="w-full py-2.5 bg-blue-700 text-white rounded-xl text-sm font-semibold hover:bg-blue-800 transition-colors"
               >
                 Tutup
               </button>
