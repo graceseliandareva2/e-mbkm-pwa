@@ -59,8 +59,7 @@ const NilaiBadge = ({ nilai }) => {
     )
   }
   return (
-    <span className="inline-flex items-center gap-1 text-xs px-2 py-0.5 rounded-full font-semibold bg-violet-50 text-violet-700 border border-violet-100">
-      <Award className="w-3 h-3" />
+    <span className="text-xs px-2 py-0.5 rounded-full font-semibold bg-violet-50 text-violet-700 border border-violet-100">
       {nilai}
     </span>
   )
@@ -186,8 +185,9 @@ const PptCell = ({ doc }) => {
 }
 
 const LAPORAN_COLOR_MAP = {
-  diupload:          'bg-blue-50 hover:bg-blue-100 text-blue-600',
+  diupload:          'bg-yellow-50 hover:bg-yellow-100 text-yellow-600',
   diajukan:          'bg-yellow-50 hover:bg-yellow-100 text-yellow-600',
+  disetujui_dospem:  'bg-yellow-50 hover:bg-yellow-100 text-yellow-600',
   revisi_kaprodi:    'bg-red-50 hover:bg-red-100 text-red-600',
   revisi:            'bg-red-50 hover:bg-red-100 text-red-600',
   disetujui_kaprodi: 'bg-green-50 hover:bg-green-100 text-green-600',
@@ -197,8 +197,9 @@ const LAPORAN_COLOR_MAP = {
 }
 
 const LAPORAN_LABEL_MAP = {
-  diupload:          'Laporan',
+  diupload:          'Menunggu',
   diajukan:          'Menunggu',
+  disetujui_dospem:  'Menunggu',
   revisi_kaprodi:    'Revisi',
   revisi:            'Revisi',
   disetujui_kaprodi: 'Disetujui',
