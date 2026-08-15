@@ -314,11 +314,11 @@ export default function DosenPenilaian() {
             <h1 className="text-xl font-bold text-gray-800">Penilaian Akhir</h1>
           </div>
           {mahasiswaList.some((m) => m.penilaian_id) && (
-           <button
+         <button
   onClick={handleEksporSemua}
-  className="flex items-center gap-2 px-4 py-2 rounded-xl bg-green-600 text-white text-sm font-semibold hover:bg-green-700 transition"
+  className="flex items-center gap-2 px-4 py-2 rounded-xl bg-blue-600 text-white text-sm font-semibold hover:bg-blue-700 transition"
 >
-  <Users className="w-4 h-4" /> Ekspor PDF Semua
+  <Users className="w-4 h-4" /> Export PDF Semua
 </button>
           )}
         </div>
@@ -452,7 +452,7 @@ export default function DosenPenilaian() {
   onClick={handleEksporSatu}
   className="flex items-center gap-2 px-4 py-2 rounded-xl bg-blue-600 text-white text-sm font-semibold hover:bg-blue-700 transition"
 >
-  <FileDown className="w-4 h-4" /> Ekspor PDF
+  <FileDown className="w-4 h-4" /> Export PDF
 </button>
         )}
       </div>
