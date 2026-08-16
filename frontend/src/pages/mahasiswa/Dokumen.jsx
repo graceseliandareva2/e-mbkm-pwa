@@ -306,49 +306,54 @@ export default function MahasiswaDokumen() {
     return true
   }
 
-  const handleUpload = async (e) => {
-    e.preventDefault()
-    if (!form.jenis) return toast.error('Pilih jenis dokumen terlebih dahulu!')
-    if (!form.file)  return toast.error('File wajib dipilih!')
-    if (!pengajuan?.periode_id) return toast.error('Data pengajuan tidak ditemukan!')
-    if (!navigator.onLine) {
-      try {
-        await saveToQueue({
-          method: 'POST',
-          url: '/mahasiswa/dokumen',
-          data: {
-            jenis: form.jenis,
-            periode_id: pengajuan.periode_id,
-            pengajuan_id: pengajuan.id,
-          },
-          file: { blob: form.file, filename: form.file.name, fieldName: 'file' },
-        })
-        toast.success('Offline! Dokumen tersimpan lokal, akan otomatis terupload saat online.')
-        setModalOpen(false)
-        resetForm()
-        refreshPendingCount()
-      } catch {
-        toast.error('Gagal menyimpan data offline')
-      }
-      return
-    }
+ const handleUpload = async (e) => {
+  e.preventDefault()
+  if (!form.jenis) return toast.error('Pilih jenis dokumen terlebih dahulu!')
+  if (!form.file)  return toast.error('File wajib dipilih!')
+  if (!pengajuan?.periode_id) return toast.error('Data pengajuan tidak ditemukan!')
 
-    setUploading(true)
+  if (uploading) return                  // ⬅️ TAMBAH: guard ekstra
+  setUploading(true)                      // ⬅️ PINDAH: dulunya cuma ada di jalur online
+
+  if (!navigator.onLine) {
     try {
-      const formData = new FormData()
-      formData.append('file', form.file)
-      formData.append('jenis', form.jenis)
-      formData.append('periode_id', pengajuan.periode_id)
-      formData.append('pengajuan_id', pengajuan.id)
-      await api.post('/mahasiswa/dokumen', formData, { headers: { 'Content-Type': 'multipart/form-data' } })
-      toast.success('Dokumen berhasil diupload!')
+      await saveToQueue({
+        method: 'POST',
+        url: '/mahasiswa/dokumen',
+        data: {
+          jenis: form.jenis,
+          periode_id: pengajuan.periode_id,
+          pengajuan_id: pengajuan.id,
+        },
+        file: { blob: form.file, filename: form.file.name, fieldName: 'file' },
+      })
+      toast.success('Offline! Dokumen tersimpan lokal, akan otomatis terupload saat online.')
       setModalOpen(false)
       resetForm()
-      fetchAll()
-    } catch (err) {
-      toast.error(err.response?.data?.message || 'Gagal upload dokumen')
-    } finally { setUploading(false) }
+      refreshPendingCount()
+    } catch {
+      toast.error('Gagal menyimpan data offline')
+    } finally {
+      setUploading(false)                // ⬅️ TAMBAH: sebelumnya tidak ada
+    }
+    return
   }
+
+  try {
+    const formData = new FormData()
+    formData.append('file', form.file)
+    formData.append('jenis', form.jenis)
+    formData.append('periode_id', pengajuan.periode_id)
+    formData.append('pengajuan_id', pengajuan.id)
+    await api.post('/mahasiswa/dokumen', formData, { headers: { 'Content-Type': 'multipart/form-data' } })
+    toast.success('Dokumen berhasil diupload!')
+    setModalOpen(false)
+    resetForm()
+    fetchAll()
+  } catch (err) {
+    toast.error(err.response?.data?.message || 'Gagal upload dokumen')
+  } finally { setUploading(false) }
+}
 
   const handleDelete = async (id) => {
     if (!navigator.onLine) return toast.error('Hapus dokumen memerlukan koneksi internet.')
