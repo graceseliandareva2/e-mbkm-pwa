@@ -146,74 +146,78 @@ export default function MahasiswaLogbook() {
   }
 
   const handleSubmit = async (e) => {
-    e.preventDefault()
+  e.preventDefault()
 
-    const normalizedBuktiLink = buktiType === 'link' ? normalizeUrl(buktiLink) : buktiLink
-    if (buktiType === 'link' && normalizedBuktiLink !== buktiLink) {
-      setBuktiLink(normalizedBuktiLink)
-    }
+  const normalizedBuktiLink = buktiType === 'link' ? normalizeUrl(buktiLink) : buktiLink
+  if (buktiType === 'link' && normalizedBuktiLink !== buktiLink) {
+    setBuktiLink(normalizedBuktiLink)
+  }
 
-    if (!form.tanggal || !form.kegiatan || !form.deskripsi?.trim() || !form.jam_mulai || !form.jam_selesai) {
-      return toast.error('Tanggal, jam mulai/selesai, kegiatan, dan deskripsi wajib diisi!')
-    }
-    if (!hitungDurasiMenit(form.jam_mulai, form.jam_selesai)) {
-      return toast.error('Jam selesai harus setelah jam mulai!')
-    }
-    if (pelatihanList.length > 1 && !selectedPelatihanId) {
-      return toast.error('Pilih pelatihan terlebih dahulu!')
-    }
-    const hasBukti = (buktiType === 'file' && !!form.bukti) || (buktiType === 'link' && !!normalizedBuktiLink?.trim())
-    if (!hasBukti) {
-      return toast.error('Bukti kegiatan wajib diisi (upload file atau link)!')
-    }
+  if (!form.tanggal || !form.kegiatan || !form.deskripsi?.trim() || !form.jam_mulai || !form.jam_selesai) {
+    return toast.error('Tanggal, jam mulai/selesai, kegiatan, dan deskripsi wajib diisi!')
+  }
+  if (!hitungDurasiMenit(form.jam_mulai, form.jam_selesai)) {
+    return toast.error('Jam selesai harus setelah jam mulai!')
+  }
+  if (pelatihanList.length > 1 && !selectedPelatihanId) {
+    return toast.error('Pilih pelatihan terlebih dahulu!')
+  }
+  const hasBukti = (buktiType === 'file' && !!form.bukti) || (buktiType === 'link' && !!normalizedBuktiLink?.trim())
+  if (!hasBukti) {
+    return toast.error('Bukti kegiatan wajib diisi (upload file atau link)!')
+  }
 
-    if (!navigator.onLine) {
-      try {
-        await saveToQueue({
-          method: 'POST',
-          url: '/mahasiswa/logbook',
-          data: {
-            tanggal: form.tanggal,
-            kegiatan: form.kegiatan,
-            deskripsi: form.deskripsi,
-            jam_mulai: form.jam_mulai,
-            jam_selesai: form.jam_selesai,
-            pelatihan_id: selectedPelatihanId || undefined,
-            bukti_link: buktiType === 'link' ? normalizedBuktiLink : undefined,
-          },
-          file: buktiType === 'file' && form.bukti
-            ? { blob: form.bukti, filename: form.bukti.name, fieldName: 'bukti' }
-            : undefined,
-        })
-        toast.success('Offline! Logbook beserta bukti tersimpan lokal, akan otomatis terkirim saat online.')
-        setModalOpen(false)
-        resetForm()
-      } catch {
-        toast.error('Gagal menyimpan data offline')
-      }
-      return
-    }
+  if (submitting) return                
+  setSubmitting(true)                   
 
-    setSubmitting(true)
+  if (!navigator.onLine) {
     try {
-      const formData = new FormData()
-      formData.append('tanggal', form.tanggal)
-      formData.append('kegiatan', form.kegiatan)
-      formData.append('deskripsi', form.deskripsi)
-      formData.append('jam_mulai', form.jam_mulai)
-      formData.append('jam_selesai', form.jam_selesai)
-      if (selectedPelatihanId) formData.append('pelatihan_id', selectedPelatihanId)
-      if (buktiType === 'file' && form.bukti) formData.append('bukti', form.bukti)
-      if (buktiType === 'link' && normalizedBuktiLink) formData.append('bukti_link', normalizedBuktiLink)
-      await api.post('/mahasiswa/logbook', formData, { headers: { 'Content-Type': 'multipart/form-data' } })
-      toast.success('Logbook berhasil ditambahkan!')
+      await saveToQueue({
+        method: 'POST',
+        url: '/mahasiswa/logbook',
+        data: {
+          tanggal: form.tanggal,
+          kegiatan: form.kegiatan,
+          deskripsi: form.deskripsi,
+          jam_mulai: form.jam_mulai,
+          jam_selesai: form.jam_selesai,
+          pelatihan_id: selectedPelatihanId || undefined,
+          bukti_link: buktiType === 'link' ? normalizedBuktiLink : undefined,
+        },
+        file: buktiType === 'file' && form.bukti
+          ? { blob: form.bukti, filename: form.bukti.name, fieldName: 'bukti' }
+          : undefined,
+      })
+      toast.success('Offline! Logbook beserta bukti tersimpan lokal, akan otomatis terkirim saat online.')
       setModalOpen(false)
       resetForm()
-      fetchAll()
-    } catch (err) {
-      toast.error(err.response?.data?.message || 'Gagal menyimpan logbook')
-    } finally { setSubmitting(false) }
+    } catch {
+      toast.error('Gagal menyimpan data offline')
+    } finally {
+      setSubmitting(false)               
+    }
+    return
   }
+
+  try {
+    const formData = new FormData()
+    formData.append('tanggal', form.tanggal)
+    formData.append('kegiatan', form.kegiatan)
+    formData.append('deskripsi', form.deskripsi)
+    formData.append('jam_mulai', form.jam_mulai)
+    formData.append('jam_selesai', form.jam_selesai)
+    if (selectedPelatihanId) formData.append('pelatihan_id', selectedPelatihanId)
+    if (buktiType === 'file' && form.bukti) formData.append('bukti', form.bukti)
+    if (buktiType === 'link' && normalizedBuktiLink) formData.append('bukti_link', normalizedBuktiLink)
+    await api.post('/mahasiswa/logbook', formData, { headers: { 'Content-Type': 'multipart/form-data' } })
+    toast.success('Logbook berhasil ditambahkan!')
+    setModalOpen(false)
+    resetForm()
+    fetchAll()
+  } catch (err) {
+    toast.error(err.response?.data?.message || 'Gagal menyimpan logbook')
+  } finally { setSubmitting(false) }
+}
 
   const handleEditSubmit = async (e) => {
     e.preventDefault()
