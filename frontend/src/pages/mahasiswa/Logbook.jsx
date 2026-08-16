@@ -9,11 +9,12 @@ import BuktiPreview, {
   LinkBukti
 } from '../../components/common/BuktiPreview'
 import { normalizeUrl } from '../../utils/normalizeUrl'
+import { getCache, setCache } from '../../utils/offlineCache'
 const BASE_URL = ''
 
-const LS_PENGAJUAN = 'cache_pengajuan'
-const LS_LOGBOOKS  = 'cache_logbooks'
-const LS_PELATIHAN = 'cache_pelatihan'
+const CK_PENGAJUAN = 'pengajuan'
+const CK_LOGBOOKS  = 'logbooks'
+const CK_PELATIHAN = 'pelatihan'
 
 const STATUS_CONFIG = {
   draft:        { label: 'Draft',        color: 'text-gray-500',   bg: 'bg-gray-50',    border: 'border-gray-200' },
@@ -65,15 +66,14 @@ export default function MahasiswaLogbook() {
 
   useEffect(() => {
     try {
-      const cachedPengajuan = localStorage.getItem(LS_PENGAJUAN)
-      const cachedLogbooks  = localStorage.getItem(LS_LOGBOOKS)
-      const cachedPelatihan = localStorage.getItem(LS_PELATIHAN)
-      if (cachedPengajuan) setPengajuan(JSON.parse(cachedPengajuan))
-      if (cachedLogbooks)  setLogbooks(JSON.parse(cachedLogbooks))
+      const cachedPengajuan = getCache(CK_PENGAJUAN)
+      const cachedLogbooks  = getCache(CK_LOGBOOKS)
+      const cachedPelatihan = getCache(CK_PELATIHAN)
+      if (cachedPengajuan) setPengajuan(cachedPengajuan)
+      if (cachedLogbooks)  setLogbooks(cachedLogbooks)
       if (cachedPelatihan) {
-        const list = JSON.parse(cachedPelatihan)
-        setPelatihanList(list)
-        if (list.length > 0) setSelectedPelatihanId(prev => prev ?? list[0].id)
+        setPelatihanList(cachedPelatihan)
+        if (cachedPelatihan.length > 0) setSelectedPelatihanId(prev => prev ?? cachedPelatihan[0].id)
       }
     } catch { /*  */ }
   }, [])
@@ -90,13 +90,13 @@ export default function MahasiswaLogbook() {
         const data = logbookRes.value.data?.data ?? logbookRes.value.data
         const list = Array.isArray(data) ? data : []
         setLogbooks(list)
-        try { localStorage.setItem(LS_LOGBOOKS, JSON.stringify(list)) } catch { /* ignore */ }
+        setCache(CK_LOGBOOKS, list)
       }
 
       if (pengajuanRes.status === 'fulfilled' && pengajuanRes.value.data?.id) {
         const p = pengajuanRes.value.data
         setPengajuan(p)
-        try { localStorage.setItem(LS_PENGAJUAN, JSON.stringify(p)) } catch { /* ignore */ }
+        setCache(CK_PENGAJUAN, p)
       }
 
       let pelatihanData = null
@@ -107,7 +107,7 @@ export default function MahasiswaLogbook() {
       }
       if (Array.isArray(pelatihanData)) {
         setPelatihanList(pelatihanData)
-        try { localStorage.setItem(LS_PELATIHAN, JSON.stringify(pelatihanData)) } catch { /* ignore */ }
+        setCache(CK_PELATIHAN, pelatihanData)
         setSelectedPelatihanId(prev => {
           if (prev && pelatihanData.some(p => p.id === prev)) return prev
           return pelatihanData.length > 0 ? pelatihanData[0].id : null
