@@ -10,6 +10,7 @@ import { normalizeUrl } from '../../utils/normalizeUrl'
 
 // constants 
 const CACHE_KEY = 'pengajuan'
+const CACHE_KEY_MIN_JAM = 'min_jam_pengajuan'
 const DEFAULT_MIN_JAM = 48
 
 const STATUS_CONFIG = {
@@ -87,6 +88,8 @@ export default function MahasiswaPengajuan() {
       setForm(mapResponseToForm(cached, user))
       setLoading(false)
     }
+    const cachedMinJam = getCache(CACHE_KEY_MIN_JAM)
+    if (cachedMinJam) setMinJam(cachedMinJam)
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
@@ -94,7 +97,10 @@ export default function MahasiswaPengajuan() {
     api.get('/mahasiswa/periode-aktif')
       .then(res => {
         const aktif = res.data?.data?.[0]
-        if (aktif?.min_jam_pengajuan) setMinJam(aktif.min_jam_pengajuan)
+        if (aktif?.min_jam_pengajuan) {
+          setMinJam(aktif.min_jam_pengajuan)
+          setCache(CACHE_KEY_MIN_JAM, aktif.min_jam_pengajuan)
+        }
       })
       .catch(() => {})
   }, [])
@@ -114,7 +120,10 @@ export default function MahasiswaPengajuan() {
         setPengajuan(res.data)
         setForm(mapResponseToForm(res.data, user))
         setCache(CACHE_KEY, res.data)
-        if (res.data?.min_jam_pengajuan) setMinJam(res.data.min_jam_pengajuan)
+        if (res.data?.min_jam_pengajuan) {
+          setMinJam(res.data.min_jam_pengajuan)
+          setCache(CACHE_KEY_MIN_JAM, res.data.min_jam_pengajuan)
+        }
       }
     } catch {
       setLoading(false)
