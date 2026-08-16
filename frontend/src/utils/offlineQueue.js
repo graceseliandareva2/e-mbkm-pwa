@@ -48,9 +48,25 @@ export async function deleteFromQueue(id) {
   })
 }
 
+let isSyncing = false 
+
 export async function syncQueue(apiInstance) {
+  if (isSyncing) {
+    console.log('[offlineQueue] syncQueue sedang berjalan, skip pemanggilan ini')
+    return 0
+  }
+
+  isSyncing = true
   console.log('[offlineQueue] syncQueue DIPANGGIL')
 
+  try {
+    return await runSync(apiInstance)
+  } finally {
+    isSyncing = false
+  }
+}
+
+async function runSync(apiInstance) {
   const queue = await getAllQueue()
 
   console.log('[offlineQueue] Jumlah queue:', queue.length)
@@ -113,7 +129,6 @@ export async function syncQueue(apiInstance) {
 
   return successCount
 }
-
 
 export async function getPendingCount() {
   const queue = await getAllQueue()

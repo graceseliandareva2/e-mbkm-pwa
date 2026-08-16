@@ -9,26 +9,34 @@ export const useSyncOnline = (onSyncDone) => {
 
   useEffect(() => {
     let cancelled = false
+    const isSyncingRef = { current: false } 
 
     const attemptSync = async () => {
       if (!navigator.onLine) return
+      if (isSyncingRef.current) {
+        console.log('[useSyncOnline] Sync sedang berjalan, skip pemanggilan ini')
+        return
+      }
+
+      isSyncingRef.current = true
       try {
         const count = await syncQueue(api)
         if (cancelled) return
         if (count > 0) {
-          toast.success(`✅ ${count} data offline berhasil tersinkronisasi!`)
+          toast.success(` ${count} data offline berhasil tersinkronisasi!`)
           if (callbackRef.current) callbackRef.current()
         }
       } catch (err) {
         console.error('[useSyncOnline] Error saat sync:', err)
+      } finally {
+        isSyncingRef.current = false
       }
     }
 
     attemptSync()
 
-
     window.addEventListener('online', attemptSync)
-   
+
     const handleVisibility = () => {
       if (document.visibilityState === 'visible') attemptSync()
     }
