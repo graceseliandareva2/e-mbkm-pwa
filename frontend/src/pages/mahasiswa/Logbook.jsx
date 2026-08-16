@@ -1,5 +1,5 @@
 import { useEffect, useState, useRef } from 'react'
-import { Plus, BookOpen, Trash2, MessageSquare, CheckCircle, Lock, Upload, X, FileText, Eye, Pencil, ExternalLink } from 'lucide-react'
+import { Plus, BookOpen, Trash2, MessageSquare, CheckCircle, Lock, Upload, X, FileText, Eye, Pencil, ExternalLink, AlertTriangle } from 'lucide-react'
 import api from '../../utils/api'
 import toast from 'react-hot-toast'
 import { saveToQueue } from '../../utils/offlineQueue'
@@ -188,7 +188,7 @@ export default function MahasiswaLogbook() {
           ? { blob: form.bukti, filename: form.bukti.name, fieldName: 'bukti' }
           : undefined,
       })
-      toast.success('Offline! Logbook beserta bukti tersimpan lokal, akan otomatis terkirim saat online.')
+      toast.success('Offline! Logbook akan otomatis terkirim saat online.')
       setModalOpen(false)
       resetForm()
     } catch {
@@ -222,7 +222,7 @@ export default function MahasiswaLogbook() {
   const handleEditSubmit = async (e) => {
     e.preventDefault()
 
-    // Normalisasi defensif -- jaga-jaga kalau user submit tanpa sempat blur dari field link
+
     const normalizedEditBuktiLink = editBuktiType === 'link' ? normalizeUrl(editBuktiLink) : editBuktiLink
     if (editBuktiType === 'link' && normalizedEditBuktiLink !== editBuktiLink) {
       setEditBuktiLink(normalizedEditBuktiLink)
@@ -249,8 +249,6 @@ export default function MahasiswaLogbook() {
         formData.append('deskripsi', editForm.deskripsi)
         formData.append('jam_mulai', editForm.jam_mulai)
         formData.append('jam_selesai', editForm.jam_selesai)
-        formData.append('hasil', editLog.hasil || '')
-        formData.append('kendala', editLog.kendala || '')
         if (editForm.hapusBukti) formData.append('hapus_bukti', '1')
         if (editForm.bukti) formData.append('bukti', editForm.bukti)
         if (editBuktiType === 'link' && normalizedEditBuktiLink) formData.append('bukti_link', normalizedEditBuktiLink)
@@ -262,8 +260,6 @@ export default function MahasiswaLogbook() {
           deskripsi: editForm.deskripsi,
           jam_mulai: editForm.jam_mulai,
           jam_selesai: editForm.jam_selesai,
-          hasil: editLog.hasil || null,
-          kendala: editLog.kendala || null,
         })
       }
       toast.success('Logbook berhasil diperbarui!')
@@ -367,18 +363,6 @@ export default function MahasiswaLogbook() {
                   <p className="text-sm text-gray-700 text-justify">{log.deskripsi}</p>
                 </div>
               )}
-              {log.hasil && (
-                <div>
-                  <p className="text-xs font-semibold text-gray-400 uppercase tracking-wide mb-0.5">Hasil</p>
-                  <p className="text-sm text-gray-700">{log.hasil}</p>
-                </div>
-              )}
-              {log.kendala && (
-                <div>
-                  <p className="text-xs font-semibold text-gray-400 uppercase tracking-wide mb-0.5">Kendala</p>
-                  <p className="text-sm text-gray-700">{log.kendala}</p>
-                </div>
-              )}
               {log.bukti_link && (
                 <div>
                   <p className="text-xs font-semibold text-gray-400 uppercase tracking-wide mb-2">
@@ -452,8 +436,9 @@ export default function MahasiswaLogbook() {
             : 'Logbook dapat diisi setelah kamu mendapatkan dosen pembimbing dari Kaprodi.'}
         </p>
         {!navigator.onLine && (
-          <p className="text-xs text-yellow-600 mt-3 bg-yellow-50 border border-yellow-100 rounded-xl px-3 py-2">
-            Kamu sedang offline. 
+          <p className="text-xs text-yellow-600 mt-3 bg-yellow-50 border border-yellow-100 rounded-xl px-3 py-2 flex items-center justify-center gap-1.5">
+            <AlertTriangle className="w-3.5 h-3.5 flex-shrink-0" />
+            <span>Kamu sedang offline.</span>
           </p>
         )}
       </div>
@@ -476,8 +461,9 @@ export default function MahasiswaLogbook() {
 
       {/* Banner offline */}
       {!navigator.onLine && (
-        <div className="bg-yellow-50 border border-yellow-200 rounded-xl px-4 py-3 text-sm text-yellow-700 font-medium">
-          ⚠️ Kamu sedang offline. Menampilkan data tersimpan terakhir. Logbook beserta bukti tetap bisa ditambah dan akan terkirim otomatis saat online.
+        <div className="bg-yellow-50 border border-yellow-200 rounded-xl px-4 py-3 text-sm text-yellow-700 font-medium flex items-center gap-2">
+          <AlertTriangle className="w-4 h-4 flex-shrink-0" />
+          <span>Kamu sedang offline.</span>
         </div>
       )}
 
@@ -516,8 +502,9 @@ export default function MahasiswaLogbook() {
             </div>
             <form onSubmit={handleSubmit} className="p-5 space-y-4">
               {!navigator.onLine && (
-                <div className="bg-yellow-50 border border-yellow-200 rounded-xl px-3.5 py-2.5 text-xs text-yellow-700 font-medium">
-                  ⚠️ Offline — data & bukti akan otomatis terupload saat online.
+                <div className="bg-yellow-50 border border-yellow-200 rounded-xl px-3.5 py-2.5 text-xs text-yellow-700 font-medium flex items-center gap-1.5">
+                  <AlertTriangle className="w-3.5 h-3.5 flex-shrink-0" />
+                  <span>Offline — data & bukti akan otomatis terupload saat online.</span>
                 </div>
               )}
               {pelatihanList.length > 1 && (
@@ -701,14 +688,16 @@ export default function MahasiswaLogbook() {
                 </label>
                 <div className="flex gap-2 mb-3">
                   <button type="button" onClick={() => { setEditBuktiType('file'); setEditBuktiLink('') }}
-                    className={`flex-1 py-2 rounded-xl text-xs font-semibold border transition-all
+                    className={`flex-1 flex items-center justify-center gap-2 py-2 rounded-xl text-xs font-semibold border transition-all
                       ${editBuktiType === 'file' ? 'bg-blue-600 text-white border-blue-600' : 'bg-white text-gray-500 border-gray-200 hover:border-blue-400'}`}>
-                    📎 Upload File
+                    <Upload className="w-4 h-4" />
+                    <span>Upload File</span>
                   </button>
                   <button type="button" onClick={() => { setEditBuktiType('link'); setEditForm(f => ({ ...f, bukti: null, hapusBukti: false })) }}
-                    className={`flex-1 py-2 rounded-xl text-xs font-semibold border transition-all
+                    className={`flex-1 flex items-center justify-center gap-2 py-2 rounded-xl text-xs font-semibold border transition-all
                       ${editBuktiType === 'link' ? 'bg-blue-600 text-white border-blue-600' : 'bg-white text-gray-500 border-gray-200 hover:border-blue-400'}`}>
-                    🔗 Link URL
+                    <ExternalLink className="w-4 h-4" />
+                    <span>Link URL</span>
                   </button>
                 </div>
 
@@ -737,7 +726,7 @@ export default function MahasiswaLogbook() {
                           ${editDragging ? 'border-blue-500 bg-blue-50' : editForm.bukti ? 'border-green-400 bg-green-50' : 'border-gray-200 hover:border-blue-400 hover:bg-gray-50'}`}>
                         {editForm.bukti ? (
                           <div>
-                            <p className="text-xl mb-1">✅</p>
+                            <CheckCircle className="w-6 h-6 text-green-600 mx-auto mb-1" />
                             <p className="font-semibold text-green-700 text-sm">{editForm.bukti.name}</p>
                             <p className="text-xs text-gray-400 mt-1">{(editForm.bukti.size / 1024 / 1024).toFixed(2)} MB</p>
                             <button type="button" onClick={e => { e.stopPropagation(); setEditForm(f => ({ ...f, bukti: null, hapusBukti: false })) }}
