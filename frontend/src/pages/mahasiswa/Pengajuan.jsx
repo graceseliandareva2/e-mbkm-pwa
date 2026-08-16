@@ -1,5 +1,5 @@
 import { useEffect, useState, useCallback } from 'react'
-import { CheckCircle, Clock, XCircle, AlertCircle, Eye } from 'lucide-react'
+import { CheckCircle, Clock, XCircle, AlertCircle, AlertTriangle, Check, Eye } from 'lucide-react'
 import api from '../../utils/api'
 import toast from 'react-hot-toast'
 import { saveToQueue } from '../../utils/offlineQueue'
@@ -311,7 +311,12 @@ export default function MahasiswaPengajuan() {
         <div className={`flex items-center justify-between px-4 py-2.5 rounded-xl border text-sm font-semibold
           ${durasiJam >= minJam ? 'bg-green-50 border-green-200 text-green-700' : 'bg-orange-50 border-orange-200 text-orange-700'}`}>
           <span>Durasi Pelatihan</span>
-          <span>{durasiJam} jam {durasiJam >= minJam ? '✓' : `(kurang ${minJam - durasiJam} jam)`}</span>
+          <span className="flex items-center gap-1.5">
+            {durasiJam} jam
+            {durasiJam >= minJam
+              ? <Check className="w-4 h-4" />
+              : `(kurang ${minJam - durasiJam} jam)`}
+          </span>
         </div>
       </div>
     </div>
@@ -319,8 +324,9 @@ export default function MahasiswaPengajuan() {
 
 
   const OfflineBanner = ({ message }) => (
-    <div className="bg-yellow-50 border border-yellow-200 rounded-xl px-4 py-3 text-sm text-yellow-700 font-medium">
-      ⚠️ {message}
+    <div className="bg-yellow-50 border border-yellow-200 rounded-xl px-4 py-3 text-sm text-yellow-700 font-medium flex items-center gap-2">
+      <AlertTriangle className="w-4 h-4 flex-shrink-0" />
+      <span>{message}</span>
     </div>
   )
 
@@ -339,7 +345,7 @@ export default function MahasiswaPengajuan() {
         <p className="text-sm text-gray-500 mt-1">Isi formulir berikut untuk mengajukan Capstone Project</p>
       </div>
       {!navigator.onLine && (
-        <OfflineBanner message="Kamu sedang offline. Data akan tersimpan lokal dan terkirim otomatis saat online." />
+        <OfflineBanner message="Kamu sedang offline." />
       )}
       <form onSubmit={handleSubmit} className="bg-white rounded-2xl shadow-sm border border-gray-100 p-5 space-y-4">
         <h2 className="font-semibold text-gray-800 border-b pb-3">Form Pengajuan Baru</h2>
@@ -363,7 +369,7 @@ export default function MahasiswaPengajuan() {
         <p className="text-sm text-gray-500 mt-1">Status pengajuan Capstone Project</p>
       </div>
       {!navigator.onLine && (
-        <OfflineBanner message="Kamu sedang offline. Perubahan akan tersimpan lokal dan terkirim otomatis saat online." />
+        <OfflineBanner message="Kamu sedang offline." />
       )}
 
       {/* Headline Card */}
