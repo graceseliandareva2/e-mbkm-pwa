@@ -17,7 +17,7 @@ registerRoute(
 );
 
 registerRoute(
-  ({ url }) => /^\/api\/.*/.test(url.pathname),
+  ({ url }) => /^\/api\/.*/.test(url.pathname) && !/\/export/.test(url.pathname),
   new NetworkFirst({
     cacheName: "api-data-cache",
     networkTimeoutSeconds: 5,
@@ -28,6 +28,10 @@ registerRoute(
   })
 );
 
+registerRoute(
+  ({ url }) => /\/export/.test(url.pathname),
+  new NetworkOnly()
+);
 self.addEventListener("install", () => {
   self.skipWaiting();
 });
