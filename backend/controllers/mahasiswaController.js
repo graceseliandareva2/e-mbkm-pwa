@@ -422,7 +422,7 @@ const getLogbook = async (req, res) => {
 const tambahLogbook = async (req, res) => {
   try {
     const mahasiswa = await getMahasiswaProfile(req.user.id);
-    const { tanggal, jam_mulai, jam_selesai, kegiatan, deskripsi } = req.body;
+    const { tanggal, jam_mulai, jam_selesai, kegiatan, deskripsi, client_ref_id } = req.body;
 
     if (!tanggal || !jam_mulai || !jam_selesai || !kegiatan || !deskripsi) {
       return res.status(400).json({ message: "Tanggal, jam mulai/selesai, kegiatan, dan deskripsi wajib diisi." });
@@ -434,6 +434,24 @@ const tambahLogbook = async (req, res) => {
     const pengajuan = await getPengajuanDisetujui(mahasiswa.id);
     if (!pengajuan) {
       return res.status(403).json({ message: "Logbook hanya bisa diisi setelah pengajuan disetujui kaprodi dan dosen pembimbing sudah ditentukan." });
+    }
+
+    
+    if (client_ref_id) {
+      const [dup] = await db.query(
+        `SELECT l.id_logbook AS id, l.status
+         FROM logbook l
+         JOIN pengajuan p ON p.id_pengajuan = l.pengajuan_id
+         WHERE l.client_ref_id = ? AND p.mahasiswa_id = ?`,
+        [client_ref_id, mahasiswa.id]
+      );
+      if (dup.length) {
+        return res.status(200).json({
+          message: "Logbook sudah tersimpan sebelumnya.",
+          duplicate: true,
+          logbook_cloudinary_link: pengajuan.cloudinary_logbook_link || null,
+        });
+      }
     }
 
     const [periodeCheck] = await db.query(
@@ -462,15 +480,33 @@ const tambahLogbook = async (req, res) => {
     }
 
     const newId = uuidv4();
-    await db.query(
-      `INSERT INTO logbook (id_logbook, pengajuan_id, tanggal, jam_mulai, jam_selesai, kegiatan, deskripsi, cloudinary_public_id, bukti_link, status)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 'disubmit')`,
-      [newId, pengajuan.pengajuan_id, tanggal, jam_mulai, jam_selesai, kegiatan, deskripsi, cloudinaryPublicId, buktiLink]
-    );
+    try {
+      await db.query(
+        `INSERT INTO logbook (id_logbook, pengajuan_id, client_ref_id, tanggal, jam_mulai, jam_selesai, kegiatan, deskripsi, cloudinary_public_id, bukti_link, status)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'disubmit')`,
+        [newId, pengajuan.pengajuan_id, client_ref_id || null, tanggal, jam_mulai, jam_selesai, kegiatan, deskripsi, cloudinaryPublicId, buktiLink]
+      );
+    } catch (insertErr) {
+      // Race: dua request dengan client_ref_id sama nyaris bersamaan, unique key yang nahan.
+      if (insertErr.code === "ER_DUP_ENTRY" && client_ref_id) {
+        return res.status(200).json({
+          message: "Logbook sudah tersimpan sebelumnya.",
+          duplicate: true,
+          logbook_cloudinary_link: pengajuan.cloudinary_logbook_link || null,
+        });
+      }
+      throw insertErr;
+    }
 
-    const docxResult = await regenerateLogbookDocx(pengajuan, mahasiswa);
+    let logbookCloudinaryLink = pengajuan.cloudinary_logbook_link || null;
+    try {
+      const docxResult = await regenerateLogbookDocx(pengajuan, mahasiswa);
+      logbookCloudinaryLink = docxResult.url;
+    } catch (docxErr) {
+      console.error("Gagal generate ulang logbook docx (entri logbook tetap tersimpan):", docxErr.message);
+    }
 
-    res.status(201).json({ message: "Logbook berhasil ditambahkan.", logbook_cloudinary_link: docxResult.url });
+    res.status(201).json({ message: "Logbook berhasil ditambahkan.", logbook_cloudinary_link: logbookCloudinaryLink });
   } catch (error) {
     console.error(error);
     res.status(500).json({ message: "Terjadi kesalahan server." });
@@ -544,9 +580,17 @@ const updateLogbook = async (req, res) => {
       await cloudinaryService.deleteFile(publicIdLama);
     }
 
-    const docxResult = await regenerateLogbookDocx(pengajuan, mahasiswa);
+    let logbookCloudinaryLink = pengajuan?.cloudinary_logbook_link || null;
+    if (pengajuan) {
+      try {
+        const docxResult = await regenerateLogbookDocx(pengajuan, mahasiswa);
+        logbookCloudinaryLink = docxResult.url;
+      } catch (docxErr) {
+        console.error("Gagal generate ulang logbook docx (update tetap tersimpan):", docxErr.message);
+      }
+    }
 
-    res.json({ message: "Logbook berhasil diupdate.", logbook_cloudinary_link: docxResult.url });
+    res.json({ message: "Logbook berhasil diupdate.", logbook_cloudinary_link: logbookCloudinaryLink });
   } catch (error) {
     console.error("updateLogbook error:", error);
     res.status(500).json({ message: "Terjadi kesalahan server." });
@@ -575,7 +619,11 @@ const hapusLogbook = async (req, res) => {
 
     const pengajuan = await getPengajuanDisetujui(mahasiswa.id);
     if (pengajuan) {
-      await regenerateLogbookDocx(pengajuan, mahasiswa);
+      try {
+        await regenerateLogbookDocx(pengajuan, mahasiswa);
+      } catch (docxErr) {
+        console.error("Gagal generate ulang logbook docx (hapus tetap berhasil):", docxErr.message);
+      }
     }
 
     res.json({ message: "Logbook berhasil dihapus." });
