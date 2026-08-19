@@ -1,12 +1,12 @@
 import { useEffect, useState, useRef } from 'react'
 import {
   Upload, FileText, Trash2, Eye, CheckCircle, Clock,
-  XCircle, Lock, RotateCcw, Send, X, Plus
+  XCircle, Lock, RotateCcw, Send, X, Plus, AlertTriangle, MessageSquare
 } from 'lucide-react'
 import api from '../../utils/api'
 import toast from 'react-hot-toast'
 import { useSyncOnline } from '../../utils/useSyncOnline'
-import { saveToQueue, getPendingCount } from '../../utils/offlineQueue'
+import { saveToQueue } from '../../utils/offlineQueue'
 import { FileBuktiPreview } from '../../components/common/BuktiPreview'
 
 const LS_DOKUMEN   = 'cache_dokumen'
@@ -165,8 +165,9 @@ function ResubmitModal({ doc, onClose, onSuccess }) {
 
         <div className="p-5 space-y-4">
           {!navigator.onLine && (
-            <div className="bg-yellow-50 border border-yellow-200 rounded-xl px-3.5 py-2.5 text-xs text-yellow-700 font-medium">
-              ⚠️ Kamu sedang offline. 
+            <div className="bg-yellow-50 border border-yellow-200 rounded-xl px-3.5 py-2.5 text-xs text-yellow-700 font-medium flex items-center gap-1.5">
+              <AlertTriangle className="w-3.5 h-3.5 flex-shrink-0" />
+              <span>Kamu sedang offline.</span>
             </div>
           )}
 
@@ -196,7 +197,7 @@ function ResubmitModal({ doc, onClose, onSuccess }) {
               onChange={e => { const f = e.target.files[0]; if (f && validateFile(f)) setFile(f) }} />
             {file ? (
               <div>
-                <p className="text-2xl mb-1">✅</p>
+                <CheckCircle className="w-6 h-6 text-green-600 mx-auto mb-1" />
                 <p className="font-semibold text-green-700 text-sm">{file.name}</p>
                 <p className="text-xs text-gray-400 mt-1">{(file.size / 1024).toFixed(1)} KB</p>
                 <button type="button" onClick={e => { e.stopPropagation(); setFile(null) }}
@@ -241,7 +242,6 @@ export default function MahasiswaDokumen() {
   const [detailDoc, setDetailDoc]     = useState(null)
   const [resubmitDoc, setResubmitDoc] = useState(null)
   const [form, setForm]               = useState({ jenis: '', file: null })
-  const [pendingCount, setPendingCount] = useState(0)
   const fileRef = useRef(null)
 
   useEffect(() => {
@@ -274,25 +274,10 @@ export default function MahasiswaDokumen() {
     finally { setLoading(false) }
   }
 
-  
-  const refreshPendingCount = async () => {
-    try {
-      const count = await getPendingCount()
-      setPendingCount(count)
-    } catch (err) {
-      console.error('[MahasiswaDokumen] Gagal ambil pending count:', err)
-    }
-  }
-
-  
-  useSyncOnline(async () => {
-    await fetchAll()
-    await refreshPendingCount()
-  })
+  useSyncOnline(fetchAll)
 
   useEffect(() => {
     fetchAll()
-    refreshPendingCount()
   }, [])
 
   const resetForm = () => setForm({ jenis: '', file: null })
@@ -312,8 +297,8 @@ export default function MahasiswaDokumen() {
   if (!form.file)  return toast.error('File wajib dipilih!')
   if (!pengajuan?.periode_id) return toast.error('Data pengajuan tidak ditemukan!')
 
-  if (uploading) return                  // ⬅️ TAMBAH: guard ekstra
-  setUploading(true)                      // ⬅️ PINDAH: dulunya cuma ada di jalur online
+  if (uploading) return                  
+  setUploading(true)                     
 
   if (!navigator.onLine) {
     try {
@@ -330,11 +315,10 @@ export default function MahasiswaDokumen() {
       toast.success('Offline! Dokumen tersimpan lokal, akan otomatis terupload saat online.')
       setModalOpen(false)
       resetForm()
-      refreshPendingCount()
     } catch {
       toast.error('Gagal menyimpan data offline')
     } finally {
-      setUploading(false)                // ⬅️ TAMBAH: sebelumnya tidak ada
+      setUploading(false)                
     }
     return
   }
@@ -392,8 +376,9 @@ export default function MahasiswaDokumen() {
               {doc.nama_file} · {new Date(doc.created_at).toLocaleDateString('id-ID')}
             </p>
             {info.canResubmit && feedbackText && (
-              <p className="text-xs text-red-500 mt-1 line-clamp-1">
-                💬 {feedbackText}
+              <p className="text-xs text-red-500 mt-1 line-clamp-1 flex items-center gap-1">
+                <MessageSquare className="w-3 h-3 flex-shrink-0" />
+                <span className="truncate">{feedbackText}</span>
               </p>
             )}
           </div>
@@ -441,8 +426,9 @@ export default function MahasiswaDokumen() {
             : 'Upload dokumen dapat dilakukan setelah kamu mendapatkan dosen pembimbing dari Kaprodi.'}
         </p>
         {!navigator.onLine && (
-          <p className="text-xs text-yellow-600 mt-3 bg-yellow-50 border border-yellow-100 rounded-xl px-3 py-2">
-            Kamu sedang offline. 
+          <p className="text-xs text-yellow-600 mt-3 bg-yellow-50 border border-yellow-100 rounded-xl px-3 py-2 flex items-center justify-center gap-1.5">
+            <AlertTriangle className="w-3.5 h-3.5 flex-shrink-0" />
+            <span>Kamu sedang offline.</span>
           </p>
         )}
       </div>
@@ -465,16 +451,9 @@ export default function MahasiswaDokumen() {
 
       {/* Banner offline*/}
       {!navigator.onLine && (
-        <div className="bg-yellow-50 border border-yellow-200 rounded-xl px-4 py-3 text-sm text-yellow-700 font-medium">
-          ⚠️ Kamu sedang offline.
-        </div>
-      )}
-
-      {/* Banner dokumen pending sync dari antrian offline */}
-      {pendingCount > 0 && (
-        <div className="bg-blue-50 border border-blue-200 rounded-xl px-4 py-3 text-sm text-blue-700 font-medium flex items-center gap-2">
-          <Clock className="w-4 h-4 flex-shrink-0" />
-          {pendingCount} dokumen menunggu diupload. Akan otomatis tersinkronisasi saat kamu online.
+        <div className="bg-yellow-50 border border-yellow-200 rounded-xl px-4 py-3 text-sm text-yellow-700 font-medium flex items-center gap-2">
+          <AlertTriangle className="w-4 h-4 flex-shrink-0" />
+          <span>Kamu sedang offline.</span>
         </div>
       )}
 
@@ -513,8 +492,9 @@ export default function MahasiswaDokumen() {
             </div>
             <form onSubmit={handleUpload} className="p-5 space-y-4">
               {!navigator.onLine && (
-                <div className="bg-yellow-50 border border-yellow-200 rounded-xl px-3.5 py-2.5 text-xs text-yellow-700 font-medium">
-                  ⚠️ Offline 
+                <div className="bg-yellow-50 border border-yellow-200 rounded-xl px-3.5 py-2.5 text-xs text-yellow-700 font-medium flex items-center gap-1.5">
+                  <AlertTriangle className="w-3.5 h-3.5 flex-shrink-0" />
+                  <span>Offline</span>
                 </div>
               )}
 
@@ -542,13 +522,13 @@ export default function MahasiswaDokumen() {
                 className={`border-2 border-dashed rounded-xl p-8 text-center cursor-pointer transition-all
                   ${dragging ? 'border-blue-500 bg-blue-50' : form.file ? 'border-green-400 bg-green-50' : 'border-gray-200 hover:border-blue-400 hover:bg-gray-50'}`}
               >
-                {/* accept hanya .pdf */}
+                
                 <input ref={fileRef} type="file" accept=".pdf"
                   onChange={e => { const f = e.target.files[0]; if (f && validateFile(f)) setForm(prev => ({ ...prev, file: f })) }}
                   className="hidden" />
                 {form.file ? (
                   <div>
-                    <p className="text-2xl mb-1">✅</p>
+                    <CheckCircle className="w-8 h-8 text-green-600 mx-auto mb-1" />
                     <p className="font-semibold text-green-700 text-sm">{form.file.name}</p>
                     <p className="text-xs text-gray-400 mt-1">{(form.file.size / 1024).toFixed(1)} KB</p>
                     <button type="button" onClick={e => { e.stopPropagation(); setForm(f => ({ ...f, file: null })) }}
