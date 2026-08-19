@@ -21,8 +21,13 @@ export default function KaprodiVerifikasi() {
     setLocalPeriode,
   } = usePeriodeFilter('kaprodi')
 
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  useEffect(() => { if (selectedPeriode) fetchPengajuan() }, [selectedPeriode])
+  useEffect(() => {
+  if (selectedPeriode) {
+    fetchPengajuan()
+  } else {
+    setLoading(false)
+  }
+}, [selectedPeriode])
 
  const fetchPengajuan = async () => {
   setLoading(true)

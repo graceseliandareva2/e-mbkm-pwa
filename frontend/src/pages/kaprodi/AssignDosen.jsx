@@ -41,12 +41,14 @@ export default function KaprodiAssignDosen() {
   } = usePeriodeFilter('kaprodi');
 
   useEffect(() => {
-    if (selectedPeriode) {
-      fetchPengajuan();
-      fetchDosenRoster(selectedPeriode);
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [selectedPeriode]);
+  if (selectedPeriode) {
+    fetchPengajuan();
+    fetchDosenRoster(selectedPeriode);
+  } else {
+    setLoading(false);
+  }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+}, [selectedPeriode]);
 
   const fetchDosenRoster = async (periodeId) => {
     setDosenLoading(true);

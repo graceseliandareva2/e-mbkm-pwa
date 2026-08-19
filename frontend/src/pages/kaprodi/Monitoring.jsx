@@ -430,18 +430,21 @@ export default function KaprodiMonitoring() {
     setLocalPeriode,
   } = usePeriodeFilter('kaprodi')
 
-  const fetchMonitoring = useCallback(async () => {
-    if (!selectedPeriode) return
-    setLoading(true)
-    try {
-      const res = await api.get('/kaprodi/monitoring', { params: { periode_id: selectedPeriode } })
-      setData(res.data.data || [])
-    } catch {
-      toast.error('Gagal memuat data monitoring!')
-    } finally {
-      setLoading(false)
-    }
-  }, [selectedPeriode])
+ const fetchMonitoring = useCallback(async () => {
+  if (!selectedPeriode) {
+    setLoading(false)
+    return
+  }
+  setLoading(true)
+  try {
+    const res = await api.get('/kaprodi/monitoring', { params: { periode_id: selectedPeriode } })
+    setData(res.data.data || [])
+  } catch {
+    toast.error('Gagal memuat data monitoring!')
+  } finally {
+    setLoading(false)
+  }
+}, [selectedPeriode])
 
   useEffect(() => { if (selectedPeriode) fetchMonitoring() }, [selectedPeriode, fetchMonitoring])
 

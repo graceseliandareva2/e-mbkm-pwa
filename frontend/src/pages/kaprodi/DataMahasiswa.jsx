@@ -17,8 +17,13 @@ export default function KaprodiDataMahasiswa() {
     setLocalPeriode,
   } = usePeriodeFilter('kaprodi')
 
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  useEffect(() => { if (selectedPeriode) fetchMahasiswa() }, [selectedPeriode])
+useEffect(() => {
+  if (selectedPeriode) {
+    fetchMahasiswa()
+  } else {
+    setLoading(false)
+  }
+}, [selectedPeriode])
 
   const fetchMahasiswa = async () => {
     setLoading(true)
