@@ -420,7 +420,7 @@ export default function StaffDataMahasiswa() {
                 <button onClick={handleResetPassword} disabled={resetLoading}
                   className="w-full flex items-center justify-center gap-2 py-2.5 rounded-xl text-sm font-semibold border border-amber-200 text-amber-700 bg-amber-50 hover:bg-amber-100 transition-colors disabled:opacity-60">
                   <KeyRound className="w-4 h-4" />
-                  {resetLoading ? 'Mereset...' : 'Reset Password ke NIM'}
+                  {resetLoading ? 'Mereset...' : 'Reset Password'}
                 </button>
                 <p className="text-xs text-gray-400 mt-1.5">
                   Password mahasiswa akan direset menjadi NIM mahasiswa
