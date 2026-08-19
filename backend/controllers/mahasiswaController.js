@@ -666,7 +666,7 @@ const uploadDokumen = async (req, res) => {
     if (!req.file) return res.status(400).json({ message: "File tidak ditemukan." });
 
     const mahasiswa = await getMahasiswaProfile(req.user.id);
-    const { jenis } = req.body;
+    const { jenis, client_ref_id } = req.body;
 
     if (!["laporan_akhir", "ppt"].includes(jenis)) {
       return res.status(400).json({ message: "Jenis dokumen tidak valid." });
@@ -675,6 +675,25 @@ const uploadDokumen = async (req, res) => {
     const pengajuan = await getPengajuanDisetujui(mahasiswa.id);
     if (!pengajuan) {
       return res.status(403).json({ message: "Upload dokumen hanya bisa dilakukan setelah pengajuan disetujui kaprodi dan dosen pembimbing sudah ditentukan." });
+    }
+
+    // Idempotency guard: kalau client_ref_id ini udah pernah masuk sebelumnya
+    // (submission yang sama dikirim ulang oleh offline sync), jangan upload/insert lagi.
+    if (client_ref_id) {
+      const [dup] = await db.query(
+        `SELECT d.id_dokumen AS id, d.cloudinary_url, d.status
+         FROM dokumen d
+         JOIN pengajuan p ON p.id_pengajuan = d.pengajuan_id
+         WHERE d.client_ref_id = ? AND p.mahasiswa_id = ?`,
+        [client_ref_id, mahasiswa.id]
+      );
+      if (dup.length) {
+        return res.status(200).json({
+          message: "Dokumen sudah tersimpan sebelumnya.",
+          duplicate: true,
+          cloudinary_url: dup[0].cloudinary_url,
+        });
+      }
     }
 
     const [periodeCheck] = await db.query(
@@ -711,23 +730,38 @@ const uploadDokumen = async (req, res) => {
 
     const uploaded = await cloudinaryService.uploadFile(req.file.buffer, req.file.originalname, mahasiswa.nim, mahasiswa.nama, subfolder);
 
-    if (existing.length) {
-      await db.query(
-        `UPDATE dokumen SET nama_file=?, cloudinary_public_id=?, cloudinary_url=?, ukuran_file=?, status='diupload',
-         feedback=NULL, verified_by=NULL, verified_at=NULL,
-         feedback_kaprodi=NULL, feedback_dospem=NULL,
-         verified_kaprodi_by=NULL, verified_kaprodi_at=NULL,
-         verified_dospem_by=NULL, verified_dospem_at=NULL
-         WHERE id_dokumen=?`,
-        [req.file.originalname, uploaded.publicId, uploaded.url, req.file.size, existing[0].id]
-      );
-      await cloudinaryService.deleteFile(existing[0].cloudinary_public_id);
-    } else {
-      await db.query(
-        `INSERT INTO dokumen (id_dokumen, pengajuan_id, jenis, nama_file, cloudinary_public_id, cloudinary_url, ukuran_file)
-         VALUES (?, ?, ?, ?, ?, ?, ?)`,
-        [uuidv4(), pengajuan.pengajuan_id, jenis, req.file.originalname, uploaded.publicId, uploaded.url, req.file.size]
-      );
+    try {
+      if (existing.length) {
+        await db.query(
+          `UPDATE dokumen SET nama_file=?, cloudinary_public_id=?, cloudinary_url=?, ukuran_file=?, status='diupload',
+           client_ref_id=?,
+           feedback=NULL, verified_by=NULL, verified_at=NULL,
+           feedback_kaprodi=NULL, feedback_dospem=NULL,
+           verified_kaprodi_by=NULL, verified_kaprodi_at=NULL,
+           verified_dospem_by=NULL, verified_dospem_at=NULL
+           WHERE id_dokumen=?`,
+          [req.file.originalname, uploaded.publicId, uploaded.url, req.file.size, client_ref_id || null, existing[0].id]
+        );
+        await cloudinaryService.deleteFile(existing[0].cloudinary_public_id);
+      } else {
+        await db.query(
+          `INSERT INTO dokumen (id_dokumen, pengajuan_id, jenis, nama_file, cloudinary_public_id, cloudinary_url, ukuran_file, client_ref_id)
+           VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+          [uuidv4(), pengajuan.pengajuan_id, jenis, req.file.originalname, uploaded.publicId, uploaded.url, req.file.size, client_ref_id || null]
+        );
+      }
+    } catch (insertErr) {
+      // Race: dua request dengan client_ref_id sama nyaris bersamaan, unique key yang nahan.
+      if (insertErr.code === "ER_DUP_ENTRY" && client_ref_id) {
+        // File udah kepalang keupload ke Cloudinary duluan sebelum insert kena tolak,
+        // hapus biar gak jadi file nyampah tanpa row.
+        await cloudinaryService.deleteFile(uploaded.publicId).catch(() => {});
+        return res.status(200).json({
+          message: "Dokumen sudah tersimpan sebelumnya.",
+          duplicate: true,
+        });
+      }
+      throw insertErr;
     }
 
     await _notifikasiDokumenKeReviewer(pengajuan.pengajuan_id, mahasiswa, JENIS_LABEL_MAP[jenis] || jenis);
