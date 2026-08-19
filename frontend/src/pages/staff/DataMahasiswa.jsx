@@ -9,7 +9,6 @@ const emptyForm = {
   nama: '',
   email: '',
   program_studi: '',
-  periode_id: '',
 }
 
 const emptyEditForm = {
@@ -44,19 +43,12 @@ export default function StaffDataMahasiswa() {
   const [resetLoading, setResetLoading] = useState(false)
 
   // eslint-disable-next-line react-hooks/exhaustive-deps
-useEffect(() => {
-  if (selectedPeriode) {
-    fetchMahasiswa()
-  } else {
-    setLoading(false)   
-  }
-}, [selectedPeriode])
-
   useEffect(() => {
-    if (selectedPeriode && !tambahForm.periode_id) {
-      setTambahForm(prev => ({ ...prev, periode_id: selectedPeriode }))
+    if (selectedPeriode) {
+      fetchMahasiswa()
+    } else {
+      setLoading(false)
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [selectedPeriode])
 
   const fetchMahasiswa = async () => {
@@ -73,31 +65,31 @@ useEffect(() => {
     }
   }
 
- const handleImport = async (e) => {
-  const file = e.target.files[0]
-  if (!file) return
+  const handleImport = async (e) => {
+    const file = e.target.files[0]
+    if (!file) return
 
-  const periodeAktif = periode.find(p => p.is_active)
-  if (!periodeAktif) { toast.error('Tidak ada periode aktif saat ini!'); return }
+    const periodeAktif = periode.find(p => p.is_active)
+    if (!periodeAktif) { toast.error('Tidak ada periode aktif saat ini!'); return }
 
-  setUploading(true)
-  try {
-    const formData = new FormData()
-    formData.append('file', file)
-    formData.append('periode_id', selectedPeriode)
-    const res = await api.post('/staff/import-mahasiswa', formData, {
-      headers: { 'Content-Type': 'multipart/form-data' }
-    })
-    console.log('IMPORT ERRORS:', res.data.errors)  
-    toast.success(res.data.message)
-    fetchMahasiswa()
-  } catch (err) {
-    toast.error(err.response?.data?.message || 'Gagal import!')
-  } finally {
-    setUploading(false)
-    e.target.value = ''
+    setUploading(true)
+    try {
+      const formData = new FormData()
+      formData.append('file', file)
+      formData.append('periode_id', selectedPeriode)
+      const res = await api.post('/staff/import-mahasiswa', formData, {
+        headers: { 'Content-Type': 'multipart/form-data' }
+      })
+      console.log('IMPORT ERRORS:', res.data.errors)
+      toast.success(res.data.message)
+      fetchMahasiswa()
+    } catch (err) {
+      toast.error(err.response?.data?.message || 'Gagal import!')
+    } finally {
+      setUploading(false)
+      e.target.value = ''
+    }
   }
-}
 
   const handleTambahChange = (e) => {
     const { name, value } = e.target
@@ -105,17 +97,24 @@ useEffect(() => {
   }
 
   const handleTambahSubmit = async () => {
-    const { nim, nama, email, program_studi, periode_id } = tambahForm
-    if (!nim.trim() || !nama.trim() || !email.trim() || !program_studi.trim() || !periode_id) {
+    const { nim, nama, email, program_studi } = tambahForm
+    if (!nim.trim() || !nama.trim() || !email.trim() || !program_studi.trim()) {
       toast.error('Semua field wajib diisi!')
       return
     }
+
+    const periodeAktif = periode.find(p => p.is_active)
+    if (!periodeAktif) {
+      toast.error('Tidak ada periode aktif saat ini! Mahasiswa tidak bisa ditambahkan.')
+      return
+    }
+
     setTambahLoading(true)
     try {
-      const res = await api.post('/staff/mahasiswa', tambahForm)
+      const res = await api.post('/staff/mahasiswa', { ...tambahForm, periode_id: periodeAktif.id })
       toast.success(res.data.message || 'Mahasiswa berhasil ditambahkan!')
       setShowTambah(false)
-      setTambahForm({ ...emptyForm, periode_id: periode.find(p => p.is_active)?.id || '' })
+      setTambahForm(emptyForm)
       fetchMahasiswa()
     } catch (err) {
       toast.error(err.response?.data?.message || 'Gagal menambahkan mahasiswa!')
@@ -126,7 +125,7 @@ useEffect(() => {
 
   const handleCloseTambah = () => {
     setShowTambah(false)
-    setTambahForm({ ...emptyForm, periode_id: periode.find(p => p.is_active)?.id || '' })
+    setTambahForm(emptyForm)
   }
 
   // ── EDIT MAHASISWA ──
@@ -355,6 +354,19 @@ useEffect(() => {
               </button>
             </div>
             <div className="p-6 space-y-4">
+              {periode.find(p => p.is_active) ? (
+                <div className="bg-blue-50 border border-blue-100 rounded-xl px-3.5 py-2.5">
+                  <p className="text-xs text-blue-500 mb-0.5">Mahasiswa akan didaftarkan ke periode aktif</p>
+                  <p className="text-sm font-semibold text-blue-800">
+                    {periode.find(p => p.is_active)?.nama_periode}
+                  </p>
+                </div>
+              ) : (
+                <div className="bg-red-50 border border-red-100 rounded-xl px-3.5 py-2.5">
+                  <p className="text-sm font-semibold text-red-700">Tidak ada periode aktif saat ini</p>
+                  <p className="text-xs text-red-500 mt-0.5">Aktifkan sebuah periode terlebih dahulu sebelum menambah mahasiswa.</p>
+                </div>
+              )}
               {[
                 { name: 'nim',           label: 'NIM',           type: 'text',  placeholder: 'Contoh: 23100001' },
                 { name: 'nama',          label: 'Nama Lengkap',  type: 'text',  placeholder: 'Nama lengkap mahasiswa' },
@@ -370,18 +382,6 @@ useEffect(() => {
                     className="w-full px-3 py-2.5 border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 bg-gray-50" />
                 </div>
               ))}
-              <div>
-                <label className="text-xs font-semibold text-gray-600 block mb-1.5">
-                  Periode <span className="text-red-500">*</span>
-                </label>
-                <select name="periode_id" value={tambahForm.periode_id} onChange={handleTambahChange}
-                  className="w-full px-3 py-2.5 border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 bg-gray-50">
-                  <option value="">-- Pilih Periode --</option>
-                  {periode.map(p => (
-                    <option key={p.id} value={p.id}>{p.nama_periode}{p.is_active ? ' (Aktif)' : ''}</option>
-                  ))}
-                </select>
-              </div>
               <div className="flex gap-3 pt-2">
                 <button onClick={handleCloseTambah}
                   className="flex-1 py-2.5 border border-gray-200 text-gray-600 rounded-xl text-sm font-semibold hover:bg-gray-50">
