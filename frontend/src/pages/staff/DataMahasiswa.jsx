@@ -354,19 +354,6 @@ export default function StaffDataMahasiswa() {
               </button>
             </div>
             <div className="p-6 space-y-4">
-              {periode.find(p => p.is_active) ? (
-                <div className="bg-blue-50 border border-blue-100 rounded-xl px-3.5 py-2.5">
-                  <p className="text-xs text-blue-500 mb-0.5">Mahasiswa akan didaftarkan ke periode aktif</p>
-                  <p className="text-sm font-semibold text-blue-800">
-                    {periode.find(p => p.is_active)?.nama_periode}
-                  </p>
-                </div>
-              ) : (
-                <div className="bg-red-50 border border-red-100 rounded-xl px-3.5 py-2.5">
-                  <p className="text-sm font-semibold text-red-700">Tidak ada periode aktif saat ini</p>
-                  <p className="text-xs text-red-500 mt-0.5">Aktifkan sebuah periode terlebih dahulu sebelum menambah mahasiswa.</p>
-                </div>
-              )}
               {[
                 { name: 'nim',           label: 'NIM',           type: 'text',  placeholder: 'Contoh: 23100001' },
                 { name: 'nama',          label: 'Nama Lengkap',  type: 'text',  placeholder: 'Nama lengkap mahasiswa' },
