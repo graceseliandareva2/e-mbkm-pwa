@@ -53,8 +53,12 @@ export default function StaffDosen() {
   }, [selectedPeriode])
 
   useEffect(() => {
-    if (selectedPeriode) fetchDosen()
-  }, [selectedPeriode, fetchDosen])
+  if (selectedPeriode) {
+    fetchDosen()
+  } else {
+    setLoading(false)
+  }
+}, [selectedPeriode, fetchDosen])
 
   const handleImport = async (e) => {
     const file = e.target.files[0]

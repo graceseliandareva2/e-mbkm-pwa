@@ -326,7 +326,13 @@ export default function StaffMonitoring() {
     }
   }, [selectedPeriode])
 
-  useEffect(() => { if (selectedPeriode) fetchMonitoring() }, [selectedPeriode, fetchMonitoring])
+  useEffect(() => {
+  if (selectedPeriode) {
+    fetchMonitoring()
+  } else {
+    setLoading(false)
+  }
+}, [selectedPeriode, fetchMonitoring])
 
   const filtered = data.filter(m =>
     m.nama?.toLowerCase().includes(search.toLowerCase()) ||

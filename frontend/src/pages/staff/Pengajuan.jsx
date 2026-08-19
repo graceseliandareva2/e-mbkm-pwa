@@ -56,9 +56,13 @@ export default function StaffPengajuan() {
   }, [showExportMenu]);
 
   useEffect(() => {
-    if (selectedPeriode) fetchPengajuan();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [selectedPeriode, filterStatus]);
+  if (selectedPeriode) {
+    fetchPengajuan();
+  } else {
+    setLoading(false);
+  }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+}, [selectedPeriode, filterStatus]);
 
   const fetchPengajuan = async () => {
     setLoading(true);

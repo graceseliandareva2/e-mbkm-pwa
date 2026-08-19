@@ -44,7 +44,13 @@ export default function StaffDataMahasiswa() {
   const [resetLoading, setResetLoading] = useState(false)
 
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  useEffect(() => { if (selectedPeriode) fetchMahasiswa() }, [selectedPeriode])
+useEffect(() => {
+  if (selectedPeriode) {
+    fetchMahasiswa()
+  } else {
+    setLoading(false)   
+  }
+}, [selectedPeriode])
 
   useEffect(() => {
     if (selectedPeriode && !tambahForm.periode_id) {
