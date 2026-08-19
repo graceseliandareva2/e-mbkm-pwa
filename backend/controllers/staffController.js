@@ -746,27 +746,32 @@ const getDaftarDosen = async (req, res) => {
 const getDashboardStats = async (req, res) => {
   try {
     const { periode_id } = req.query;
-
-    const wherePengajuan = periode_id ? "WHERE periode_id = ?" : "";
-    const paramsPengajuan = periode_id ? [periode_id] : [];
+    const targetPeriodeId = periode_id || (await _getPeriodeAktifId());
+    if (!targetPeriodeId) {
+      return res.json({
+        data: {
+          total_pengajuan: 0,
+          total_mahasiswa: 0,
+          total_dosen: 0,
+        },
+      });
+    }
 
     const [[{ total }]] = await db.query(
-      `SELECT COUNT(*) as total FROM pengajuan ${wherePengajuan}`,
-      paramsPengajuan,
+      `SELECT COUNT(*) as total FROM pengajuan WHERE periode_id = ?`,
+      [targetPeriodeId],
     );
-
-    const targetPeriodeId = periode_id || (await _getPeriodeAktifId());
 
     const [[{ total_mahasiswa }]] = await db.query(
       `SELECT COUNT(*) as total_mahasiswa FROM users
-       WHERE role = 'mahasiswa' ${targetPeriodeId ? "AND current_periode_id = ?" : ""}`,
-      targetPeriodeId ? [targetPeriodeId] : [],
+       WHERE role = 'mahasiswa' AND current_periode_id = ?`,
+      [targetPeriodeId],
     );
 
     const [[{ total_dosen }]] = await db.query(
       `SELECT COUNT(*) as total_dosen FROM users
-       WHERE role = 'dosen' ${targetPeriodeId ? "AND current_periode_id = ?" : ""}`,
-      targetPeriodeId ? [targetPeriodeId] : [],
+       WHERE role = 'dosen' AND current_periode_id = ?`,
+      [targetPeriodeId],
     );
 
     res.json({

@@ -188,7 +188,7 @@ const tambahPengajuan = async (req, res) => {
       return res.status(400).json({ message: "Form pengajuan sedang ditutup." });
     }
     const periode = periodeAktif[0];
-    const minJam = periode.min_jam_pengajuan ?? 48;
+    const minJam = periode.min_jam_pengajuan ?? 30;
 
     const {
       judul, penyelenggara,
@@ -311,7 +311,7 @@ const updatePengajuan = async (req, res) => {
       "SELECT min_jam_pengajuan FROM periode WHERE id_periode = ?",
       [pengajuan[0].periode_id]
     );
-    const minJam = periodeRow[0]?.min_jam_pengajuan ?? 48;
+    const minJam = periodeRow[0]?.min_jam_pengajuan ?? 30;
 
     const durasiJam = Number(durasi_pelatihan_jam) || 0;
     if (durasiJam < minJam) {

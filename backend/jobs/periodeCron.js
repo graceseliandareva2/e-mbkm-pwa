@@ -139,7 +139,7 @@ const runDeadlineReminderLogbook = async (conn, todayStr) => {
         (new Date(periode.tanggal_selesai_logbook) - new Date(todayStr)) / (1000 * 60 * 60 * 24)
       );
 
-      const targetJam = Number(periode.min_jam_pengajuan) > 0 ? Number(periode.min_jam_pengajuan) : 48;
+      const targetJam = Number(periode.min_jam_pengajuan) > 0 ? Number(periode.min_jam_pengajuan) : 30;
       const targetMenit = targetJam * 60;
 
       const [mahasiswaList] = await conn.query(
