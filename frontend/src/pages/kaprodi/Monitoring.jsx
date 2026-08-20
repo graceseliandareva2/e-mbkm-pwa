@@ -42,6 +42,17 @@ const STATUS_BADGE_LABEL = {
   ditolak:           'Ditolak',
 }
 
+// Format angka jam (desimal) jadi label "X jam Y menit" yang ringkas dibaca kaprodi/dosen
+const formatJam = (jamDesimal) => {
+  const totalMenit = Math.round((Number(jamDesimal) || 0) * 60)
+  const j = Math.floor(totalMenit / 60)
+  const m = totalMenit % 60
+  if (j === 0 && m === 0) return '0 jam'
+  if (m === 0) return `${j} jam`
+  if (j === 0) return `${m} menit`
+  return `${j} jam ${m} menit`
+}
+
 const StatusBadge = ({ status }) => {
   if (!status) return <span className="text-xs text-gray-300">Belum</span>
   return (
@@ -328,6 +339,7 @@ const DetailMahasiswaModal = ({ row, onClose }) => {
                     { icon: GraduationCap, label: 'Program MBKM', value: detail.program_mbkm || '-' },
                     { icon: User, label: 'Dosen Pembimbing', value: detail.dosen_pembimbing || 'Belum ditentukan' },
                     { icon: Clock, label: 'Status MBKM', value: <StatusBadge status={detail.status_pengajuan} /> },
+                    { icon: Clock, label: 'Total Jam Logbook Terverifikasi', value: formatJam(detail.total_jam_terverifikasi) },
                   ].map((f, i) => (
                     <div key={i} className="bg-gray-50 border border-gray-100 rounded-xl px-3.5 py-2.5">
                       <p className="text-xs text-gray-400 mb-0.5">{f.label}</p>
@@ -340,7 +352,9 @@ const DetailMahasiswaModal = ({ row, onClose }) => {
              {/* Logbook*/}
 <div>
   <h3 className="text-sm font-bold text-gray-700 mb-1">Logbook</h3>
-  <p className="text-xs text-gray-400 mb-3">{detail.nim} - {detail.nama} · {detail.jumlah_logbook} Entri Logbook</p>
+  <p className="text-xs text-gray-400 mb-3">
+    {detail.nim} - {detail.nama} · {detail.jumlah_logbook} Entri Logbook · {formatJam(detail.total_jam_terverifikasi)} terverifikasi
+  </p>
   {logbook.length === 0 ? (
     <p className="text-sm text-gray-400 italic">Belum ada entri logbook.</p>
   ) : (
@@ -557,8 +571,14 @@ const stats = useMemo(() => ({
                   <td className="px-6 py-4 text-sm font-medium text-gray-800">{m.nama}</td>
                   <td className="px-6 py-4 text-center"><StatusBadge status={m.status_pengajuan} /></td>
                   <td className="px-6 py-4 text-center">
-                    <span className="text-sm font-semibold text-gray-700">{m.jumlah_logbook || 0}</span>
-                    <span className="text-xs text-gray-400 ml-1">entri</span>
+                    <div className="flex flex-col items-center leading-tight">
+                      <span className="text-sm font-semibold text-gray-700">
+                        {m.jumlah_logbook || 0}<span className="text-xs text-gray-400 ml-1">entri</span>
+                      </span>
+                      <span className="text-xs text-gray-500 mt-0.5">
+                        {formatJam(m.total_jam_terverifikasi)}
+                      </span>
+                    </div>
                   </td>
                   <td className="px-6 py-4 text-center">
                     <LaporanCell doc={m.dokumen_laporan} row={m} onRefresh={fetchMonitoring} />

@@ -30,6 +30,12 @@ const formatDurasi = (menit) => {
   return `${j} jam ${m} menit`
 }
 
+// Format total jam terverifikasi (nilai desimal, mis. 12.5) jadi "12 jam 30 menit"
+const formatJamTotal = (jamDesimal) => {
+  const totalMenit = Math.round((Number(jamDesimal) || 0) * 60)
+  return formatDurasi(totalMenit)
+}
+
 export default function DosenLogbook() {
   const [mahasiswa, setMahasiswa]         = useState([])
   const [loading, setLoading]             = useState(true)
@@ -244,6 +250,10 @@ export default function DosenLogbook() {
                   <FileText className="w-3 h-3" />
                   {mhs.jumlah_logbook || 0} entri
                 </div>
+                <div className="flex items-center gap-1 text-xs text-emerald-700 bg-emerald-50 px-2 py-1 rounded-lg font-medium">
+                  <Clock className="w-3 h-3" />
+                  {formatJamTotal(mhs.total_jam_terverifikasi)}
+                </div>
                 <button
                   onClick={() => handlePilihMhs(mhs)}
                   className="px-4 py-2 bg-blue-600 text-white text-xs font-semibold rounded-xl hover:bg-blue-700 transition"
@@ -266,7 +276,12 @@ export default function DosenLogbook() {
         </button>
         <div>
           <h1 className="text-xl font-bold text-gray-800">Logbook {selectedMhs?.nama}</h1>
-          <p className="text-sm text-gray-500 mt-0.5">{selectedMhs?.nim} · {selectedMhs?.nama_periode}</p>
+          <p className="text-sm text-gray-500 mt-0.5">
+            {selectedMhs?.nim} · {selectedMhs?.nama_periode}
+            {selectedMhs && (
+              <> · <span className="font-medium text-emerald-700">{formatJamTotal(selectedMhs.total_jam_terverifikasi)} terverifikasi</span></>
+            )}
+          </p>
         </div>
       </div>
 
