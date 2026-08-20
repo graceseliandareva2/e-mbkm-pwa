@@ -53,6 +53,31 @@ const formatJam = (jamDesimal) => {
   return `${j} jam ${m} menit`
 }
 
+// Progress jam terverifikasi terhadap minimal jam yang ditentukan Kaprodi (per periode)
+const ProgressJamCell = ({ jam, minJam }) => {
+  const jamNum = Number(jam) || 0
+  const min = Number(minJam) || 0
+  const percent = min > 0 ? Math.min(100, Math.round((jamNum / min) * 100)) : 0
+  const done = min > 0 && jamNum >= min
+
+  return (
+    <div className="flex flex-col items-center gap-1 min-w-[100px] mx-auto">
+      <span className={`text-xs font-semibold ${done ? 'text-green-600' : 'text-gray-700'}`}>
+        {formatJam(jamNum)}
+        {min > 0 && <span className="text-gray-400 font-normal"> / {formatJam(min)}</span>}
+      </span>
+      {min > 0 && (
+        <div className="w-full h-1.5 bg-gray-100 rounded-full overflow-hidden">
+          <div
+            className={`h-full rounded-full transition-all ${done ? 'bg-green-500' : 'bg-blue-500'}`}
+            style={{ width: `${percent}%` }}
+          />
+        </div>
+      )}
+    </div>
+  )
+}
+
 const StatusBadge = ({ status }) => {
   if (!status) return <span className="text-xs text-gray-300">Belum</span>
   return (
@@ -308,6 +333,9 @@ const DetailMahasiswaModal = ({ row, onClose }) => {
     [logbook, logPage]
   )
 
+  const minJamDetail = Number(detail?.min_jam_pengajuan) || 0
+  const jamDetailDone = minJamDetail > 0 && Number(detail?.total_jam_terverifikasi) >= minJamDetail
+
   return (
     <div className="fixed inset-0 bg-black/60 z-50 flex items-center justify-center p-4" onClick={onClose}>
       <div className="bg-white rounded-2xl w-full max-w-4xl shadow-2xl flex flex-col max-h-[90vh]" onClick={e => e.stopPropagation()}>
@@ -339,7 +367,12 @@ const DetailMahasiswaModal = ({ row, onClose }) => {
                     { icon: GraduationCap, label: 'Program MBKM', value: detail.program_mbkm || '-' },
                     { icon: User, label: 'Dosen Pembimbing', value: detail.dosen_pembimbing || 'Belum ditentukan' },
                     { icon: Clock, label: 'Status MBKM', value: <StatusBadge status={detail.status_pengajuan} /> },
-                    { icon: Clock, label: 'Total Jam Logbook Terverifikasi', value: formatJam(detail.total_jam_terverifikasi) },
+                    { icon: Clock, label: 'Total Jam Logbook Terverifikasi', value: (
+                      <span className={jamDetailDone ? 'text-green-700 font-semibold' : ''}>
+                        {formatJam(detail.total_jam_terverifikasi)}
+                        {minJamDetail > 0 && ` / ${formatJam(minJamDetail)}`}
+                      </span>
+                    ) },
                   ].map((f, i) => (
                     <div key={i} className="bg-gray-50 border border-gray-100 rounded-xl px-3.5 py-2.5">
                       <p className="text-xs text-gray-400 mb-0.5">{f.label}</p>
@@ -353,7 +386,8 @@ const DetailMahasiswaModal = ({ row, onClose }) => {
 <div>
   <h3 className="text-sm font-bold text-gray-700 mb-1">Logbook</h3>
   <p className="text-xs text-gray-400 mb-3">
-    {detail.nim} - {detail.nama} · {detail.jumlah_logbook} Entri Logbook · {formatJam(detail.total_jam_terverifikasi)} terverifikasi
+    {detail.nim} - {detail.nama} · {formatJam(detail.total_jam_terverifikasi)}
+    {minJamDetail > 0 && ` / ${formatJam(minJamDetail)}`} terverifikasi
   </p>
   {logbook.length === 0 ? (
     <p className="text-sm text-gray-400 italic">Belum ada entri logbook.</p>
@@ -431,6 +465,7 @@ const DetailMahasiswaModal = ({ row, onClose }) => {
 
 export default function KaprodiMonitoring() {
   const [data, setData]                       = useState([])
+  const [minJam, setMinJam]                   = useState(0)
   const [search, setSearch] = useState('')
   const [filterStatus, setFilterStatus] = useState('')
   const [loading, setLoading]                 = useState(true)
@@ -453,6 +488,7 @@ export default function KaprodiMonitoring() {
   try {
     const res = await api.get('/kaprodi/monitoring', { params: { periode_id: selectedPeriode } })
     setData(res.data.data || [])
+    setMinJam(res.data.min_jam_pengajuan || 0)
   } catch {
     toast.error('Gagal memuat data monitoring!')
   } finally {
@@ -571,14 +607,7 @@ const stats = useMemo(() => ({
                   <td className="px-6 py-4 text-sm font-medium text-gray-800">{m.nama}</td>
                   <td className="px-6 py-4 text-center"><StatusBadge status={m.status_pengajuan} /></td>
                   <td className="px-6 py-4 text-center">
-                    <div className="flex flex-col items-center leading-tight">
-                      <span className="text-sm font-semibold text-gray-700">
-                        {m.jumlah_logbook || 0}<span className="text-xs text-gray-400 ml-1">entri</span>
-                      </span>
-                      <span className="text-xs text-gray-500 mt-0.5">
-                        {formatJam(m.total_jam_terverifikasi)}
-                      </span>
-                    </div>
+                    <ProgressJamCell jam={m.total_jam_terverifikasi} minJam={minJam} />
                   </td>
                   <td className="px-6 py-4 text-center">
                     <LaporanCell doc={m.dokumen_laporan} row={m} onRefresh={fetchMonitoring} />

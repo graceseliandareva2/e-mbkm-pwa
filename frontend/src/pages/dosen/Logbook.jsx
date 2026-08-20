@@ -1,7 +1,7 @@
 import { useEffect, useState, useCallback } from 'react'
 import {
   BookOpen, CheckCircle, AlertCircle, Clock, MessageSquare, Eye, Search, X,
-  Users, ChevronLeft, FileText,
+  Users, ChevronLeft,
 } from 'lucide-react'
 import api from '../../utils/api'
 import toast from 'react-hot-toast'
@@ -34,6 +34,32 @@ const formatDurasi = (menit) => {
 const formatJamTotal = (jamDesimal) => {
   const totalMenit = Math.round((Number(jamDesimal) || 0) * 60)
   return formatDurasi(totalMenit)
+}
+
+// Progress jam terverifikasi terhadap minimal jam yang ditentukan Kaprodi (per periode)
+const ProgressJam = ({ jam, minJam }) => {
+  const jamNum = Number(jam) || 0
+  const min = Number(minJam) || 0
+  const percent = min > 0 ? Math.min(100, Math.round((jamNum / min) * 100)) : 0
+  const done = min > 0 && jamNum >= min
+
+  return (
+    <div className="flex flex-col items-end gap-1 min-w-[130px]">
+      <div className={`flex items-center gap-1 text-xs font-semibold ${done ? 'text-green-600' : 'text-blue-600'}`}>
+        <Clock className="w-3 h-3" />
+        {formatJamTotal(jamNum)}
+        {min > 0 && <span className="text-gray-400 font-normal">&nbsp;/ {formatJamTotal(min)}</span>}
+      </div>
+      {min > 0 && (
+        <div className="w-full h-1.5 bg-gray-100 rounded-full overflow-hidden">
+          <div
+            className={`h-full rounded-full transition-all ${done ? 'bg-green-500' : 'bg-blue-500'}`}
+            style={{ width: `${percent}%` }}
+          />
+        </div>
+      )}
+    </div>
+  )
 }
 
 export default function DosenLogbook() {
@@ -245,15 +271,8 @@ export default function DosenLogbook() {
                   )}
                 </div>
               </div>
-              <div className="flex items-center gap-2 flex-shrink-0">
-                <div className="flex items-center gap-1 text-xs text-blue-600 bg-blue-50 px-2 py-1 rounded-lg font-medium">
-                  <FileText className="w-3 h-3" />
-                  {mhs.jumlah_logbook || 0} entri
-                </div>
-                <div className="flex items-center gap-1 text-xs text-emerald-700 bg-emerald-50 px-2 py-1 rounded-lg font-medium">
-                  <Clock className="w-3 h-3" />
-                  {formatJamTotal(mhs.total_jam_terverifikasi)}
-                </div>
+              <div className="flex items-center gap-3 flex-shrink-0">
+                <ProgressJam jam={mhs.total_jam_terverifikasi} minJam={mhs.min_jam_pengajuan} />
                 <button
                   onClick={() => handlePilihMhs(mhs)}
                   className="px-4 py-2 bg-blue-600 text-white text-xs font-semibold rounded-xl hover:bg-blue-700 transition"
@@ -279,7 +298,17 @@ export default function DosenLogbook() {
           <p className="text-sm text-gray-500 mt-0.5">
             {selectedMhs?.nim} · {selectedMhs?.nama_periode}
             {selectedMhs && (
-              <> · <span className="font-medium text-emerald-700">{formatJamTotal(selectedMhs.total_jam_terverifikasi)} terverifikasi</span></>
+              <>
+                {' · '}
+                <span className={`font-medium ${
+                  Number(selectedMhs.min_jam_pengajuan) > 0 &&
+                  Number(selectedMhs.total_jam_terverifikasi) >= Number(selectedMhs.min_jam_pengajuan)
+                    ? 'text-green-700' : 'text-emerald-700'
+                }`}>
+                  {formatJamTotal(selectedMhs.total_jam_terverifikasi)}
+                  {Number(selectedMhs.min_jam_pengajuan) > 0 && ` / ${formatJamTotal(selectedMhs.min_jam_pengajuan)}`} terverifikasi
+                </span>
+              </>
             )}
           </p>
         </div>
