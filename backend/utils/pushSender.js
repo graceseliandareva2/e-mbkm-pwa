@@ -25,7 +25,10 @@ const sendPushToUser = async (userId, { title, body, url = "/" }) => {
         };
 
         try {
-          await webpush.sendNotification(pushSubscription, payload);
+          await webpush.sendNotification(pushSubscription, payload, {
+            TTL: 60 * 60 * 24, // simpan pesan max 1 hari kalau device offline
+            urgency: "high",
+          });
           console.log(`[push] Berhasil kirim ke subscription ${sub.id}`);
         } catch (err) {
           if (err.statusCode === 410 || err.statusCode === 404) {
