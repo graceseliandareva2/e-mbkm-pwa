@@ -76,33 +76,40 @@ export default function MahasiswaDashboard() {
     fetchData();
   }, []);
 
-  const fetchData = async () => {
-    try {
-      const [pRes, lRes, periodeRes] = await Promise.all([
-        api.get("/mahasiswa/pengajuan").catch(() => ({ data: null })),
-        api.get("/mahasiswa/logbook").catch(() => ({ data: { data: [] } })),
-        api
-          .get("/mahasiswa/periode-aktif")
-          .catch(() => ({ data: { data: [] } })),
-      ]);
+ const fetchData = async () => {
+  try {
+    const [pRes, lRes, periodeRes] = await Promise.all([
+      api.get("/mahasiswa/pengajuan").catch((err) => {
+        if (err.response?.status === 401 || err.response?.status === 403) throw err;
+        return { data: null };
+      }),
+      api.get("/mahasiswa/logbook").catch((err) => {
+        if (err.response?.status === 401 || err.response?.status === 403) throw err;
+        return { data: { data: [] } };
+      }),
+      api.get("/mahasiswa/periode-aktif").catch((err) => {
+        if (err.response?.status === 401 || err.response?.status === 403) throw err;
+        return { data: { data: [] } };
+      }),
+    ]);
 
-      setPengajuan(pRes.data);
+    setPengajuan(pRes.data);
 
-      const logbooks = Array.isArray(lRes.data?.data) ? lRes.data.data : [];
-      const totalMenit = logbooks.reduce(
-        (sum, l) => sum + (Number(l.durasi_menit) || 0),
-        0,
-      );
-      setLogbookStats({ count: logbooks.length, totalMenit });
+    const logbooks = Array.isArray(lRes.data?.data) ? lRes.data.data : [];
+    const totalMenit = logbooks.reduce(
+      (sum, l) => sum + (Number(l.durasi_menit) || 0),
+      0,
+    );
+    setLogbookStats({ count: logbooks.length, totalMenit });
 
-      const periodeList = periodeRes.data?.data || [];
-      setPeriode(periodeList[0] || null);
-    } catch (err) {
-      console.error(err);
-    } finally {
-      setLoading(false);
-    }
-  };
+    const periodeList = periodeRes.data?.data || [];
+    setPeriode(periodeList[0] || null);
+  } catch (err) {
+    console.error(err);
+  } finally {
+    setLoading(false);
+  }
+};
 
   const statusCfg = pengajuan
     ? STATUS_CONFIG[pengajuan.status] || STATUS_CONFIG.menunggu
