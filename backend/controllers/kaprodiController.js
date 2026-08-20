@@ -621,7 +621,7 @@ const getMonitoringDokumen = async (req, res) => {
       } : null,
     }));
 
-    res.json({ data: formatted });
+    res.json({ data: formatted, min_jam_pengajuan: minJam });
   } catch (error) {
     console.error("getMonitoringDokumen error:", error);
     res.status(500).json({ message: "Terjadi kesalahan server." });
@@ -781,6 +781,13 @@ const getDetailMonitoring = async (req, res) => {
       [pengajuan_id]
     );
     if (!info.length) return res.status(404).json({ message: "Pengajuan tidak ditemukan." });
+
+    const [[periodeInfo]] = await db.query(
+      "SELECT min_jam_pengajuan FROM periode WHERE id_periode = ?",
+      [info[0].periode_id]
+    );
+    const minJam = periodeInfo?.min_jam_pengajuan ?? 0;
+
     const [logbook] = await db.query(
       `SELECT id_logbook AS id, tanggal, jam_mulai, jam_selesai, kegiatan, durasi_menit, status, bukti_link, cloudinary_public_id
        FROM logbook WHERE pengajuan_id = ? ORDER BY tanggal DESC`,
@@ -806,6 +813,7 @@ const getDetailMonitoring = async (req, res) => {
     res.json({
       data: {
         ...info[0],
+        min_jam_pengajuan: minJam,
         jumlah_logbook: logbook.length,
         total_jam_terverifikasi: totalJamTerverifikasi,
         logbook,
