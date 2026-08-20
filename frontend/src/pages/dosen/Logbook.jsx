@@ -37,27 +37,47 @@ const formatJamTotal = (jamDesimal) => {
 }
 
 // Progress jam terverifikasi terhadap minimal jam yang ditentukan Kaprodi (per periode)
-const ProgressJam = ({ jam, minJam }) => {
+// Desain ring/donut -- sengaja beda dari card "Progres Logbook" di dashboard
+// mahasiswa (yang pakai angka besar + bar linear), supaya tetap ringkas di
+// baris list/tabel dosen & kaprodi.
+const RING_SIZE = 40
+const RING_STROKE = 4
+const RING_RADIUS = (RING_SIZE - RING_STROKE) / 2
+const RING_CIRC = 2 * Math.PI * RING_RADIUS
+
+const ProgressJam = ({ jam, minJam, jumlahEntri }) => {
   const jamNum = Number(jam) || 0
   const min = Number(minJam) || 0
   const percent = min > 0 ? Math.min(100, Math.round((jamNum / min) * 100)) : 0
   const done = min > 0 && jamNum >= min
+  const offset = RING_CIRC - (percent / 100) * RING_CIRC
 
   return (
-    <div className="flex flex-col items-end gap-1 min-w-[130px]">
-      <div className={`flex items-center gap-1 text-xs font-semibold ${done ? 'text-green-600' : 'text-blue-600'}`}>
-        <Clock className="w-3 h-3" />
-        {formatJamTotal(jamNum)}
-        {min > 0 && <span className="text-gray-400 font-normal">&nbsp;/ {formatJamTotal(min)}</span>}
-      </div>
+    <div className="flex items-center gap-2.5 min-w-[150px] justify-end">
       {min > 0 && (
-        <div className="w-full h-1.5 bg-gray-100 rounded-full overflow-hidden">
-          <div
-            className={`h-full rounded-full transition-all ${done ? 'bg-green-500' : 'bg-blue-500'}`}
-            style={{ width: `${percent}%` }}
-          />
+        <div className="relative flex-shrink-0" style={{ width: RING_SIZE, height: RING_SIZE }}>
+          <svg width={RING_SIZE} height={RING_SIZE} className="-rotate-90">
+            <circle cx={RING_SIZE / 2} cy={RING_SIZE / 2} r={RING_RADIUS}
+              fill="none" stroke="#f3f4f6" strokeWidth={RING_STROKE} />
+            <circle cx={RING_SIZE / 2} cy={RING_SIZE / 2} r={RING_RADIUS}
+              fill="none" stroke={done ? '#22c55e' : '#3b82f6'} strokeWidth={RING_STROKE}
+              strokeDasharray={RING_CIRC} strokeDashoffset={offset} strokeLinecap="round"
+              className="transition-all duration-500" />
+          </svg>
+          <span className={`absolute inset-0 flex items-center justify-center text-[9px] font-bold ${done ? 'text-green-600' : 'text-blue-600'}`}>
+            {percent}%
+          </span>
         </div>
       )}
+      <div className="flex flex-col items-end">
+        <span className={`text-sm font-semibold ${done ? 'text-green-600' : 'text-gray-700'}`}>
+          {formatJamTotal(jamNum)}
+          {min > 0 && <span className="text-gray-400 font-normal"> / {formatJamTotal(min)}</span>}
+        </span>
+        {typeof jumlahEntri === 'number' && (
+          <span className="text-[10px] text-gray-400">{jumlahEntri} entri</span>
+        )}
+      </div>
     </div>
   )
 }
@@ -272,7 +292,7 @@ export default function DosenLogbook() {
                 </div>
               </div>
               <div className="flex items-center gap-3 flex-shrink-0">
-                <ProgressJam jam={mhs.total_jam_terverifikasi} minJam={mhs.min_jam_pengajuan} />
+                <ProgressJam jam={mhs.total_jam_terverifikasi} minJam={mhs.min_jam_pengajuan} jumlahEntri={mhs.jumlah_logbook} />
                 <button
                   onClick={() => handlePilihMhs(mhs)}
                   className="px-4 py-2 bg-blue-600 text-white text-xs font-semibold rounded-xl hover:bg-blue-700 transition"

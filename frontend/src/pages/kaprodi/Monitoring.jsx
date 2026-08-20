@@ -54,26 +54,46 @@ const formatJam = (jamDesimal) => {
 }
 
 // Progress jam terverifikasi terhadap minimal jam yang ditentukan Kaprodi (per periode)
-const ProgressJamCell = ({ jam, minJam }) => {
+// Desain ring/donut -- sengaja beda dari card "Progres Logbook" di dashboard
+// mahasiswa (yang pakai angka besar + bar linear), supaya tetap ringkas di sel tabel.
+const RING_SIZE = 36
+const RING_STROKE = 4
+const RING_RADIUS = (RING_SIZE - RING_STROKE) / 2
+const RING_CIRC = 2 * Math.PI * RING_RADIUS
+
+const ProgressJamCell = ({ jam, minJam, jumlahEntri }) => {
   const jamNum = Number(jam) || 0
   const min = Number(minJam) || 0
   const percent = min > 0 ? Math.min(100, Math.round((jamNum / min) * 100)) : 0
   const done = min > 0 && jamNum >= min
+  const offset = RING_CIRC - (percent / 100) * RING_CIRC
 
   return (
-    <div className="flex flex-col items-center gap-1 min-w-[100px] mx-auto">
-      <span className={`text-xs font-semibold ${done ? 'text-green-600' : 'text-gray-700'}`}>
-        {formatJam(jamNum)}
-        {min > 0 && <span className="text-gray-400 font-normal"> / {formatJam(min)}</span>}
-      </span>
+    <div className="flex items-center gap-2 justify-center min-w-[130px] mx-auto">
       {min > 0 && (
-        <div className="w-full h-1.5 bg-gray-100 rounded-full overflow-hidden">
-          <div
-            className={`h-full rounded-full transition-all ${done ? 'bg-green-500' : 'bg-blue-500'}`}
-            style={{ width: `${percent}%` }}
-          />
+        <div className="relative flex-shrink-0" style={{ width: RING_SIZE, height: RING_SIZE }}>
+          <svg width={RING_SIZE} height={RING_SIZE} className="-rotate-90">
+            <circle cx={RING_SIZE / 2} cy={RING_SIZE / 2} r={RING_RADIUS}
+              fill="none" stroke="#f3f4f6" strokeWidth={RING_STROKE} />
+            <circle cx={RING_SIZE / 2} cy={RING_SIZE / 2} r={RING_RADIUS}
+              fill="none" stroke={done ? '#22c55e' : '#3b82f6'} strokeWidth={RING_STROKE}
+              strokeDasharray={RING_CIRC} strokeDashoffset={offset} strokeLinecap="round"
+              className="transition-all duration-500" />
+          </svg>
+          <span className={`absolute inset-0 flex items-center justify-center text-[8px] font-bold ${done ? 'text-green-600' : 'text-blue-600'}`}>
+            {percent}%
+          </span>
         </div>
       )}
+      <div className="flex flex-col items-start">
+        <span className={`text-sm font-semibold ${done ? 'text-green-600' : 'text-gray-700'}`}>
+          {formatJam(jamNum)}
+          {min > 0 && <span className="text-gray-400 font-normal"> / {formatJam(min)}</span>}
+        </span>
+        {typeof jumlahEntri === 'number' && (
+          <span className="text-[10px] text-gray-400">{jumlahEntri} entri</span>
+        )}
+      </div>
     </div>
   )
 }
@@ -335,6 +355,9 @@ const DetailMahasiswaModal = ({ row, onClose }) => {
 
   const minJamDetail = Number(detail?.min_jam_pengajuan) || 0
   const jamDetailDone = minJamDetail > 0 && Number(detail?.total_jam_terverifikasi) >= minJamDetail
+  const percentDetail = minJamDetail > 0
+    ? Math.min(100, Math.round((Number(detail?.total_jam_terverifikasi || 0) / minJamDetail) * 100))
+    : 0
 
   return (
     <div className="fixed inset-0 bg-black/60 z-50 flex items-center justify-center p-4" onClick={onClose}>
@@ -367,18 +390,36 @@ const DetailMahasiswaModal = ({ row, onClose }) => {
                     { icon: GraduationCap, label: 'Program MBKM', value: detail.program_mbkm || '-' },
                     { icon: User, label: 'Dosen Pembimbing', value: detail.dosen_pembimbing || 'Belum ditentukan' },
                     { icon: Clock, label: 'Status MBKM', value: <StatusBadge status={detail.status_pengajuan} /> },
-                    { icon: Clock, label: 'Total Jam Logbook Terverifikasi', value: (
-                      <span className={jamDetailDone ? 'text-green-700 font-semibold' : ''}>
-                        {formatJam(detail.total_jam_terverifikasi)}
-                        {minJamDetail > 0 && ` / ${formatJam(minJamDetail)}`}
-                      </span>
-                    ) },
                   ].map((f, i) => (
                     <div key={i} className="bg-gray-50 border border-gray-100 rounded-xl px-3.5 py-2.5">
                       <p className="text-xs text-gray-400 mb-0.5">{f.label}</p>
                       <div className="text-sm font-medium text-gray-800">{f.value}</div>
                     </div>
                   ))}
+                  <div className="bg-gray-50 border border-gray-100 rounded-xl px-3.5 py-2.5">
+                    <p className="text-xs text-gray-400 mb-1.5">Total Jam Logbook Terverifikasi</p>
+                    <div className="flex items-center gap-2.5">
+                      {minJamDetail > 0 && (
+                        <div className="relative flex-shrink-0" style={{ width: 36, height: 36 }}>
+                          <svg width={36} height={36} className="-rotate-90">
+                            <circle cx={18} cy={18} r={16} fill="none" stroke="#e5e7eb" strokeWidth={4} />
+                            <circle cx={18} cy={18} r={16} fill="none"
+                              stroke={jamDetailDone ? '#22c55e' : '#3b82f6'} strokeWidth={4}
+                              strokeDasharray={2 * Math.PI * 16}
+                              strokeDashoffset={2 * Math.PI * 16 - (percentDetail / 100) * 2 * Math.PI * 16}
+                              strokeLinecap="round" className="transition-all duration-500" />
+                          </svg>
+                          <span className={`absolute inset-0 flex items-center justify-center text-[8px] font-bold ${jamDetailDone ? 'text-green-600' : 'text-blue-600'}`}>
+                            {percentDetail}%
+                          </span>
+                        </div>
+                      )}
+                      <span className={`text-sm font-semibold ${jamDetailDone ? 'text-green-600' : 'text-gray-800'}`}>
+                        {formatJam(detail.total_jam_terverifikasi)}
+                        {minJamDetail > 0 && <span className="text-gray-400 font-normal"> / {formatJam(minJamDetail)}</span>}
+                      </span>
+                    </div>
+                  </div>
                 </div>
               </div>
 
@@ -607,7 +648,7 @@ const stats = useMemo(() => ({
                   <td className="px-6 py-4 text-sm font-medium text-gray-800">{m.nama}</td>
                   <td className="px-6 py-4 text-center"><StatusBadge status={m.status_pengajuan} /></td>
                   <td className="px-6 py-4 text-center">
-                    <ProgressJamCell jam={m.total_jam_terverifikasi} minJam={minJam} />
+                    <ProgressJamCell jam={m.total_jam_terverifikasi} minJam={minJam} jumlahEntri={m.jumlah_logbook} />
                   </td>
                   <td className="px-6 py-4 text-center">
                     <LaporanCell doc={m.dokumen_laporan} row={m} onRefresh={fetchMonitoring} />
