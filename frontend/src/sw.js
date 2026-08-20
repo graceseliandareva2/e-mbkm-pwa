@@ -1,8 +1,7 @@
 import { precacheAndRoute } from "workbox-precaching";
 import { registerRoute } from "workbox-routing";
-import { CacheFirst, NetworkFirst, NetworkOnly } from "workbox-strategies";
+import { CacheFirst, NetworkOnly } from "workbox-strategies";
 import { ExpirationPlugin } from "workbox-expiration";
-import { CacheableResponsePlugin } from "workbox-cacheable-response";
 
 precacheAndRoute(self.__WB_MANIFEST);
 
@@ -17,21 +16,12 @@ registerRoute(
 );
 
 registerRoute(
-  ({ url }) => /^\/api\/.*/.test(url.pathname) && !/\/export/.test(url.pathname),
-  new NetworkFirst({
-    cacheName: "api-data-cache",
-    networkTimeoutSeconds: 5,
-    plugins: [
-      new ExpirationPlugin({ maxEntries: 200, maxAgeSeconds: 60 * 60 * 24 * 14 }),
-      new CacheableResponsePlugin({ statuses: [0, 200] }),
-    ],
+  ({ url }) => /^\/api\/.*/.test(url.pathname),
+  new NetworkOnly({
+    fetchOptions: { cache: "no-store" },
   })
 );
 
-registerRoute(
-  ({ url }) => /\/export/.test(url.pathname),
-  new NetworkOnly()
-);
 self.addEventListener("install", () => {
   self.skipWaiting();
 });
