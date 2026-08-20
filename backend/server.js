@@ -5,6 +5,7 @@ const { startPeriodeCron } = require("./jobs/periodeCron");
 require("dotenv").config();
 
 const app = express();
+app.set("etag", false);
 
 const allowedOrigins = [
   "http://localhost:5173",
@@ -28,6 +29,16 @@ app.use(
 );
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
+
+// Semua endpoint /api/* selalu no-store: browser (dan proxy di depannya,
+// mis. OpenLiteSpeed) tidak boleh menyimpan/menyajikan ulang response API
+// dari cache. File statis (/uploads dll) tidak kena aturan ini.
+app.use("/api", (req, res, next) => {
+  res.set("Cache-Control", "no-store, no-cache, must-revalidate, proxy-revalidate");
+  res.set("Pragma", "no-cache");
+  res.set("Expires", "0");
+  next();
+});
 
 app.use("/uploads", express.static(path.join(__dirname, "uploads")));
 app.use("/api/uploads", express.static(path.join(__dirname, "uploads")));
