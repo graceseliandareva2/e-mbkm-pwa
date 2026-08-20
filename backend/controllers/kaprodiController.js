@@ -787,6 +787,10 @@ const getDetailMonitoring = async (req, res) => {
       [pengajuan_id]
     );
 
+    const totalJamTerverifikasi = logbook
+      .filter((l) => l.status === "diverifikasi")
+      .reduce((sum, l) => sum + (Number(l.durasi_menit) || 0), 0) / 60;
+
     const [dokumen] = await db.query(
       `SELECT id_dokumen AS id, jenis, nama_file, cloudinary_url, status FROM dokumen WHERE pengajuan_id = ?`,
       [pengajuan_id]
@@ -803,6 +807,7 @@ const getDetailMonitoring = async (req, res) => {
       data: {
         ...info[0],
         jumlah_logbook: logbook.length,
+        total_jam_terverifikasi: totalJamTerverifikasi,
         logbook,
         dokumen_laporan: dokumenLaporan,
         dokumen_ppt: dokumenPpt,

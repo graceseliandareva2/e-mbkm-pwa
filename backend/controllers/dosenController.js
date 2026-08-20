@@ -39,7 +39,11 @@ const getMahasiswaBimbingan = async (req, res) => {
     pc.id_pengajuan as pengajuan_id, dp.judul, pc.status as status_pengajuan,
         dp.nama_pelatihan, dp.link_pelatihan, dp.durasi_pelatihan_jam, pc.catatan_kaprodi,
         pa.nama as dosen_pembimbing_akademik,
-        COUNT(DISTINCT l.id_logbook) as jumlah_logbook
+        COUNT(DISTINCT l.id_logbook) as jumlah_logbook,
+        COALESCE((
+          SELECT SUM(lb.durasi_menit) / 60 FROM logbook lb
+          WHERE lb.pengajuan_id = pc.id_pengajuan AND lb.status = 'diverifikasi'
+        ), 0) as total_jam_terverifikasi
       FROM pengajuan pc
       JOIN users m ON pc.mahasiswa_id = m.id_users
       JOIN periode per ON pc.periode_id = per.id_periode
