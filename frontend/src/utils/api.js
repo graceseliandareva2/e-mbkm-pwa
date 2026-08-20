@@ -7,7 +7,6 @@ const api = axios.create({
   },
 });
 
-
 api.interceptors.request.use(
   (config) => {
     const token = localStorage.getItem("token");
@@ -19,13 +18,19 @@ api.interceptors.request.use(
   (error) => Promise.reject(error),
 );
 
-
 api.interceptors.response.use(
   (response) => response,
   (error) => {
     const isLoginRequest = error.config?.url?.includes("/auth/login");
+    const status = error.response?.status;
+    const message = error.response?.data?.message || "";
 
-    if (error.response?.status === 401 && !isLoginRequest) {
+    // Token invalid/expired dari middleware auth (403) ATAU unauthorized standar (401)
+    const isTokenError =
+      (status === 401 || status === 403) &&
+      message.toLowerCase().includes("token");
+
+    if ((status === 401 || isTokenError) && !isLoginRequest) {
       localStorage.removeItem("auth-storage");
       localStorage.removeItem("token");
       localStorage.removeItem("user");
