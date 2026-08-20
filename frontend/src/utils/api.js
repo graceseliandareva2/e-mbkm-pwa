@@ -26,18 +26,10 @@ api.interceptors.response.use(
     const isLoginRequest = error.config?.url?.includes("/auth/login");
 
     if (error.response?.status === 401 && !isLoginRequest) {
-
-      const message = error.response?.data?.message || "";
-      const isTokenError =
-        message.toLowerCase().includes("token") ||
-        message.toLowerCase().includes("unauthorized") ||
-        message.toLowerCase().includes("jwt");
-
-      if (isTokenError) {
-        localStorage.removeItem("token");
-        localStorage.removeItem("user");
-        window.location.href = "/login";
-      }
+      localStorage.removeItem("auth-storage");
+      localStorage.removeItem("token");
+      localStorage.removeItem("user");
+      window.location.href = "/login";
     }
 
     return Promise.reject(error);
