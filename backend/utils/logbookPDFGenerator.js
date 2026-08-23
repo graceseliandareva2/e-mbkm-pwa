@@ -76,7 +76,7 @@ async function getLogbookExportData(pengajuanId) {
 }
 
 const COL = { tgl: 30, durasi: 85, topik: 145, tugas: 260, hasil: 375, paraf: 490 };
-const WID = { tgl: 50, durasi: 55, topik: 110, tugas: 110, hasil: 110, paraf: 45 };
+const WID = { tgl: 55, durasi: 60, topik: 115, tugas: 115, hasil: 115, paraf: 75 };
 const FONT_SIZE = 7.5;
 const LINE_H = 10;
 const ROW_PAD = 5;
@@ -137,6 +137,7 @@ function generateLogbookPdfBuffer(data) {
 
     const drawHeader = () => {
       const y = doc.y;
+      doc.lineWidth(0.5);
       doc.rect(30, y, TABLE_RIGHT, 20).fillAndStroke("#ffffff", "#000000");
       doc.fillColor("#000000").font("Helvetica-Bold").fontSize(FONT_SIZE);
       doc.text("Hari/\nTanggal", COL.tgl, y + 3, { width: WID.tgl, align: "center" });
@@ -174,6 +175,7 @@ function generateLogbookPdfBuffer(data) {
       }
 
       const y = doc.y;
+      doc.lineWidth(0.5);
       doc.rect(30, y, TABLE_RIGHT, rowH).stroke();
       Object.values(COL).forEach((x) => doc.moveTo(x, y).lineTo(x, y + rowH).lineWidth(0.5).stroke());
       doc.moveTo(30 + TABLE_RIGHT, y).lineTo(30 + TABLE_RIGHT, y + rowH).lineWidth(0.5).stroke();
