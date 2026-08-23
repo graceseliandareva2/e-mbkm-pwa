@@ -5,18 +5,8 @@ const db = require("../config/db");
 const LOGO_PATH = path.join(__dirname, "../assets/logo-itbss (1).png");
 
 const BULAN_ID = [
-  "Januari",
-  "Februari",
-  "Maret",
-  "April",
-  "Mei",
-  "Juni",
-  "Juli",
-  "Agustus",
-  "September",
-  "Oktober",
-  "November",
-  "Desember",
+  "Januari", "Februari", "Maret", "April", "Mei", "Juni",
+  "Juli", "Agustus", "September", "Oktober", "November", "Desember",
 ];
 
 function formatTanggalIndo(dateInput) {
@@ -52,7 +42,7 @@ async function getLogbookExportData(pengajuanId) {
      LEFT JOIN detail_pengajuan dp ON dp.pengajuan_id = p.id_pengajuan
      LEFT JOIN users d ON d.id_users = p.dosen_id
      WHERE p.id_pengajuan = ?`,
-    [pengajuanId],
+    [pengajuanId]
   );
   if (!pengajuanRows.length) return null;
 
@@ -61,23 +51,21 @@ async function getLogbookExportData(pengajuanId) {
      FROM logbook
      WHERE pengajuan_id = ?
      ORDER BY tanggal ASC, jam_mulai ASC`,
-    [pengajuanId],
+    [pengajuanId]
   );
 
   // Link Dokumentasi (Drive) ditampilkan sebagai satu field di header PDF, meski
   // datanya tersimpan per-entri logbook -- ambil link non-kosong dari entri terbaru.
-  const linkDokumentasi =
-    [...entries]
-      .reverse()
-      .find((e) => e.link_dokumentasi_drive && e.link_dokumentasi_drive.trim())
-      ?.link_dokumentasi_drive || null;
+  const linkDokumentasi = [...entries]
+    .reverse()
+    .find((e) => e.link_dokumentasi_drive && e.link_dokumentasi_drive.trim())
+    ?.link_dokumentasi_drive || null;
 
   // Kolom detail_pengajuan.waktu_studi_independen sudah tidak diisi form (diganti
   // tanggal_mulai/tanggal_selesai) -- tampilkan sebagai rentang tanggal di PDF.
-  const waktuStudiIndependen =
-    pengajuanRows[0].tanggal_mulai && pengajuanRows[0].tanggal_selesai
-      ? `${formatTanggalIndo(pengajuanRows[0].tanggal_mulai)} - ${formatTanggalIndo(pengajuanRows[0].tanggal_selesai)}`
-      : null;
+  const waktuStudiIndependen = pengajuanRows[0].tanggal_mulai && pengajuanRows[0].tanggal_selesai
+    ? `${formatTanggalIndo(pengajuanRows[0].tanggal_mulai)} - ${formatTanggalIndo(pengajuanRows[0].tanggal_selesai)}`
+    : null;
 
   return {
     ...pengajuanRows[0],
@@ -87,22 +75,8 @@ async function getLogbookExportData(pengajuanId) {
   };
 }
 
-const COL = {
-  tgl: 30,
-  durasi: 85,
-  topik: 145,
-  tugas: 260,
-  hasil: 375,
-  paraf: 490,
-};
-const WID = {
-  tgl: 50,
-  durasi: 55,
-  topik: 110,
-  tugas: 110,
-  hasil: 110,
-  paraf: 45,
-};
+const COL = { tgl: 30, durasi: 85, topik: 145, tugas: 260, hasil: 375, paraf: 490 };
+const WID = { tgl: 50, durasi: 55, topik: 110, tugas: 110, hasil: 110, paraf: 45 };
 const FONT_SIZE = 7.5;
 const LINE_H = 10;
 const ROW_PAD = 5;
@@ -113,9 +87,7 @@ const INFO_LINE_GAP = 6; // jarak antar baris info (NIM/Nama, Penyelenggara, dst
 function textHeight(text, width) {
   const usableWidth = Math.max(1, width - CELL_PAD_X * 2);
   const chars = Math.max(1, Math.floor(usableWidth / (FONT_SIZE * 0.5)));
-  const lines = String(text || "-")
-    .split("\n")
-    .reduce((acc, line) => acc + Math.ceil((line.length || 1) / chars), 0);
+  const lines = String(text || "-").split("\n").reduce((acc, line) => acc + Math.ceil((line.length || 1) / chars), 0);
   return Math.max(1, lines) * LINE_H;
 }
 
@@ -135,39 +107,17 @@ function generateLogbookPdfBuffer(data) {
     // Kop surat -- logo di pojok kiri atas (bukan di tengah), supaya tidak menabrak judul yang center
     try {
       doc.image(LOGO_PATH, 30, 25, { width: 55 });
-    } catch {
-      /* logo opsional, lanjut tanpa logo kalau file tidak ada */
-    }
-    doc
-      .font("Helvetica-Bold")
-      .fontSize(13)
-      .text("Institut Teknologi & Bisnis SABDA SETIA", 30, 30, {
-        align: "center",
-        width: TABLE_RIGHT,
-      });
+    } catch { /* logo opsional, lanjut tanpa logo kalau file tidak ada */ }
+    doc.font("Helvetica-Bold").fontSize(13).text("Institut Teknologi & Bisnis SABDA SETIA", 30, 30, { align: "center", width: TABLE_RIGHT });
     doc.font("Helvetica").fontSize(8);
-    [
-      "(Ijin Pendirian Mendikbudristek No. 460/E/O/2021)",
-      "Jalan Purnama 2, Parit Tokaya",
-      "Pontianak Selatan, Kalimantan Barat",
-      "website: https://itbss.ac.id/",
-      "email: humas@itbss.ac.id",
-      "HP: 0852 818 17855",
-    ].forEach((line) => {
+    ["(Ijin Pendirian Mendikbudristek No. 460/E/O/2021)", "Jalan Purnama 2, Parit Tokaya", "Pontianak Selatan, Kalimantan Barat", "website: https://itbss.ac.id/", "email: humas@itbss.ac.id", "HP: 0852 818 17855"].forEach((line) => {
       doc.text(line, 30, doc.y, { align: "center", width: TABLE_RIGHT });
     });
     doc.moveDown(0.3);
-    doc
-      .moveTo(30, doc.y)
-      .lineTo(30 + TABLE_RIGHT, doc.y)
-      .lineWidth(1.2)
-      .stroke();
+    doc.moveTo(30, doc.y).lineTo(30 + TABLE_RIGHT, doc.y).lineWidth(1.2).stroke();
     doc.moveDown(0.6);
 
-    doc
-      .font("Helvetica-Bold")
-      .fontSize(12)
-      .text("LOG-BOOK CAPSTONE PROJECT", { align: "center", underline: true });
+    doc.font("Helvetica-Bold").fontSize(12).text("LOG-BOOK CAPSTONE PROJECT", { align: "center", underline: true });
     doc.text("STUDI INDEPENDEN", { align: "center", underline: true });
     doc.moveDown(0.6);
 
@@ -189,45 +139,17 @@ function generateLogbookPdfBuffer(data) {
       const y = doc.y;
       doc.rect(30, y, TABLE_RIGHT, 20).fillAndStroke("#ffffff", "#000000");
       doc.fillColor("#000000").font("Helvetica-Bold").fontSize(FONT_SIZE);
-      doc.text("Hari/\nTanggal", COL.tgl, y + 3, {
-        width: WID.tgl,
-        align: "center",
-      });
-      doc.text("Durasi\nBelajar", COL.durasi, y + 3, {
-        width: WID.durasi,
-        align: "center",
-      });
-      doc.text("Topik yang\nDipelajari", COL.topik, y + 3, {
-        width: WID.topik,
-        align: "center",
-      });
-      doc.text("Tugas/ Proyek yang\ndikerjakan", COL.tugas, y + 3, {
-        width: WID.tugas,
-        align: "center",
-      });
-      doc.text("Hasil dan Kendala\n(jika ada)", COL.hasil, y + 3, {
-        width: WID.hasil,
-        align: "center",
-      });
-      doc.text("Paraf\nDosen", COL.paraf, y + 3, {
-        width: WID.paraf,
-        align: "center",
-      });
+      doc.text("Hari/\nTanggal", COL.tgl, y + 3, { width: WID.tgl, align: "center" });
+      doc.text("Durasi\nBelajar", COL.durasi, y + 3, { width: WID.durasi, align: "center" });
+      doc.text("Topik yang\nDipelajari", COL.topik, y + 3, { width: WID.topik, align: "center" });
+      doc.text("Tugas/ Proyek yang\ndikerjakan", COL.tugas, y + 3, { width: WID.tugas, align: "center" });
+      doc.text("Hasil dan Kendala\n(jika ada)", COL.hasil, y + 3, { width: WID.hasil, align: "center" });
+      doc.text("Paraf\nDosen", COL.paraf, y + 3, { width: WID.paraf, align: "center" });
       doc.font("Helvetica").fontSize(FONT_SIZE);
       doc.y = y + 20;
       // garis vertikal antar kolom
-      Object.values(COL).forEach((x) =>
-        doc
-          .moveTo(x, y)
-          .lineTo(x, y + 20)
-          .lineWidth(0.5)
-          .stroke(),
-      );
-      doc
-        .moveTo(30 + TABLE_RIGHT, y)
-        .lineTo(30 + TABLE_RIGHT, y + 20)
-        .lineWidth(0.5)
-        .stroke();
+      Object.values(COL).forEach((x) => doc.moveTo(x, y).lineTo(x, y + 20).lineWidth(0.5).stroke());
+      doc.moveTo(30 + TABLE_RIGHT, y).lineTo(30 + TABLE_RIGHT, y + 20).lineWidth(0.5).stroke();
     };
 
     drawHeader();
@@ -235,18 +157,15 @@ function generateLogbookPdfBuffer(data) {
     const entries = data.entries?.length ? data.entries : [{}];
     entries.forEach((entry) => {
       const isEmpty = !data.entries?.length;
-      const hasilKendalaText = isEmpty
-        ? ""
-        : formatHasilKendala(entry.hasil, entry.kendala);
+      const hasilKendalaText = isEmpty ? "" : formatHasilKendala(entry.hasil, entry.kendala);
       const rowH = isEmpty
         ? 18
         : Math.max(
             LINE_H,
             textHeight(entry.topik, WID.topik),
             textHeight(entry.tugas, WID.tugas),
-            textHeight(hasilKendalaText, WID.hasil),
-          ) +
-          ROW_PAD * 2;
+            textHeight(hasilKendalaText, WID.hasil)
+          ) + ROW_PAD * 2;
 
       if (doc.y + rowH > 780) {
         doc.addPage();
@@ -256,84 +175,38 @@ function generateLogbookPdfBuffer(data) {
 
       const y = doc.y;
       doc.rect(30, y, TABLE_RIGHT, rowH).stroke();
-      Object.values(COL).forEach((x) =>
-        doc
-          .moveTo(x, y)
-          .lineTo(x, y + rowH)
-          .lineWidth(0.5)
-          .stroke(),
-      );
-      doc
-        .moveTo(30 + TABLE_RIGHT, y)
-        .lineTo(30 + TABLE_RIGHT, y + rowH)
-        .lineWidth(0.5)
-        .stroke();
+      Object.values(COL).forEach((x) => doc.moveTo(x, y).lineTo(x, y + rowH).lineWidth(0.5).stroke());
+      doc.moveTo(30 + TABLE_RIGHT, y).lineTo(30 + TABLE_RIGHT, y + rowH).lineWidth(0.5).stroke();
 
       doc.fillColor("#000000").font("Helvetica").fontSize(FONT_SIZE);
       if (!isEmpty) {
-        doc.text(formatTanggalIndo(entry.tanggal), COL.tgl, y + ROW_PAD, {
-          width: WID.tgl,
-          align: "center",
-        });
-        doc.text(
-          `${formatJam(entry.jam_mulai)} – ${formatJam(entry.jam_selesai)}`,
-          COL.durasi,
-          y + ROW_PAD,
-          { width: WID.durasi, align: "center" },
-        );
-        doc.text(entry.topik || "-", COL.topik + CELL_PAD_X, y + ROW_PAD, {
-          width: WID.topik - CELL_PAD_X * 2,
-        });
-        doc.text(entry.tugas || "-", COL.tugas + CELL_PAD_X, y + ROW_PAD, {
-          width: WID.tugas - CELL_PAD_X * 2,
-        });
-        doc.text(hasilKendalaText, COL.hasil + CELL_PAD_X, y + ROW_PAD, {
-          width: WID.hasil - CELL_PAD_X * 2,
-        });
+        doc.text(formatTanggalIndo(entry.tanggal), COL.tgl, y + ROW_PAD, { width: WID.tgl, align: "center" });
+        doc.text(`${formatJam(entry.jam_mulai)} – ${formatJam(entry.jam_selesai)}`, COL.durasi, y + ROW_PAD, { width: WID.durasi, align: "center" });
+        doc.text(entry.topik || "-", COL.topik + CELL_PAD_X, y + ROW_PAD, { width: WID.topik - CELL_PAD_X * 2 });
+        doc.text(entry.tugas || "-", COL.tugas + CELL_PAD_X, y + ROW_PAD, { width: WID.tugas - CELL_PAD_X * 2 });
+        doc.text(hasilKendalaText, COL.hasil + CELL_PAD_X, y + ROW_PAD, { width: WID.hasil - CELL_PAD_X * 2 });
       } else {
-        doc.text("…", COL.tgl, y + ROW_PAD, {
-          width: WID.tgl,
-          align: "center",
-        });
+        doc.text("…", COL.tgl, y + ROW_PAD, { width: WID.tgl, align: "center" });
       }
       doc.y = y + rowH;
     });
 
     doc.moveDown(1.2);
-    if (doc.y > 740) {
-      doc.addPage();
-      doc.y = 30;
-    }
+    if (doc.y > 740) { doc.addPage(); doc.y = 30; }
 
     const today = formatTanggalIndo(new Date());
-    doc
-      .font("Helvetica")
-      .fontSize(9)
-      .text(`Pontianak, ${today}`, 30, doc.y, {
-        align: "right",
-        width: TABLE_RIGHT,
-      });
+    doc.font("Helvetica").fontSize(9).text(`Pontianak, ${today}`, 30, doc.y, { align: "right", width: TABLE_RIGHT });
     doc.moveDown(0.5);
 
     const sigY = doc.y;
     doc.text("Diverifikasi oleh,", 30, sigY, { width: TABLE_RIGHT / 2 });
-    doc.text("Disusun oleh,", 30 + TABLE_RIGHT / 2, sigY, {
-      width: TABLE_RIGHT / 2,
-    });
+    doc.text("Disusun oleh,", 30 + TABLE_RIGHT / 2, sigY, { width: TABLE_RIGHT / 2 });
 
     const sigNameY = sigY + 60;
-    doc.text(`(${data.dosen_nama || "-"})`, 30, sigNameY, {
-      width: TABLE_RIGHT / 2,
-    });
-    doc.text(`(${data.nama})`, 30 + TABLE_RIGHT / 2, sigNameY, {
-      width: TABLE_RIGHT / 2,
-    });
-    doc.text(`NIDN. ${data.dosen_nidn || "-"}`, 30, sigNameY + 14, {
-      width: TABLE_RIGHT / 2,
-    });
-    doc.text(`NIM. ${data.nim}`, 30 + TABLE_RIGHT / 2, sigNameY + 14, {
-      width: TABLE_RIGHT / 2,
-    });
+    doc.text(`(${data.dosen_nama || "-"})`, 30, sigNameY, { width: TABLE_RIGHT / 2 });
+    doc.text(`(${data.nama})`, 30 + TABLE_RIGHT / 2, sigNameY, { width: TABLE_RIGHT / 2 });
+    doc.text(`NIDN. ${data.dosen_nidn || "-"}`, 30, sigNameY + 14, { width: TABLE_RIGHT / 2 });
+    doc.text(`NIM. ${data.nim}`, 30 + TABLE_RIGHT / 2, sigNameY + 14, { width: TABLE_RIGHT / 2 });
 
     doc.end();
   });
