@@ -18,6 +18,19 @@ const _getPeriodeAktifId = async () => {
   return rows[0]?.id || null;
 };
 
+// Cari value kolom secara case-insensitive & trim-whitespace-safe, biar nggak
+// kena masalah header Excel yang ada spasi tersembunyi (mis. "NIDN " dengan
+// trailing space) atau beda kapitalisasi.
+const getCol = (row, ...names) => {
+  const normalizedNames = names.map((n) => n.trim().toLowerCase());
+  for (const key of Object.keys(row)) {
+    if (normalizedNames.includes(key.trim().toLowerCase())) {
+      return String(row[key] ?? "").trim();
+    }
+  }
+  return "";
+};
+
 const importMahasiswa = async (req, res) => {
   try {
     if (!req.file) {
@@ -276,7 +289,9 @@ const tambahMahasiswa = async (req, res) => {
   }
 };
 
-// IMPORT / TAMBAH DOSEN 
+// IMPORT / TAMBAH DOSEN
+// id_dosen = ID login dosen (basis hash password). nidn = NIDN resmi, terpisah,
+// cuma ditampilkan di dokumen (logbook dll), tidak dipakai untuk login.
 const importDosen = async (req, res) => {
   try {
     if (!req.file)
@@ -309,23 +324,17 @@ const importDosen = async (req, res) => {
 
     for (const row of data) {
       try {
-        // ID Dosen -- khusus buat login/username, BUKAN NIDN resmi
-        const idDosen = String(
-          row["ID Dosen"] ||
-            row["Id Dosen"] ||
-            row["id_dosen"] ||
-            "",
-        ).trim();
-        // NIDN resmi -- ini yang ditampilkan di dokumen (logbook dll), terpisah dari ID Dosen
-        const nidn = String(row["NIDN"] || row["nidn"] || "").trim();
+        // ID Dosen -- khusus buat login/username & basis password, BUKAN NIDN resmi.
+        // Pakai getCol() supaya tahan terhadap header Excel yang ada spasi
+        // tersembunyi atau beda kapitalisasi (mis. "ID Dosen ", "id dosen").
+        const idDosen = getCol(row, "ID Dosen", "Id Dosen", "id_dosen");
+        // NIDN resmi -- ditampilkan di dokumen (logbook dll), terpisah dari ID Dosen
+        const nidn = getCol(row, "NIDN", "nidn");
 
-        const nama = String(
-          row["Nama"] || row["nama"] || row["NAMA"] || "",
-        ).trim();
-        const email = String(row["Email"] || row["email"] || "").trim();
+        const nama = getCol(row, "Nama", "nama", "NAMA");
+        const email = getCol(row, "Email", "email");
         const program_studi =
-          String(row["Program Studi"] || row["program_studi"] || "").trim() ||
-          null;
+          getCol(row, "Program Studi", "program_studi") || null;
 
         if (!idDosen || !nama) {
           gagal++;
@@ -419,7 +428,9 @@ const tambahDosen = async (req, res) => {
     if (!targetPeriodeId) {
       return res
         .status(400)
-        .json({ message: "Tidak ada periode aktif dan periode_id tidak diberikan." });
+        .json({
+          message: "Tidak ada periode aktif dan periode_id tidak diberikan.",
+        });
     }
 
     const [existingIdDosen] = await db.query(
@@ -428,8 +439,12 @@ const tambahDosen = async (req, res) => {
     );
 
     if (existingIdDosen.length > 0) {
-      if (String(existingIdDosen[0].current_periode_id) === String(targetPeriodeId)) {
-        return res.status(400).json({ message: "ID ini sudah terdaftar di periode ini." });
+      if (
+        String(existingIdDosen[0].current_periode_id) === String(targetPeriodeId)
+      ) {
+        return res
+          .status(400)
+          .json({ message: "ID ini sudah terdaftar di periode ini." });
       }
 
       const [usernameBentrok] = await db.query(
@@ -437,15 +452,27 @@ const tambahDosen = async (req, res) => {
         [email, existingIdDosen[0].id],
       );
       if (usernameBentrok.length > 0) {
-        return res.status(400).json({ message: "Email ini sudah terdaftar untuk akun lain." });
+        return res
+          .status(400)
+          .json({ message: "Email ini sudah terdaftar untuk akun lain." });
       }
 
       await db.query(
         "UPDATE users SET username=?, nama=?, email=?, nidn=?, program_studi=?, current_periode_id=? WHERE id_users=?",
-        [email, nama, email, nidn || null, program_studi, targetPeriodeId, existingIdDosen[0].id],
+        [
+          email,
+          nama,
+          email,
+          nidn || null,
+          program_studi,
+          targetPeriodeId,
+          existingIdDosen[0].id,
+        ],
       );
 
-      return res.json({ message: "Dosen lama berhasil didaftarkan ulang ke periode ini." });
+      return res.json({
+        message: "Dosen lama berhasil didaftarkan ulang ke periode ini.",
+      });
     }
 
     const [existingEmail] = await db.query(
@@ -456,7 +483,7 @@ const tambahDosen = async (req, res) => {
       return res.status(400).json({ message: "Email ini sudah terdaftar." });
     }
 
-    // Password dosen = hash dari ID Dosen (login ID), bukan dari NIDN
+    // Password dosen = hash dari ID Dosen (dipakai login), bukan dari NIDN
     const hashedPassword = await bcrypt.hash(id_dosen, 10);
     const userId = uuidv4();
 
@@ -506,14 +533,18 @@ const updateDosen = async (req, res) => {
       [id_dosen, id],
     );
     if (idDosenBentrok.length > 0) {
-      return res.status(400).json({ message: "ID ini sudah terdaftar untuk akun lain." });
+      return res
+        .status(400)
+        .json({ message: "ID ini sudah terdaftar untuk akun lain." });
     }
     const [emailBentrok] = await db.query(
       "SELECT id_users FROM users WHERE username = ? AND id_users != ?",
       [email, id],
     );
     if (emailBentrok.length > 0) {
-      return res.status(400).json({ message: "Email ini sudah terdaftar untuk akun lain." });
+      return res
+        .status(400)
+        .json({ message: "Email ini sudah terdaftar untuk akun lain." });
     }
 
     await db.query(
@@ -698,10 +729,11 @@ const getDaftarDosen = async (req, res) => {
     const targetPeriodeId = periode_id || (await _getPeriodeAktifId());
 
     const params = [];
-  let query = `
-  SELECT id_users AS id, id_dosen, nidn, nama, email, program_studi, current_periode_id, is_active
-  FROM users WHERE role = 'dosen'
-`;
+    let query = `
+      SELECT id_users AS id, id_dosen, nidn, nama, email, program_studi, current_periode_id, is_active
+      FROM users WHERE role = 'dosen'
+    `;
+
     if (targetPeriodeId) {
       query += ` AND current_periode_id = ?`;
       params.push(targetPeriodeId);
