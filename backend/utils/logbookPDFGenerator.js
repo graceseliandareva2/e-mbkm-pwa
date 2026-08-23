@@ -69,10 +69,12 @@ const WID = { tgl: 50, durasi: 55, topik: 110, tugas: 110, hasil: 110, paraf: 45
 const FONT_SIZE = 7.5;
 const LINE_H = 10;
 const ROW_PAD = 5;
+const CELL_PAD_X = 4; // jarak teks isi sel ke garis kolom kiri/kanan
 const TABLE_RIGHT = 535;
 
 function textHeight(text, width) {
-  const chars = Math.max(1, Math.floor(width / (FONT_SIZE * 0.5)));
+  const usableWidth = Math.max(1, width - CELL_PAD_X * 2);
+  const chars = Math.max(1, Math.floor(usableWidth / (FONT_SIZE * 0.5)));
   const lines = String(text || "-").split("\n").reduce((acc, line) => acc + Math.ceil((line.length || 1) / chars), 0);
   return Math.max(1, lines) * LINE_H;
 }
@@ -168,9 +170,9 @@ function generateLogbookPdfBuffer(data) {
       if (!isEmpty) {
         doc.text(formatTanggalIndo(entry.tanggal), COL.tgl, y + ROW_PAD, { width: WID.tgl, align: "center" });
         doc.text(`${formatJam(entry.jam_mulai)} – ${formatJam(entry.jam_selesai)}`, COL.durasi, y + ROW_PAD, { width: WID.durasi, align: "center" });
-        doc.text(entry.topik || "-", COL.topik, y + ROW_PAD, { width: WID.topik });
-        doc.text(entry.tugas || "-", COL.tugas, y + ROW_PAD, { width: WID.tugas });
-        doc.text(hasilKendalaText, COL.hasil, y + ROW_PAD, { width: WID.hasil });
+        doc.text(entry.topik || "-", COL.topik + CELL_PAD_X, y + ROW_PAD, { width: WID.topik - CELL_PAD_X * 2 });
+        doc.text(entry.tugas || "-", COL.tugas + CELL_PAD_X, y + ROW_PAD, { width: WID.tugas - CELL_PAD_X * 2 });
+        doc.text(hasilKendalaText, COL.hasil + CELL_PAD_X, y + ROW_PAD, { width: WID.hasil - CELL_PAD_X * 2 });
       } else {
         doc.text("…", COL.tgl, y + ROW_PAD, { width: WID.tgl, align: "center" });
       }
