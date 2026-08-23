@@ -21,6 +21,7 @@ const {
   getPenilaian,
   getNotifikasi,
   getPeriodeAktif,
+  exportLogbookPdf,
 } = require("../controllers/mahasiswaController");
 
 const auth = [verifyToken, authorizeRoles("mahasiswa")];
@@ -76,5 +77,7 @@ router.put(
 router.get("/feedback", auth, getFeedback);
 router.get("/penilaian", auth, getPenilaian);
 router.get("/notifikasi", auth, getNotifikasi);
+
+router.get("/logbook/export-pdf", auth, exportLogbookPdf);
 
 module.exports = router;

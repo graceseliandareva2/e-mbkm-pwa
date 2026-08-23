@@ -2,6 +2,7 @@ const { v4: uuidv4 } = require("uuid");
 const db = require("../config/db");
 const cloudinaryService = require("../utils/cloudinaryService");
 const { generateLogbookDocx } = require("../utils/logbookDocxGenerator");
+const { getLogbookExportData, generateLogbookPdfBuffer } = require("../utils/logbookPDFGenerator");
 
 async function getMahasiswaProfile(userId) {
   const [rows] = await db.query(
@@ -42,7 +43,7 @@ async function getDosenPembimbingCapstone(pengajuanId) {
 
 async function regenerateLogbookDocx(pengajuan, mahasiswa) {
   const [entries] = await db.query(
-    `SELECT tanggal, jam_mulai, jam_selesai, kegiatan, deskripsi, status
+    `SELECT tanggal, jam_mulai, jam_selesai, topik, tugas, hasil, kendala, status, link_dokumentasi_drive
      FROM logbook
      WHERE pengajuan_id = ?
      ORDER BY tanggal ASC, jam_mulai ASC`,
@@ -51,12 +52,23 @@ async function regenerateLogbookDocx(pengajuan, mahasiswa) {
 
   const dosenPembimbing = await getDosenPembimbingCapstone(pengajuan.pengajuan_id);
 
+  // Header docx cuma punya satu baris "Link Dokumentasi (Drive)", sementara tiap
+  // entri logbook bisa punya link masing-masing. Ambil link non-kosong yang
+  // paling terakhir diisi mahasiswa (entri paling baru) sebagai representasi.
+  let linkDokumentasiUtama = null;
+  for (const entry of entries) {
+    if (entry.link_dokumentasi_drive && entry.link_dokumentasi_drive.trim()) {
+      linkDokumentasiUtama = entry.link_dokumentasi_drive.trim();
+    }
+  }
+
   const buffer = await generateLogbookDocx({
     mahasiswa: { nim: mahasiswa.nim, nama: mahasiswa.nama },
     detailPengajuan: {
       penyelenggara: pengajuan.penyelenggara,
       waktu_studi_independen: pengajuan.waktu_studi_independen,
       judul: pengajuan.judul,
+      link_dokumentasi_drive: linkDokumentasiUtama,
     },
     dosenPembimbing,
     logbookEntries: entries,
@@ -401,17 +413,18 @@ const getLogbook = async (req, res) => {
       params.push(pengajuan_id);
     }
 
-    const [rows] = await db.query(
-      `SELECT l.id_logbook AS id, l.tanggal, l.jam_mulai, l.jam_selesai, l.kegiatan, l.deskripsi,
-              l.status, l.feedback_dosen, l.durasi_menit, l.bukti_link, l.cloudinary_public_id,
-              p.periode_id, per.nama_periode
-       FROM logbook l
-       JOIN pengajuan p ON p.id_pengajuan = l.pengajuan_id
-       JOIN periode per ON per.id_periode = p.periode_id
-       WHERE p.mahasiswa_id = ? ${filterClause}
-       ORDER BY l.tanggal DESC, l.jam_mulai DESC`,
-      params
-    );
+   const [rows] = await db.query(
+  `SELECT l.id_logbook AS id, l.tanggal, l.jam_mulai, l.jam_selesai,
+          l.topik, l.tugas, l.hasil, l.kendala, l.link_dokumentasi_drive,
+          l.status, l.feedback_dosen, l.durasi_menit, l.bukti_link, l.cloudinary_public_id,
+          p.periode_id, per.nama_periode
+   FROM logbook l
+   JOIN pengajuan p ON p.id_pengajuan = l.pengajuan_id
+   JOIN periode per ON per.id_periode = p.periode_id
+   WHERE p.mahasiswa_id = ? ${filterClause}
+   ORDER BY l.tanggal DESC, l.jam_mulai DESC`,
+  params
+);
     res.json({ data: rows });
   } catch (error) {
     console.error(error);
@@ -422,10 +435,13 @@ const getLogbook = async (req, res) => {
 const tambahLogbook = async (req, res) => {
   try {
     const mahasiswa = await getMahasiswaProfile(req.user.id);
-    const { tanggal, jam_mulai, jam_selesai, kegiatan, deskripsi, client_ref_id } = req.body;
+    const { tanggal, jam_mulai, jam_selesai, topik, tugas, hasil, kendala, link_dokumentasi_drive, client_ref_id } = req.body;
 
-    if (!tanggal || !jam_mulai || !jam_selesai || !kegiatan || !deskripsi) {
-      return res.status(400).json({ message: "Tanggal, jam mulai/selesai, kegiatan, dan deskripsi wajib diisi." });
+    if (!tanggal || !jam_mulai || !jam_selesai || !topik || !tugas || !hasil) {
+      return res.status(400).json({ message: "Tanggal, jam mulai/selesai, topik, tugas/proyek, dan hasil wajib diisi." });
+    }
+    if (!link_dokumentasi_drive || !link_dokumentasi_drive.trim()) {
+      return res.status(400).json({ message: "Link Dokumentasi (Drive) wajib diisi." });
     }
     if (!req.file && !req.body.bukti_link) {
       return res.status(400).json({ message: "Bukti kegiatan wajib diisi" });
@@ -436,7 +452,6 @@ const tambahLogbook = async (req, res) => {
       return res.status(403).json({ message: "Logbook hanya bisa diisi setelah pengajuan disetujui kaprodi dan dosen pembimbing sudah ditentukan." });
     }
 
-    
     if (client_ref_id) {
       const [dup] = await db.query(
         `SELECT l.id_logbook AS id, l.status
@@ -482,12 +497,11 @@ const tambahLogbook = async (req, res) => {
     const newId = uuidv4();
     try {
       await db.query(
-        `INSERT INTO logbook (id_logbook, pengajuan_id, client_ref_id, tanggal, jam_mulai, jam_selesai, kegiatan, deskripsi, cloudinary_public_id, bukti_link, status)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'disubmit')`,
-        [newId, pengajuan.pengajuan_id, client_ref_id || null, tanggal, jam_mulai, jam_selesai, kegiatan, deskripsi, cloudinaryPublicId, buktiLink]
+        `INSERT INTO logbook (id_logbook, pengajuan_id, client_ref_id, tanggal, jam_mulai, jam_selesai, topik, tugas, hasil, kendala, link_dokumentasi_drive, cloudinary_public_id, bukti_link, status)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'disubmit')`,
+        [newId, pengajuan.pengajuan_id, client_ref_id || null, tanggal, jam_mulai, jam_selesai, topik, tugas, hasil, kendala || null, link_dokumentasi_drive || null, cloudinaryPublicId, buktiLink]
       );
     } catch (insertErr) {
-      // Race: dua request dengan client_ref_id sama nyaris bersamaan, unique key yang nahan.
       if (insertErr.code === "ER_DUP_ENTRY" && client_ref_id) {
         return res.status(200).json({
           message: "Logbook sudah tersimpan sebelumnya.",
@@ -529,12 +543,15 @@ const updateLogbook = async (req, res) => {
       return res.status(400).json({ message: "Logbook yang sudah diverifikasi tidak bisa diedit." });
     }
 
-    const { tanggal, jam_mulai, jam_selesai, kegiatan, deskripsi } = req.body;
-    const tanggalFormatted = tanggal ? tanggal.split("T")[0] : null;
+   const { tanggal, jam_mulai, jam_selesai, topik, tugas, hasil, kendala, link_dokumentasi_drive } = req.body;
+const tanggalFormatted = tanggal ? tanggal.split("T")[0] : null;
 
-    if (!tanggalFormatted || !jam_mulai || !jam_selesai || !kegiatan || !deskripsi) {
-      return res.status(400).json({ message: "Tanggal, jam mulai/selesai, kegiatan, dan deskripsi wajib diisi." });
-    }
+if (!tanggalFormatted || !jam_mulai || !jam_selesai || !topik || !tugas || !hasil) {
+  return res.status(400).json({ message: "Tanggal, jam mulai/selesai, topik, tugas/proyek, dan hasil wajib diisi." });
+}
+if (!link_dokumentasi_drive || !link_dokumentasi_drive.trim()) {
+  return res.status(400).json({ message: "Link Dokumentasi (Drive) wajib diisi." });
+}
 
     const pengajuan = await getPengajuanDisetujui(mahasiswa.id);
     const [periodeCheck] = await db.query(
@@ -572,10 +589,10 @@ const updateLogbook = async (req, res) => {
       return res.status(400).json({ message: "Bukti kegiatan wajib diisi" });
     }
 
-    await db.query(
-      `UPDATE logbook SET tanggal=?, jam_mulai=?, jam_selesai=?, kegiatan=?, deskripsi=?, cloudinary_public_id=?, bukti_link=?, status='disubmit' WHERE id_logbook=?`,
-      [tanggalFormatted, jam_mulai, jam_selesai, kegiatan, deskripsi, cloudinaryPublicId, buktiLink, id]
-    );
+ await db.query(
+  `UPDATE logbook SET tanggal=?, jam_mulai=?, jam_selesai=?, topik=?, tugas=?, hasil=?, kendala=?, link_dokumentasi_drive=?, cloudinary_public_id=?, bukti_link=?, status='disubmit' WHERE id_logbook=?`,
+  [tanggalFormatted, jam_mulai, jam_selesai, topik, tugas, hasil, kendala || null, link_dokumentasi_drive || null, cloudinaryPublicId, buktiLink, id]
+);
     if (publicIdLama && publicIdLama !== cloudinaryPublicId) {
       await cloudinaryService.deleteFile(publicIdLama);
     }
@@ -911,11 +928,34 @@ const getPeriodeAktif = async (req, res) => {
   }
 };
 
+const exportLogbookPdf = async (req, res) => {
+  try {
+    const mahasiswa = await getMahasiswaProfile(req.user.id);
+    if (!mahasiswa) return res.status(404).json({ message: "Data mahasiswa tidak ditemukan." });
+
+    const pengajuan = await getPengajuanDisetujui(mahasiswa.id);
+    if (!pengajuan) return res.status(404).json({ message: "Belum ada pengajuan yang disetujui." });
+
+    const data = await getLogbookExportData(pengajuan.pengajuan_id);
+    if (!data) return res.status(404).json({ message: "Data logbook tidak ditemukan." });
+
+    const pdfBuffer = await generateLogbookPdfBuffer(data);
+
+    res.setHeader("Content-Type", "application/pdf");
+    res.setHeader("Content-Disposition", `attachment; filename="Logbook ${mahasiswa.nama}.pdf"`);
+    res.send(pdfBuffer);
+  } catch (error) {
+    console.error("exportLogbookPdf error:", error);
+    res.status(500).json({ message: "Gagal membuat PDF logbook." });
+  }
+};
+
+
 module.exports = {
   getPengajuan, tambahPengajuan, updatePengajuan, hapusPengajuan,
   getDosenPA,
   getPelatihanAktif,
   getLogbook, tambahLogbook, updateLogbook, hapusLogbook,
   getDokumen, uploadDokumen, hapusDokumen, resubmitDokumen,
-  getFeedback, getPenilaian, getNotifikasi, getPeriodeAktif,
+  getFeedback, getPenilaian, getNotifikasi, getPeriodeAktif, exportLogbookPdf,
 };

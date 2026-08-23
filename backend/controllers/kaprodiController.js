@@ -1,6 +1,8 @@
 const { v4: uuidv4 } = require("uuid");
 const db = require("../config/db");
 const { sendPushToUser } = require("../utils/pushSender");
+const { getLogbookExportData, generateLogbookPdfBuffer } = require("../utils/logbookPDFGenerator");
+const { buildExportFilename, buildContentDispositionHeader } = require("../utils/exportFilename");
 
 const enforceRentangCap = async (periodeId = null) => {
   const params = [];
@@ -828,6 +830,26 @@ const getDetailMonitoring = async (req, res) => {
   }
 };
 
+const exportLogbookPdf = async (req, res) => {
+  try {
+    const { pengajuan_id } = req.query;
+    if (!pengajuan_id) return res.status(400).json({ message: "pengajuan_id wajib diisi." });
+
+    const data = await getLogbookExportData(pengajuan_id);
+    if (!data) return res.status(404).json({ message: "Data logbook tidak ditemukan." });
+
+    const pdfBuffer = await generateLogbookPdfBuffer(data);
+
+    const filename = buildExportFilename({ nama: data.nama, nim: data.nim, isSingle: true, ext: "pdf" });
+    res.setHeader("Content-Type", "application/pdf");
+    res.setHeader("Content-Disposition", buildContentDispositionHeader(filename));
+    res.send(pdfBuffer);
+  } catch (error) {
+    console.error("exportLogbookPdf (kaprodi) error:", error);
+    res.status(500).json({ message: "Gagal membuat PDF logbook." });
+  }
+};
+
 module.exports = {
   getPeriode, tambahPeriode, updatePeriode, toggleForm,
   getDosenRosterMBKM, getDosenRosterPA,
@@ -836,4 +858,5 @@ module.exports = {
   verifikasiDokumen, getMonitoringDokumen, getDetailMonitoring, getDashboardStats, getPengajuanDisetujui,
   getRekapNilai,
   enforceRentangCap,
+  exportLogbookPdf,
 };

@@ -3,6 +3,7 @@ const db = require("../config/db");
 const PDFDocument = require("pdfkit");
 const { sendEmail } = require("../utils/mailer");
 const { sendPushToUser } = require("../utils/pushSender");
+const { getLogbookExportData, generateLogbookPdfBuffer } = require("../utils/logbookPDFGenerator");
 const {
   buildExportFilename,
   buildContentDispositionHeader,
@@ -428,6 +429,31 @@ const getLogbookMahasiswa = async (req, res) => {
   }
 };
 
+const exportLogbookPdf = async (req, res) => {
+  try {
+    const dsn = await getDosenProfile(req.user.id);
+    if (!dsn) return res.status(404).json({ message: "Data dosen tidak ditemukan." });
+
+    const { pengajuan_id } = req.query;
+    if (!pengajuan_id) return res.status(400).json({ message: "pengajuan_id wajib diisi." });
+
+    const authorized = await isDosenPembimbingPengajuan(dsn.id, pengajuan_id);
+    if (!authorized) return res.status(403).json({ message: "Kamu bukan dosen pembimbing untuk pengajuan ini." });
+
+    const data = await getLogbookExportData(pengajuan_id);
+    if (!data) return res.status(404).json({ message: "Data logbook tidak ditemukan." });
+
+    const pdfBuffer = await generateLogbookPdfBuffer(data);
+
+    const filename = buildExportFilename({ nama: data.nama, nim: data.nim, isSingle: true, ext: "pdf" });
+    res.setHeader("Content-Type", "application/pdf");
+    res.setHeader("Content-Disposition", buildContentDispositionHeader(filename));
+    res.send(pdfBuffer);
+  } catch (error) {
+    console.error("exportLogbookPdf (dosen) error:", error);
+    res.status(500).json({ message: "Gagal membuat PDF logbook." });
+  }
+};
 const verifikasiLogbook = async (req, res) => {
   try {
     const dsn = await getDosenProfile(req.user.id);
@@ -700,4 +726,5 @@ module.exports = {
   eksporPenilaianPDF,
   eksporSemuaPenilaianPDF,
   getMahasiswaSiapDinilai,
+  exportLogbookPdf,
 };

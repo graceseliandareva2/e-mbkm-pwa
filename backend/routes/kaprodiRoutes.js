@@ -11,6 +11,7 @@ const {
   getDashboardStats,
   getPengajuanDisetujui,
   getRekapNilai,
+  exportLogbookPdf,
 } = require('../controllers/kaprodiController');
 
 const {
@@ -40,6 +41,7 @@ router.get('/dosen', auth, getDaftarDosen);
 
 router.get('/monitoring', auth, getMonitoringDokumen);
 router.get('/monitoring/:pengajuan_id', auth, getDetailMonitoring);
+router.get('/logbook/export-pdf', auth, exportLogbookPdf);
 router.post('/assign-dosen', auth, assignDosen);
 router.patch('/pengajuan/:id/verifikasi', auth, verifikasiPengajuan);
 router.patch('/dokumen/:id/verifikasi', auth, verifikasiDokumen);

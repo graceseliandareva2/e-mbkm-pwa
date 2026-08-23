@@ -121,16 +121,16 @@ function buildLogbookTable(entries) {
   });
 
   const bodyRows = entries.map((entry) => {
-    return new TableRow({
-      children: [
-        tableBodyCell(formatTanggalIndo(entry.tanggal), { center: true }),
-        tableBodyCell(`${formatJam(entry.jam_mulai)} – ${formatJam(entry.jam_selesai)}`, { center: true }),
-        tableBodyCell(entry.kegiatan),
-        tableBodyCell(entry.deskripsi),
-        tableBodyCell(formatHasilKendala(entry.hasil, entry.kendala)),
-      ],
-    });
+  return new TableRow({
+    children: [
+      tableBodyCell(formatTanggalIndo(entry.tanggal), { center: true }),
+      tableBodyCell(`${formatJam(entry.jam_mulai)} – ${formatJam(entry.jam_selesai)}`, { center: true }),
+      tableBodyCell(entry.topik),
+      tableBodyCell(entry.tugas),
+      tableBodyCell(formatHasilKendala(entry.hasil, entry.kendala)),
+    ],
   });
+});
 
   return new Table({
     width: { size: 100, type: WidthType.PERCENTAGE },

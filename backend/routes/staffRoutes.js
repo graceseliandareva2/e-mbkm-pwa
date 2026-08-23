@@ -4,7 +4,6 @@ const { verifyToken, authorizeRoles } = require('../middleware/authMiddleware');
 const multer = require('multer');
 const path = require('path');
 const {
-
   importMahasiswa, tambahMahasiswa,
   importDosen, tambahDosen, updateDosen,
   updateMahasiswa, hapusMahasiswa, resetPasswordMahasiswa,
@@ -23,6 +22,7 @@ const {
   getLogbookMahasiswa,
   getDokumenMahasiswa,
   getNilaiMahasiswa,
+  exportLogbookPdf,
 } = require('../controllers/staffController');
 
 
@@ -67,6 +67,7 @@ router.get('/rekap-nilai', auth, getRekapNilai);
 // Menu Logbook & Dokumen (view-only)
 router.get('/mahasiswa-mbkm',       auth, getDaftarMahasiswaMBKM);
 router.get('/logbook',              auth, getLogbookMahasiswa);
+router.get('/logbook/export-pdf',   auth, exportLogbookPdf);
 router.get('/dokumen',              auth, getDokumenMahasiswa);
 
 // Nilai Mahasiswa (view-only)
