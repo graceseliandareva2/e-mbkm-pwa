@@ -35,7 +35,7 @@ async function getLogbookExportData(pengajuanId) {
   const [pengajuanRows] = await db.query(
     `SELECT p.id_pengajuan AS pengajuan_id,
             u.nim, u.nama,
-            dp.penyelenggara, dp.tanggal_mulai, dp.tanggal_selesai, dp.judul,
+            dp.penyelenggara, dp.durasi_pelatihan_jam, dp.judul,
             d.nama AS dosen_nama, d.id_dosen AS dosen_nidn
      FROM pengajuan p
      JOIN users u ON u.id_users = p.mahasiswa_id
@@ -61,10 +61,10 @@ async function getLogbookExportData(pengajuanId) {
     .find((e) => e.link_dokumentasi_drive && e.link_dokumentasi_drive.trim())
     ?.link_dokumentasi_drive || null;
 
-  // Kolom detail_pengajuan.waktu_studi_independen sudah tidak diisi form (diganti
-  // tanggal_mulai/tanggal_selesai) -- tampilkan sebagai rentang tanggal di PDF.
-  const waktuStudiIndependen = pengajuanRows[0].tanggal_mulai && pengajuanRows[0].tanggal_selesai
-    ? `${formatTanggalIndo(pengajuanRows[0].tanggal_mulai)} - ${formatTanggalIndo(pengajuanRows[0].tanggal_selesai)}`
+  // Kolom detail_pengajuan.waktu_studi_independen sudah tidak diisi form -- yang ditampilkan
+  // di sini adalah durasi_pelatihan_jam (mis. "30 jam"), sesuai field yang benar-benar diisi mahasiswa.
+  const waktuStudiIndependen = pengajuanRows[0].durasi_pelatihan_jam != null
+    ? `${pengajuanRows[0].durasi_pelatihan_jam} jam`
     : null;
 
   return {
