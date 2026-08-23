@@ -82,6 +82,7 @@ const LINE_H = 10;
 const ROW_PAD = 5;
 const CELL_PAD_X = 4; // jarak teks isi sel ke garis kolom kiri/kanan
 const TABLE_RIGHT = 535;
+const INFO_LINE_GAP = 6; // jarak antar baris info (NIM/Nama, Penyelenggara, dst), dalam pt
 
 function textHeight(text, width) {
   const usableWidth = Math.max(1, width - CELL_PAD_X * 2);
@@ -125,7 +126,7 @@ function generateLogbookPdfBuffer(data) {
       const y = doc.y;
       doc.text(label, 30, y, { width: 140, lineBreak: false });
       doc.text(`: ${value || "-"}`, 175, y, { width: 390 });
-      doc.moveDown(0.2);
+      doc.y = y + INFO_LINE_GAP;
     };
     infoField("NIM / Nama", `${data.nim} / ${data.nama}`);
     infoField("Penyelenggara", data.penyelenggara);
