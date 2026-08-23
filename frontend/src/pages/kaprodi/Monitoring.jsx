@@ -305,15 +305,15 @@ const LogbookBuktiCell = ({ log }) => {
         <div className="fixed inset-0 bg-black/60 z-[60] flex items-center justify-center p-4" onClick={() => setOpen(false)}>
           <div className="bg-white rounded-2xl w-full max-w-2xl shadow-2xl flex flex-col" style={{ height: '80vh' }} onClick={(e) => e.stopPropagation()}>
             <div className="flex items-center justify-between px-4 py-3 border-b flex-shrink-0">
-              <p className="font-bold text-gray-800 text-sm truncate">Bukti — {log.kegiatan}</p>
+            <p className="font-bold text-gray-800 text-sm truncate">Bukti — {log.topik}</p>  
               <button onClick={() => setOpen(false)} className="text-gray-400 hover:text-gray-600 text-xl font-bold">×</button>
             </div>
             <div className="flex-1 overflow-hidden rounded-b-2xl">
-              <BuktiPreview
-                path={isUploadedFile ? log.bukti_link : null}
-                link={!isUploadedFile ? log.bukti_link : null}
-                filename={log.kegiatan}
-              />
+             <BuktiPreview
+  path={isUploadedFile ? log.bukti_link : null}
+  link={!isUploadedFile ? log.bukti_link : null}
+  filename={log.topik}
+/>
             </div>
           </div>
         </div>
@@ -473,7 +473,7 @@ const DetailMahasiswaModal = ({ row, onClose }) => {
             <tr className="bg-gray-50">
               <th className="text-left px-3 py-2 text-xs font-semibold text-gray-500 uppercase whitespace-nowrap">Tanggal</th>
               <th className="text-left px-3 py-2 text-xs font-semibold text-gray-500 uppercase whitespace-nowrap">Jam</th>
-              <th className="text-left px-3 py-2 text-xs font-semibold text-gray-500 uppercase">Kegiatan</th>
+              <th className="text-left px-3 py-2 text-xs font-semibold text-gray-500 uppercase">Topik</th>
               <th className="text-left px-3 py-2 text-xs font-semibold text-gray-500 uppercase whitespace-nowrap">Durasi</th>
               <th className="text-center px-3 py-2 text-xs font-semibold text-gray-500 uppercase whitespace-nowrap">Bukti</th>
             </tr>
@@ -488,8 +488,8 @@ const DetailMahasiswaModal = ({ row, onClose }) => {
                   {l.jam_mulai?.slice(0, 5)}–{l.jam_selesai?.slice(0, 5)}
                 </td>
                 <td className="px-3 py-2 text-gray-800">
-                  <div className="flex items-center gap-1.5 flex-wrap">
-                    <span>{l.kegiatan}</span>
+  <div className="flex items-center gap-1.5 flex-wrap">
+    <span>{l.topik}</span>
                     {l.nama_pelatihan && (
                       <span className="text-xs bg-blue-50 text-blue-600 px-2 py-0.5 rounded-full font-medium">
                         {l.nama_pelatihan}

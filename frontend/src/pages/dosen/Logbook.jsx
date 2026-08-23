@@ -234,14 +234,15 @@ export default function DosenLogbook() {
     return (m.nama || '').toLowerCase().includes(q) || (m.nim || '').toLowerCase().includes(q)
   })
 
-  const filteredLogbooks = logbooks.filter(log => {
-    if (!searchQuery.trim()) return true
-    const q = searchQuery.toLowerCase()
-    return (
-      (log.kegiatan || '').toLowerCase().includes(q) ||
-      (log.deskripsi || '').toLowerCase().includes(q)
-    )
-  })
+const filteredLogbooks = logbooks.filter(log => {
+  if (!searchQuery.trim()) return true
+  const q = searchQuery.toLowerCase()
+  return (
+    (log.topik || '').toLowerCase().includes(q) ||
+    (log.tugas || '').toLowerCase().includes(q) ||
+    (log.hasil || '').toLowerCase().includes(q)
+  )
+})
 
 
   if (loading) return (
@@ -425,7 +426,7 @@ export default function DosenLogbook() {
                   </div>
                   <div className="min-w-0">
                     <div className="flex items-center gap-2 flex-wrap">
-                      <p className="font-semibold text-gray-800 text-sm">{log.kegiatan}</p>
+                      <p className="font-semibold text-gray-800 text-sm">{log.topik}</p>
                       <span className={`flex items-center gap-1 text-xs font-medium px-2 py-0.5 rounded-full border flex-shrink-0 ${statusCfg.color} ${statusCfg.bg} ${statusCfg.border}`}>
                         <StatusIcon className="w-3 h-3" />
                         {statusCfg.label}
@@ -451,12 +452,24 @@ export default function DosenLogbook() {
               {/* Detail */}
               {isExpanded && (
                 <div className="border-t border-gray-100 p-4 space-y-3 max-w-4xl mx-auto">
-                  {log.deskripsi && (
-                    <div>
-                      <p className="text-xs font-semibold text-gray-400 uppercase tracking-wide mb-1.5">Deskripsi</p>
-                      <p className="text-sm text-gray-700 text-justify">{log.deskripsi}</p>
-                    </div>
-                  )}
+           {log.tugas && (
+  <div>
+    <p className="text-xs font-semibold text-gray-400 uppercase tracking-wide mb-1.5">Tugas/Proyek</p>
+    <p className="text-sm text-gray-700 text-justify">{log.tugas}</p>
+  </div>
+)}
+{log.hasil && (
+  <div>
+    <p className="text-xs font-semibold text-gray-400 uppercase tracking-wide mb-1.5">Hasil</p>
+    <p className="text-sm text-gray-700 text-justify">{log.hasil}</p>
+  </div>
+)}
+{log.kendala && (
+  <div>
+    <p className="text-xs font-semibold text-gray-400 uppercase tracking-wide mb-1.5">Kendala</p>
+    <p className="text-sm text-gray-700 text-justify">{log.kendala}</p>
+  </div>
+)}
                   {log.bukti_link && (() => {
                    
                     const isFileUpload = !!log.cloudinary_public_id
@@ -468,7 +481,7 @@ export default function DosenLogbook() {
                         {isFileUpload ? (
                           <>
                             <div className="rounded-xl overflow-hidden border border-gray-200" style={{ height: '420px' }}>
-                              <FileBuktiPreview path={log.bukti_link} filename={log.kegiatan} />
+                              <FileBuktiPreview path={log.bukti_link} filename={log.topik} />
                             </div>
                             <p className="text-xs text-gray-400 mt-2 truncate">{log.bukti_link.split('/').pop()}</p>
                           </>

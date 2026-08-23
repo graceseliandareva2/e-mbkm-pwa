@@ -125,7 +125,7 @@ const LogbookSection = ({ logbook, onPreview }) => {
             <tr>
               <th className="text-left px-3 py-2 text-xs font-semibold text-gray-500 uppercase">Tanggal</th>
               <th className="text-left px-3 py-2 text-xs font-semibold text-gray-500 uppercase">Jam</th>
-              <th className="text-left px-3 py-2 text-xs font-semibold text-gray-500 uppercase">Kegiatan</th>
+             <th className="text-left px-3 py-2 text-xs font-semibold text-gray-500 uppercase">Topik</th> 
               <th className="text-center px-3 py-2 text-xs font-semibold text-gray-500 uppercase">Durasi</th>
               <th className="text-center px-3 py-2 text-xs font-semibold text-gray-500 uppercase">Status</th>
               <th className="text-center px-3 py-2 text-xs font-semibold text-gray-500 uppercase">Bukti</th>
@@ -145,19 +145,19 @@ const LogbookSection = ({ logbook, onPreview }) => {
                   <td className="px-3 py-2.5 text-gray-500 whitespace-nowrap">
                     {formatJam(l.jam_mulai)}–{formatJam(l.jam_selesai)}
                   </td>
-                  <td className="px-3 py-2.5 text-gray-700 max-w-xs">{l.kegiatan || '-'}</td>
+                  <td className="px-3 py-2.5 text-gray-700 max-w-xs">{l.topik || '-'}</td>
                   <td className="px-3 py-2.5 text-gray-500 text-center whitespace-nowrap">{formatDurasi(l.durasi_menit)}</td>
                   <td className="px-3 py-2.5 text-center"><LogbookStatusBadge status={l.status} /></td>
                   <td className="px-3 py-2.5 text-center">
                     {isFileUpload || isLinkOnly ? (
                       <button
                         onClick={() => onPreview({
-                          title: 'Bukti Kegiatan',
-                          subtitle: l.kegiatan,
-                          path: isFileUpload ? l.bukti_link : null,
-                          link: isFileUpload ? null : l.bukti_link,
-                          filename: l.kegiatan,
-                        })}
+  title: 'Bukti Kegiatan',
+  subtitle: l.topik,
+  path: isFileUpload ? l.bukti_link : null,
+  link: isFileUpload ? null : l.bukti_link,
+  filename: l.topik,
+})}
                         className="inline-flex items-center gap-1 text-blue-600 hover:text-blue-700 text-xs font-medium">
                         <Eye className="w-3.5 h-3.5" />
                       </button>
