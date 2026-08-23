@@ -44,16 +44,14 @@ const ProgressJam = ({ jam, minJam, jumlahEntri }) => {
   const done = min > 0 && jamNum >= min
 
   return (
-    <div className="flex items-center gap-2.5 min-w-[150px] justify-end">
-      <div className="flex flex-col items-end">
-        <span className={`text-sm font-semibold ${done ? 'text-green-600' : 'text-gray-700'}`}>
-          {formatJamTotal(jamNum)}
-          {min > 0 && <span className="text-gray-400 font-normal"> / {formatJamTotal(min)}</span>}
-        </span>
-        {typeof jumlahEntri === 'number' && (
-          <span className="text-[10px] text-gray-400">{jumlahEntri} entri</span>
-        )}
-      </div>
+    <div className="flex flex-col items-start sm:items-end flex-shrink-0">
+      <span className={`text-sm font-semibold whitespace-nowrap ${done ? 'text-green-600' : 'text-gray-700'}`}>
+        {formatJamTotal(jamNum)}
+        {min > 0 && <span className="text-gray-400 font-normal"> / {formatJamTotal(min)}</span>}
+      </span>
+      {typeof jumlahEntri === 'number' && (
+        <span className="text-[10px] text-gray-400 whitespace-nowrap">{jumlahEntri} entri</span>
+      )}
     </div>
   )
 }
@@ -279,24 +277,24 @@ const filteredLogbooks = logbooks.filter(log => {
             </div>
           ) : filteredMahasiswa.map(mhs => (
             <div key={mhs.id}
-              className="bg-white rounded-2xl shadow-sm border border-gray-100 p-4 flex items-center justify-between gap-4 hover:border-blue-200 transition">
-              <div className="flex items-center gap-3 min-w-0">
+              className="bg-white rounded-2xl shadow-sm border border-gray-100 p-4 flex flex-col sm:flex-row sm:items-center gap-3 sm:gap-4 hover:border-blue-200 transition">
+              <div className="flex items-center gap-3 min-w-0 flex-1">
                 <div className="w-10 h-10 rounded-xl bg-blue-100 text-blue-700 font-bold text-sm flex items-center justify-center flex-shrink-0">
                   {mhs.nama?.charAt(0)}
                 </div>
                 <div className="min-w-0">
                   <p className="font-semibold text-gray-800 text-sm truncate">{mhs.nama}</p>
-                  <p className="text-xs text-gray-400">{mhs.nim} · {mhs.nama_periode}</p>
+                  <p className="text-xs text-gray-400 truncate">{mhs.nim} · {mhs.nama_periode}</p>
                   {mhs.judul && (
                     <p className="text-xs text-gray-500 truncate mt-0.5">{mhs.judul}</p>
                   )}
                 </div>
               </div>
-              <div className="flex items-center gap-3 flex-shrink-0">
+              <div className="flex items-center justify-between sm:justify-end gap-3 flex-shrink-0 pl-[52px] sm:pl-0">
                 <ProgressJam jam={mhs.total_jam_terverifikasi} minJam={mhs.min_jam_pengajuan} jumlahEntri={mhs.jumlah_logbook} />
                 <button
                   onClick={() => handlePilihMhs(mhs)}
-                  className="px-4 py-2 bg-blue-600 text-white text-xs font-semibold rounded-xl hover:bg-blue-700 transition"
+                  className="px-4 py-2 bg-blue-600 text-white text-xs font-semibold rounded-xl hover:bg-blue-700 transition flex-shrink-0"
                 >
                   Lihat Logbook
                 </button>
