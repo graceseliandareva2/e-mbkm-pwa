@@ -36,39 +36,15 @@ const formatJamTotal = (jamDesimal) => {
   return formatDurasi(totalMenit)
 }
 
-// Progress jam terverifikasi terhadap minimal jam yang ditentukan Kaprodi (per periode)
-// Desain ring/donut -- sengaja beda dari card "Progres Logbook" di dashboard
-// mahasiswa (yang pakai angka besar + bar linear), supaya tetap ringkas di
-// baris list/tabel dosen & kaprodi.
-const RING_SIZE = 40
-const RING_STROKE = 4
-const RING_RADIUS = (RING_SIZE - RING_STROKE) / 2
-const RING_CIRC = 2 * Math.PI * RING_RADIUS
-
+// Progress jam terverifikasi terhadap minimal jam yang ditentukan Kaprodi (per periode).
+// Ring/donut persentase sudah dihapus -- tampil sebagai teks saja biar ringkas.
 const ProgressJam = ({ jam, minJam, jumlahEntri }) => {
   const jamNum = Number(jam) || 0
   const min = Number(minJam) || 0
-  const percent = min > 0 ? Math.min(100, Math.round((jamNum / min) * 100)) : 0
   const done = min > 0 && jamNum >= min
-  const offset = RING_CIRC - (percent / 100) * RING_CIRC
 
   return (
     <div className="flex items-center gap-2.5 min-w-[150px] justify-end">
-      {min > 0 && (
-        <div className="relative flex-shrink-0" style={{ width: RING_SIZE, height: RING_SIZE }}>
-          <svg width={RING_SIZE} height={RING_SIZE} className="-rotate-90">
-            <circle cx={RING_SIZE / 2} cy={RING_SIZE / 2} r={RING_RADIUS}
-              fill="none" stroke="#f3f4f6" strokeWidth={RING_STROKE} />
-            <circle cx={RING_SIZE / 2} cy={RING_SIZE / 2} r={RING_RADIUS}
-              fill="none" stroke={done ? '#22c55e' : '#3b82f6'} strokeWidth={RING_STROKE}
-              strokeDasharray={RING_CIRC} strokeDashoffset={offset} strokeLinecap="round"
-              className="transition-all duration-500" />
-          </svg>
-          <span className={`absolute inset-0 flex items-center justify-center text-[9px] font-bold ${done ? 'text-green-600' : 'text-blue-600'}`}>
-            {percent}%
-          </span>
-        </div>
-      )}
       <div className="flex flex-col items-end">
         <span className={`text-sm font-semibold ${done ? 'text-green-600' : 'text-gray-700'}`}>
           {formatJamTotal(jamNum)}

@@ -120,13 +120,18 @@ const LogbookSection = ({ logbook, onPreview }) => {
   return (
     <div className="border border-gray-100 rounded-xl overflow-hidden">
       <div className="overflow-x-auto max-h-80 overflow-y-auto">
-        <table className="w-full text-sm">
+        <table className="w-full text-sm min-w-[1200px]">
           <thead className="sticky top-0 bg-gray-50">
             <tr>
               <th className="text-left px-3 py-2 text-xs font-semibold text-gray-500 uppercase">Tanggal</th>
               <th className="text-left px-3 py-2 text-xs font-semibold text-gray-500 uppercase">Jam</th>
              <th className="text-left px-3 py-2 text-xs font-semibold text-gray-500 uppercase">Topik</th> 
+              <th className="text-left px-3 py-2 text-xs font-semibold text-gray-500 uppercase">Tugas/Proyek</th>
+              <th className="text-left px-3 py-2 text-xs font-semibold text-gray-500 uppercase">Hasil</th>
+              <th className="text-left px-3 py-2 text-xs font-semibold text-gray-500 uppercase">Kendala</th>
               <th className="text-center px-3 py-2 text-xs font-semibold text-gray-500 uppercase">Durasi</th>
+              <th className="text-left px-3 py-2 text-xs font-semibold text-gray-500 uppercase">Link Dokumentasi</th>
+              <th className="text-left px-3 py-2 text-xs font-semibold text-gray-500 uppercase">Feedback Dosen</th>
               <th className="text-center px-3 py-2 text-xs font-semibold text-gray-500 uppercase">Status</th>
               <th className="text-center px-3 py-2 text-xs font-semibold text-gray-500 uppercase">Bukti</th>
             </tr>
@@ -146,7 +151,29 @@ const LogbookSection = ({ logbook, onPreview }) => {
                     {formatJam(l.jam_mulai)}–{formatJam(l.jam_selesai)}
                   </td>
                   <td className="px-3 py-2.5 text-gray-700 max-w-xs">{l.topik || '-'}</td>
+                  <td className="px-3 py-2.5 text-gray-700 max-w-[180px] truncate" title={l.tugas || ''}>
+                    {l.tugas || '-'}
+                  </td>
+                  <td className="px-3 py-2.5 text-gray-700 max-w-[180px] truncate" title={l.hasil || ''}>
+                    {l.hasil || '-'}
+                  </td>
+                  <td className="px-3 py-2.5 text-gray-700 max-w-[160px] truncate" title={l.kendala || ''}>
+                    {l.kendala || '-'}
+                  </td>
                   <td className="px-3 py-2.5 text-gray-500 text-center whitespace-nowrap">{formatDurasi(l.durasi_menit)}</td>
+                  <td className="px-3 py-2.5 max-w-[160px] truncate">
+                    {l.link_dokumentasi_drive ? (
+                      <a href={l.link_dokumentasi_drive} target="_blank" rel="noreferrer"
+                        className="text-blue-600 hover:underline" title={l.link_dokumentasi_drive}>
+                        Buka
+                      </a>
+                    ) : (
+                      <span className="text-gray-300">-</span>
+                    )}
+                  </td>
+                  <td className="px-3 py-2.5 text-gray-700 max-w-[180px] truncate" title={l.feedback_dosen || ''}>
+                    {l.feedback_dosen || '-'}
+                  </td>
                   <td className="px-3 py-2.5 text-center"><LogbookStatusBadge status={l.status} /></td>
                   <td className="px-3 py-2.5 text-center">
                     {isFileUpload || isLinkOnly ? (
@@ -253,19 +280,9 @@ const DetailMahasiswaModal = ({ row, onClose }) => {
             <h2 className="font-bold text-gray-800">{row.nama}</h2>
             <p className="text-xs text-gray-400 font-mono">{row.nim}</p>
           </div>
-          <div className="flex items-center gap-2">
-            <button
-              onClick={handleExportPdf}
-              disabled={exportingPdf}
-              className="flex items-center gap-1.5 px-3 py-1.5 bg-blue-50 hover:bg-blue-100 text-blue-600 rounded-lg text-xs font-semibold transition-colors disabled:opacity-60"
-            >
-              <Download className="w-3.5 h-3.5" />
-              {exportingPdf ? 'Mengekspor...' : 'Ekspor PDF'}
-            </button>
-            <button onClick={onClose} className="p-1.5 text-gray-400 hover:text-gray-600 hover:bg-gray-100 rounded-lg">
-              <X className="w-5 h-5" />
-            </button>
-          </div>
+          <button onClick={onClose} className="p-1.5 text-gray-400 hover:text-gray-600 hover:bg-gray-100 rounded-lg">
+            <X className="w-5 h-5" />
+          </button>
         </div>
 
         <div className="flex-1 overflow-y-auto">
@@ -299,7 +316,17 @@ const DetailMahasiswaModal = ({ row, onClose }) => {
 
               {/* Logbook Mahasiswa */}
               <div>
-                <h3 className="text-sm font-bold text-gray-700 mb-1">Logbook Mahasiswa</h3>
+                <div className="flex items-center justify-between gap-3 mb-1">
+                  <h3 className="text-sm font-bold text-gray-700">Logbook Mahasiswa</h3>
+                  <button
+                    onClick={handleExportPdf}
+                    disabled={exportingPdf}
+                    className="flex items-center gap-1.5 px-3 py-1.5 bg-blue-50 hover:bg-blue-100 text-blue-600 rounded-lg text-xs font-semibold transition-colors disabled:opacity-60 flex-shrink-0"
+                  >
+                    <Download className="w-3.5 h-3.5" />
+                    {exportingPdf ? 'Mengekspor...' : 'Ekspor PDF'}
+                  </button>
+                </div>
                 <LogbookSection logbook={logbook} onPreview={setPreview} />
               </div>
 

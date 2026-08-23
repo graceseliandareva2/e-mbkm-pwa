@@ -42,6 +42,25 @@ const STATUS_BADGE_LABEL = {
   ditolak:           'Ditolak',
 }
 
+// Status entri logbook (bukan status dokumen/pengajuan) -- dipakai di kolom
+// "Status" pada tabel logbook, samain dengan enum yang dipakai backend/dosen.
+const LOGBOOK_STATUS_CONFIG = {
+  draft:        { label: 'Draft',        color: 'text-gray-500',   bg: 'bg-gray-50' },
+  disubmit:     { label: 'Menunggu',     color: 'text-yellow-600', bg: 'bg-yellow-50' },
+  diverifikasi: { label: 'Diverifikasi', color: 'text-green-600',  bg: 'bg-green-50' },
+  revisi:       { label: 'Revisi',       color: 'text-red-600',    bg: 'bg-red-50' },
+}
+
+const LogbookStatusBadge = ({ status }) => {
+  if (!status) return <span className="text-xs text-gray-300">-</span>
+  const cfg = LOGBOOK_STATUS_CONFIG[status] || { label: status, color: 'text-gray-600', bg: 'bg-gray-100' }
+  return (
+    <span className={`text-xs px-2 py-0.5 rounded-full font-medium whitespace-nowrap ${cfg.bg} ${cfg.color}`}>
+      {cfg.label}
+    </span>
+  )
+}
+
 // Format angka jam (desimal) jadi label "X jam Y menit" yang ringkas dibaca kaprodi/dosen
 const formatJam = (jamDesimal) => {
   const totalMenit = Math.round((Number(jamDesimal) || 0) * 60)
@@ -53,38 +72,15 @@ const formatJam = (jamDesimal) => {
   return `${j} jam ${m} menit`
 }
 
-// Progress jam terverifikasi terhadap minimal jam yang ditentukan Kaprodi (per periode)
-// Desain ring/donut -- sengaja beda dari card "Progres Logbook" di dashboard
-// mahasiswa (yang pakai angka besar + bar linear), supaya tetap ringkas di sel tabel.
-const RING_SIZE = 36
-const RING_STROKE = 4
-const RING_RADIUS = (RING_SIZE - RING_STROKE) / 2
-const RING_CIRC = 2 * Math.PI * RING_RADIUS
-
+// Progress jam terverifikasi terhadap minimal jam yang ditentukan Kaprodi (per periode).
+// Ring/donut persentase sudah dihapus -- tampil sebagai teks saja.
 const ProgressJamCell = ({ jam, minJam, jumlahEntri }) => {
   const jamNum = Number(jam) || 0
   const min = Number(minJam) || 0
-  const percent = min > 0 ? Math.min(100, Math.round((jamNum / min) * 100)) : 0
   const done = min > 0 && jamNum >= min
-  const offset = RING_CIRC - (percent / 100) * RING_CIRC
 
   return (
     <div className="flex items-center gap-2 justify-center min-w-[130px] mx-auto">
-      {min > 0 && (
-        <div className="relative flex-shrink-0" style={{ width: RING_SIZE, height: RING_SIZE }}>
-          <svg width={RING_SIZE} height={RING_SIZE} className="-rotate-90">
-            <circle cx={RING_SIZE / 2} cy={RING_SIZE / 2} r={RING_RADIUS}
-              fill="none" stroke="#f3f4f6" strokeWidth={RING_STROKE} />
-            <circle cx={RING_SIZE / 2} cy={RING_SIZE / 2} r={RING_RADIUS}
-              fill="none" stroke={done ? '#22c55e' : '#3b82f6'} strokeWidth={RING_STROKE}
-              strokeDasharray={RING_CIRC} strokeDashoffset={offset} strokeLinecap="round"
-              className="transition-all duration-500" />
-          </svg>
-          <span className={`absolute inset-0 flex items-center justify-center text-[8px] font-bold ${done ? 'text-green-600' : 'text-blue-600'}`}>
-            {percent}%
-          </span>
-        </div>
-      )}
       <div className="flex flex-col items-start">
         <span className={`text-sm font-semibold ${done ? 'text-green-600' : 'text-gray-700'}`}>
           {formatJam(jamNum)}
@@ -378,9 +374,6 @@ const DetailMahasiswaModal = ({ row, onClose }) => {
 
   const minJamDetail = Number(detail?.min_jam_pengajuan) || 0
   const jamDetailDone = minJamDetail > 0 && Number(detail?.total_jam_terverifikasi) >= minJamDetail
-  const percentDetail = minJamDetail > 0
-    ? Math.min(100, Math.round((Number(detail?.total_jam_terverifikasi || 0) / minJamDetail) * 100))
-    : 0
 
   return (
     <div className="fixed inset-0 bg-black/60 z-50 flex items-center justify-center p-4" onClick={onClose}>
@@ -390,19 +383,9 @@ const DetailMahasiswaModal = ({ row, onClose }) => {
             <h2 className="font-bold text-gray-800">{row.nama}</h2>
             <p className="text-xs text-gray-400 font-mono">{row.nim}</p>
           </div>
-          <div className="flex items-center gap-2">
-            <button
-              onClick={handleExportPdf}
-              disabled={exportingPdf}
-              className="flex items-center gap-1.5 px-3 py-1.5 bg-blue-50 hover:bg-blue-100 text-blue-600 rounded-lg text-xs font-semibold transition-colors disabled:opacity-60"
-            >
-              <Download className="w-3.5 h-3.5" />
-              {exportingPdf ? 'Mengekspor...' : 'Ekspor PDF'}
-            </button>
-            <button onClick={onClose} className="p-1.5 text-gray-400 hover:text-gray-600 hover:bg-gray-100 rounded-lg">
-              <X className="w-5 h-5" />
-            </button>
-          </div>
+          <button onClick={onClose} className="p-1.5 text-gray-400 hover:text-gray-600 hover:bg-gray-100 rounded-lg">
+            <X className="w-5 h-5" />
+          </button>
         </div>
 
         <div className="flex-1 overflow-y-auto">
@@ -431,34 +414,27 @@ const DetailMahasiswaModal = ({ row, onClose }) => {
                   ))}
                   <div className="bg-gray-50 border border-gray-100 rounded-xl px-3.5 py-2.5">
                     <p className="text-xs text-gray-400 mb-1.5">Total Jam Logbook Terverifikasi</p>
-                    <div className="flex items-center gap-2.5">
-                      {minJamDetail > 0 && (
-                        <div className="relative flex-shrink-0" style={{ width: 36, height: 36 }}>
-                          <svg width={36} height={36} className="-rotate-90">
-                            <circle cx={18} cy={18} r={16} fill="none" stroke="#e5e7eb" strokeWidth={4} />
-                            <circle cx={18} cy={18} r={16} fill="none"
-                              stroke={jamDetailDone ? '#22c55e' : '#3b82f6'} strokeWidth={4}
-                              strokeDasharray={2 * Math.PI * 16}
-                              strokeDashoffset={2 * Math.PI * 16 - (percentDetail / 100) * 2 * Math.PI * 16}
-                              strokeLinecap="round" className="transition-all duration-500" />
-                          </svg>
-                          <span className={`absolute inset-0 flex items-center justify-center text-[8px] font-bold ${jamDetailDone ? 'text-green-600' : 'text-blue-600'}`}>
-                            {percentDetail}%
-                          </span>
-                        </div>
-                      )}
-                      <span className={`text-sm font-semibold ${jamDetailDone ? 'text-green-600' : 'text-gray-800'}`}>
-                        {formatJam(detail.total_jam_terverifikasi)}
-                        {minJamDetail > 0 && <span className="text-gray-400 font-normal"> / {formatJam(minJamDetail)}</span>}
-                      </span>
-                    </div>
+                    <span className={`text-sm font-semibold ${jamDetailDone ? 'text-green-600' : 'text-gray-800'}`}>
+                      {formatJam(detail.total_jam_terverifikasi)}
+                      {minJamDetail > 0 && <span className="text-gray-400 font-normal"> / {formatJam(minJamDetail)}</span>}
+                    </span>
                   </div>
                 </div>
               </div>
 
              {/* Logbook*/}
 <div>
-  <h3 className="text-sm font-bold text-gray-700 mb-1">Logbook</h3>
+  <div className="flex items-center justify-between gap-3 mb-1">
+    <h3 className="text-sm font-bold text-gray-700">Logbook</h3>
+    <button
+      onClick={handleExportPdf}
+      disabled={exportingPdf}
+      className="flex items-center gap-1.5 px-3 py-1.5 bg-blue-50 hover:bg-blue-100 text-blue-600 rounded-lg text-xs font-semibold transition-colors disabled:opacity-60 flex-shrink-0"
+    >
+      <Download className="w-3.5 h-3.5" />
+      {exportingPdf ? 'Mengekspor...' : 'Ekspor PDF'}
+    </button>
+  </div>
   <p className="text-xs text-gray-400 mb-3">
     {detail.nim} - {detail.nama} · {formatJam(detail.total_jam_terverifikasi)}
     {minJamDetail > 0 && ` / ${formatJam(minJamDetail)}`} terverifikasi
@@ -468,13 +444,19 @@ const DetailMahasiswaModal = ({ row, onClose }) => {
   ) : (
     <>
       <div className="border border-gray-100 rounded-xl overflow-x-auto">
-        <table className="w-full text-sm min-w-[600px]">
+        <table className="w-full text-sm min-w-[1200px]">
           <thead>
             <tr className="bg-gray-50">
               <th className="text-left px-3 py-2 text-xs font-semibold text-gray-500 uppercase whitespace-nowrap">Tanggal</th>
               <th className="text-left px-3 py-2 text-xs font-semibold text-gray-500 uppercase whitespace-nowrap">Jam</th>
               <th className="text-left px-3 py-2 text-xs font-semibold text-gray-500 uppercase">Topik</th>
+              <th className="text-left px-3 py-2 text-xs font-semibold text-gray-500 uppercase">Tugas/Proyek</th>
+              <th className="text-left px-3 py-2 text-xs font-semibold text-gray-500 uppercase">Hasil</th>
+              <th className="text-left px-3 py-2 text-xs font-semibold text-gray-500 uppercase">Kendala</th>
               <th className="text-left px-3 py-2 text-xs font-semibold text-gray-500 uppercase whitespace-nowrap">Durasi</th>
+              <th className="text-left px-3 py-2 text-xs font-semibold text-gray-500 uppercase whitespace-nowrap">Link Dokumentasi</th>
+              <th className="text-left px-3 py-2 text-xs font-semibold text-gray-500 uppercase">Feedback Dosen</th>
+              <th className="text-center px-3 py-2 text-xs font-semibold text-gray-500 uppercase whitespace-nowrap">Status</th>
               <th className="text-center px-3 py-2 text-xs font-semibold text-gray-500 uppercase whitespace-nowrap">Bukti</th>
             </tr>
           </thead>
@@ -497,8 +479,33 @@ const DetailMahasiswaModal = ({ row, onClose }) => {
                     )}
                   </div>
                 </td>
+                <td className="px-3 py-2 text-gray-700 max-w-[180px] truncate" title={l.tugas || ''}>
+                  {l.tugas || '-'}
+                </td>
+                <td className="px-3 py-2 text-gray-700 max-w-[180px] truncate" title={l.hasil || ''}>
+                  {l.hasil || '-'}
+                </td>
+                <td className="px-3 py-2 text-gray-700 max-w-[160px] truncate" title={l.kendala || ''}>
+                  {l.kendala || '-'}
+                </td>
                 <td className="px-3 py-2 text-gray-500 whitespace-nowrap">
                   {l.durasi_menit != null ? `${Math.round(l.durasi_menit)} menit` : '-'}
+                </td>
+                <td className="px-3 py-2 max-w-[160px] truncate">
+                  {l.link_dokumentasi_drive ? (
+                    <a href={l.link_dokumentasi_drive} target="_blank" rel="noreferrer"
+                      className="text-blue-600 hover:underline" title={l.link_dokumentasi_drive}>
+                      Buka
+                    </a>
+                  ) : (
+                    <span className="text-gray-300">-</span>
+                  )}
+                </td>
+                <td className="px-3 py-2 text-gray-700 max-w-[180px] truncate" title={l.feedback_dosen || ''}>
+                  {l.feedback_dosen || '-'}
+                </td>
+                <td className="px-3 py-2 text-center whitespace-nowrap">
+                  <LogbookStatusBadge status={l.status} />
                 </td>
                 <td className="px-3 py-2 text-center whitespace-nowrap">
                   <LogbookBuktiCell log={l} />
