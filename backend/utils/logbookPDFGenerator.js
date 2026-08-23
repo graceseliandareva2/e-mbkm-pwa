@@ -200,15 +200,19 @@ function generateLogbookPdfBuffer(data) {
     doc.font("Helvetica").fontSize(9).text(`Pontianak, ${today}`, 30, doc.y, { align: "right", width: TABLE_RIGHT });
     doc.moveDown(0.5);
 
+    // Blok TTD hanya menempati separuh kanan halaman (bukan lebar penuh tabel dari margin kiri)
+    const SIG_START = 30 + TABLE_RIGHT / 2;
+    const SIG_COL_W = (TABLE_RIGHT / 2) / 2;
+
     const sigY = doc.y;
-    doc.text("Diverifikasi oleh,", 30, sigY, { width: TABLE_RIGHT / 2 });
-    doc.text("Disusun oleh,", 30 + TABLE_RIGHT / 2, sigY, { width: TABLE_RIGHT / 2 });
+    doc.text("Diverifikasi oleh,", SIG_START, sigY, { width: SIG_COL_W });
+    doc.text("Disusun oleh,", SIG_START + SIG_COL_W, sigY, { width: SIG_COL_W });
 
     const sigNameY = sigY + 60;
-    doc.text(`(${data.dosen_nama || "-"})`, 30, sigNameY, { width: TABLE_RIGHT / 2 });
-    doc.text(`(${data.nama})`, 30 + TABLE_RIGHT / 2, sigNameY, { width: TABLE_RIGHT / 2 });
-    doc.text(`NIDN. ${data.dosen_nidn || "-"}`, 30, sigNameY + 14, { width: TABLE_RIGHT / 2 });
-    doc.text(`NIM. ${data.nim}`, 30 + TABLE_RIGHT / 2, sigNameY + 14, { width: TABLE_RIGHT / 2 });
+    doc.text(`(${data.dosen_nama || "-"})`, SIG_START, sigNameY, { width: SIG_COL_W });
+    doc.text(`(${data.nama})`, SIG_START + SIG_COL_W, sigNameY, { width: SIG_COL_W });
+    doc.text(`NIDN. ${data.dosen_nidn || "-"}`, SIG_START, sigNameY + 14, { width: SIG_COL_W });
+    doc.text(`NIM. ${data.nim}`, SIG_START + SIG_COL_W, sigNameY + 14, { width: SIG_COL_W });
 
     doc.end();
   });
