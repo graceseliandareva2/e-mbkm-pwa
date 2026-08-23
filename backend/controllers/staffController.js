@@ -333,21 +333,7 @@ const importDosen = async (req, res) => {
           continue;
         }
 
-        // ID dosen ini sudah ada, dan sudah di periode yang sama
-        const [existingIdDosen] = await db.query(
-          "SELECT id_users AS id, current_periode_id FROM users WHERE id_dosen = ?",
-          [idDosen],
-        );
-
-        if (
-          existingIdDosen.length > 0 &&
-          String(existingIdDosen[0].current_periode_id) === String(periodeId)
-        ) {
-          gagal++;
-          errors.push(`ID ${idDosen} sudah terdaftar di periode ini, dilewati.`);
-          continue;
-        }
-
+        // Cek konflik username dengan akun LAIN (id_dosen beda) -- ini tetap harus dicegah
         const username = email || idDosen;
         const [usernameBentrok] = await db.query(
           "SELECT id_users FROM users WHERE username = ? AND (id_dosen IS NULL OR id_dosen != ?)",
@@ -364,6 +350,8 @@ const importDosen = async (req, res) => {
         const userId = uuidv4();
         const hashedPassword = await bcrypt.hash(idDosen, 10);
 
+        // id_dosen adalah UNIQUE KEY, jadi baris yang sudah ada (walau di periode
+        // yang sama) tetap di-UPDATE datanya (termasuk nidn), bukan di-skip.
         await db.query(
           `INSERT INTO users (id_users, username, password, role, nama, email, id_dosen, nidn, program_studi, current_periode_id, imported_by)
            VALUES (?, ?, ?, 'dosen', ?, ?, ?, ?, ?, ?, ?)
