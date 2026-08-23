@@ -47,14 +47,21 @@ async function getLogbookExportData(pengajuanId) {
   if (!pengajuanRows.length) return null;
 
   const [entries] = await db.query(
-    `SELECT tanggal, jam_mulai, jam_selesai, topik, tugas, hasil, kendala
+    `SELECT tanggal, jam_mulai, jam_selesai, topik, tugas, hasil, kendala, link_dokumentasi_drive
      FROM logbook
      WHERE pengajuan_id = ?
      ORDER BY tanggal ASC, jam_mulai ASC`,
     [pengajuanId]
   );
 
-  return { ...pengajuanRows[0], entries };
+  // Link Dokumentasi (Drive) ditampilkan sebagai satu field di header PDF, meski
+  // datanya tersimpan per-entri logbook -- ambil link non-kosong dari entri terbaru.
+  const linkDokumentasi = [...entries]
+    .reverse()
+    .find((e) => e.link_dokumentasi_drive && e.link_dokumentasi_drive.trim())
+    ?.link_dokumentasi_drive || null;
+
+  return { ...pengajuanRows[0], entries, link_dokumentasi_drive: linkDokumentasi };
 }
 
 const COL = { tgl: 30, durasi: 85, topik: 145, tugas: 260, hasil: 375, paraf: 490 };
@@ -83,11 +90,11 @@ function generateLogbookPdfBuffer(data) {
     doc.on("end", () => resolve(Buffer.concat(chunks)));
     doc.on("error", reject);
 
-    // Kop surat
+    // Kop surat -- logo di pojok kiri atas (bukan di tengah), supaya tidak menabrak judul yang center
     try {
-      doc.image(LOGO_PATH, TABLE_RIGHT / 2 - 20 + 30, 30, { width: 40 });
+      doc.image(LOGO_PATH, 30, 25, { width: 55 });
     } catch { /* logo opsional, lanjut tanpa logo kalau file tidak ada */ }
-    doc.font("Helvetica-Bold").fontSize(13).text("Institut Teknologi & Bisnis SABDA SETIA", 30, 75, { align: "center", width: TABLE_RIGHT });
+    doc.font("Helvetica-Bold").fontSize(13).text("Institut Teknologi & Bisnis SABDA SETIA", 30, 30, { align: "center", width: TABLE_RIGHT });
     doc.font("Helvetica").fontSize(8);
     ["(Ijin Pendirian Mendikbudristek No. 460/E/O/2021)", "Jalan Purnama 2, Parit Tokaya", "Pontianak Selatan, Kalimantan Barat", "website: https://itbss.ac.id/", "email: humas@itbss.ac.id", "HP: 0852 818 17855"].forEach((line) => {
       doc.text(line, 30, doc.y, { align: "center", width: TABLE_RIGHT });
@@ -111,6 +118,7 @@ function generateLogbookPdfBuffer(data) {
     infoField("Penyelenggara", data.penyelenggara);
     infoField("Waktu Studi Independen", data.waktu_studi_independen);
     infoField("Judul Capstone Project", data.judul);
+    infoField("Link Dokumentasi (Drive)", data.link_dokumentasi_drive);
     doc.moveDown(0.6);
 
     const drawHeader = () => {
