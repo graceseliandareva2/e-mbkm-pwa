@@ -126,7 +126,7 @@ function generateLogbookPdfBuffer(data) {
       const y = doc.y;
       doc.text(label, 30, y, { width: 140, lineBreak: false });
       doc.text(`: ${value || "-"}`, 175, y, { width: 390 });
-      doc.y = y + INFO_LINE_GAP;
+      doc.y = y + doc.currentLineHeight() + INFO_LINE_GAP;
     };
     infoField("NIM / Nama", `${data.nim} / ${data.nama}`);
     infoField("Penyelenggara", data.penyelenggara);
