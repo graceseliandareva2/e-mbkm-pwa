@@ -1,7 +1,7 @@
 import { useEffect, useState, useCallback } from 'react'
 import {
   BookOpen, CheckCircle, AlertCircle, Clock, MessageSquare, Eye, Search, X,
-  Users, ChevronLeft,
+  Users, ChevronLeft, Download,
 } from 'lucide-react'
 import api from '../../utils/api'
 import toast from 'react-hot-toast'
@@ -98,6 +98,7 @@ export default function DosenLogbook() {
   const [feedback, setFeedback]           = useState('')
   const [processing, setProcessing]       = useState(false)
   const [searchQuery, setSearchQuery]     = useState('')
+  const [exportingPdf, setExportingPdf]   = useState(false)
 
   const {
     periodeId: selectedPeriode,
@@ -201,6 +202,29 @@ export default function DosenLogbook() {
       toast.error('Gagal memproses logbook')
     } finally {
       setProcessing(false)
+    }
+  }
+
+  const handleExportLogbookPdf = async () => {
+    if (!selectedMhs?.pengajuan_id) return
+    setExportingPdf(true)
+    try {
+      const res = await api.get('/dosen/logbook/export-pdf', {
+        params: { pengajuan_id: selectedMhs.pengajuan_id },
+        responseType: 'blob',
+      })
+      const url = window.URL.createObjectURL(new Blob([res.data], { type: 'application/pdf' }))
+      const link = document.createElement('a')
+      link.href = url
+      link.download = `Logbook ${selectedMhs.nama}.pdf`
+      document.body.appendChild(link)
+      link.click()
+      link.remove()
+      window.URL.revokeObjectURL(url)
+    } catch {
+      toast.error('Gagal mengekspor PDF logbook')
+    } finally {
+      setExportingPdf(false)
     }
   }
 
@@ -309,29 +333,39 @@ export default function DosenLogbook() {
 
   return (
     <div className="space-y-5">
-      <div className="flex items-center gap-3">
-        <button onClick={handleBack} className="p-2 rounded-xl hover:bg-gray-100 transition">
-          <ChevronLeft className="w-5 h-5 text-gray-600" />
-        </button>
-        <div>
-          <h1 className="text-xl font-bold text-gray-800">Logbook {selectedMhs?.nama}</h1>
-          <p className="text-sm text-gray-500 mt-0.5">
-            {selectedMhs?.nim} · {selectedMhs?.nama_periode}
-            {selectedMhs && (
-              <>
-                {' · '}
-                <span className={`font-medium ${
-                  Number(selectedMhs.min_jam_pengajuan) > 0 &&
-                  Number(selectedMhs.total_jam_terverifikasi) >= Number(selectedMhs.min_jam_pengajuan)
-                    ? 'text-green-700' : 'text-emerald-700'
-                }`}>
-                  {formatJamTotal(selectedMhs.total_jam_terverifikasi)}
-                  {Number(selectedMhs.min_jam_pengajuan) > 0 && ` / ${formatJamTotal(selectedMhs.min_jam_pengajuan)}`} terverifikasi
-                </span>
-              </>
-            )}
-          </p>
+      <div className="flex items-center justify-between gap-3">
+        <div className="flex items-center gap-3">
+          <button onClick={handleBack} className="p-2 rounded-xl hover:bg-gray-100 transition">
+            <ChevronLeft className="w-5 h-5 text-gray-600" />
+          </button>
+          <div>
+            <h1 className="text-xl font-bold text-gray-800">Logbook {selectedMhs?.nama}</h1>
+            <p className="text-sm text-gray-500 mt-0.5">
+              {selectedMhs?.nim} · {selectedMhs?.nama_periode}
+              {selectedMhs && (
+                <>
+                  {' · '}
+                  <span className={`font-medium ${
+                    Number(selectedMhs.min_jam_pengajuan) > 0 &&
+                    Number(selectedMhs.total_jam_terverifikasi) >= Number(selectedMhs.min_jam_pengajuan)
+                      ? 'text-green-700' : 'text-emerald-700'
+                  }`}>
+                    {formatJamTotal(selectedMhs.total_jam_terverifikasi)}
+                    {Number(selectedMhs.min_jam_pengajuan) > 0 && ` / ${formatJamTotal(selectedMhs.min_jam_pengajuan)}`} terverifikasi
+                  </span>
+                </>
+              )}
+            </p>
+          </div>
         </div>
+        <button
+          onClick={handleExportLogbookPdf}
+          disabled={exportingPdf || !selectedMhs?.pengajuan_id}
+          className="flex items-center gap-2 px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white text-xs font-semibold rounded-xl transition disabled:opacity-60 flex-shrink-0"
+        >
+          <Download className="w-4 h-4" />
+          {exportingPdf ? 'Mengekspor...' : 'Ekspor PDF'}
+        </button>
       </div>
 
       {/* Banner offline */}

@@ -9,6 +9,7 @@ const ROUTE_LIST     = '/staff/mahasiswa-mbkm'
 const ROUTE_LOGBOOK  = '/staff/logbook'       
 const ROUTE_DOKUMEN  = '/staff/dokumen'         
 const ROUTE_NILAI    = '/staff/nilai'           
+const ROUTE_LOGBOOK_EXPORT = '/staff/logbook/export-pdf'
 
 const STATUS_CONFIG = {
   diupload:          { label: 'Diupload',      color: 'text-yellow-600', bg: 'bg-yellow-50',  border: 'border-yellow-200' },
@@ -197,6 +198,7 @@ const DetailMahasiswaModal = ({ row, onClose }) => {
   const [dokumen, setDokumen]   = useState([])
   const [loading, setLoading]   = useState(true)
   const [preview, setPreview]   = useState(null)
+  const [exportingPdf, setExportingPdf] = useState(false)
 
   const fetchDetail = useCallback(async () => {
     setLoading(true)
@@ -218,6 +220,28 @@ const DetailMahasiswaModal = ({ row, onClose }) => {
 
   useEffect(() => { fetchDetail() }, [fetchDetail])
 
+  const handleExportPdf = async () => {
+    setExportingPdf(true)
+    try {
+      const res = await api.get(ROUTE_LOGBOOK_EXPORT, {
+        params: { pengajuan_id: row.pengajuan_id },
+        responseType: 'blob',
+      })
+      const url = window.URL.createObjectURL(new Blob([res.data], { type: 'application/pdf' }))
+      const link = document.createElement('a')
+      link.href = url
+      link.download = `Logbook ${row.nama}.pdf`
+      document.body.appendChild(link)
+      link.click()
+      link.remove()
+      window.URL.revokeObjectURL(url)
+    } catch {
+      toast.error('Gagal mengekspor PDF logbook')
+    } finally {
+      setExportingPdf(false)
+    }
+  }
+
   const dokumenLaporan = dokumen.find(d => d.jenis === 'laporan_akhir') || null
   const dokumenPpt     = dokumen.find(d => d.jenis === 'ppt') || null
 
@@ -229,9 +253,19 @@ const DetailMahasiswaModal = ({ row, onClose }) => {
             <h2 className="font-bold text-gray-800">{row.nama}</h2>
             <p className="text-xs text-gray-400 font-mono">{row.nim}</p>
           </div>
-          <button onClick={onClose} className="p-1.5 text-gray-400 hover:text-gray-600 hover:bg-gray-100 rounded-lg">
-            <X className="w-5 h-5" />
-          </button>
+          <div className="flex items-center gap-2">
+            <button
+              onClick={handleExportPdf}
+              disabled={exportingPdf}
+              className="flex items-center gap-1.5 px-3 py-1.5 bg-blue-50 hover:bg-blue-100 text-blue-600 rounded-lg text-xs font-semibold transition-colors disabled:opacity-60"
+            >
+              <Download className="w-3.5 h-3.5" />
+              {exportingPdf ? 'Mengekspor...' : 'Ekspor PDF'}
+            </button>
+            <button onClick={onClose} className="p-1.5 text-gray-400 hover:text-gray-600 hover:bg-gray-100 rounded-lg">
+              <X className="w-5 h-5" />
+            </button>
+          </div>
         </div>
 
         <div className="flex-1 overflow-y-auto">

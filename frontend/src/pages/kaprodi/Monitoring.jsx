@@ -326,6 +326,7 @@ const DetailMahasiswaModal = ({ row, onClose }) => {
   const [detail, setDetail]   = useState(null)
   const [loading, setLoading] = useState(true)
   const [logPage, setLogPage] = useState(1)
+  const [exportingPdf, setExportingPdf] = useState(false)
 
   const fetchDetail = useCallback(async () => {
     setLoading(true)
@@ -340,6 +341,28 @@ const DetailMahasiswaModal = ({ row, onClose }) => {
   }, [row.pengajuan_id])
 
   useEffect(() => { fetchDetail() }, [fetchDetail])
+
+  const handleExportPdf = async () => {
+    setExportingPdf(true)
+    try {
+      const res = await api.get('/kaprodi/logbook/export-pdf', {
+        params: { pengajuan_id: row.pengajuan_id },
+        responseType: 'blob',
+      })
+      const url = window.URL.createObjectURL(new Blob([res.data], { type: 'application/pdf' }))
+      const link = document.createElement('a')
+      link.href = url
+      link.download = `Logbook ${row.nama}.pdf`
+      document.body.appendChild(link)
+      link.click()
+      link.remove()
+      window.URL.revokeObjectURL(url)
+    } catch {
+      toast.error('Gagal mengekspor PDF logbook')
+    } finally {
+      setExportingPdf(false)
+    }
+  }
 
   const logbook = detail?.logbook || []
 
@@ -367,9 +390,19 @@ const DetailMahasiswaModal = ({ row, onClose }) => {
             <h2 className="font-bold text-gray-800">{row.nama}</h2>
             <p className="text-xs text-gray-400 font-mono">{row.nim}</p>
           </div>
-          <button onClick={onClose} className="p-1.5 text-gray-400 hover:text-gray-600 hover:bg-gray-100 rounded-lg">
-            <X className="w-5 h-5" />
-          </button>
+          <div className="flex items-center gap-2">
+            <button
+              onClick={handleExportPdf}
+              disabled={exportingPdf}
+              className="flex items-center gap-1.5 px-3 py-1.5 bg-blue-50 hover:bg-blue-100 text-blue-600 rounded-lg text-xs font-semibold transition-colors disabled:opacity-60"
+            >
+              <Download className="w-3.5 h-3.5" />
+              {exportingPdf ? 'Mengekspor...' : 'Ekspor PDF'}
+            </button>
+            <button onClick={onClose} className="p-1.5 text-gray-400 hover:text-gray-600 hover:bg-gray-100 rounded-lg">
+              <X className="w-5 h-5" />
+            </button>
+          </div>
         </div>
 
         <div className="flex-1 overflow-y-auto">

@@ -51,10 +51,16 @@ export default function MahasiswaLogbook() {
   const [expanded, setExpanded] = useState(null)
   const [submitting, setSubmitting] = useState(false)
   const [dragging, setDragging] = useState(false)
-  const [form, setForm] = useState({ tanggal: '', kegiatan: '', deskripsi: '', jam_mulai: '', jam_selesai: '', bukti: null })
+  const [form, setForm] = useState({
+    tanggal: '', topik: '', tugas: '', hasil: '', kendala: '',
+    link_dokumentasi_drive: '', jam_mulai: '', jam_selesai: '', bukti: null
+  })
   const [previewPdf, setPreviewPdf] = useState(null)
   const [editLog, setEditLog] = useState(null)
-  const [editForm, setEditForm] = useState({ kegiatan: '', deskripsi: '', jam_mulai: '', jam_selesai: '', bukti: null, hapusBukti: false })
+  const [editForm, setEditForm] = useState({
+    topik: '', tugas: '', hasil: '', kendala: '', link_dokumentasi_drive: '',
+    jam_mulai: '', jam_selesai: '', bukti: null, hapusBukti: false
+  })
   const [editSubmitting, setEditSubmitting] = useState(false)
   const [editDragging, setEditDragging] = useState(false)
   const [buktiType, setBuktiType] = useState('file')
@@ -124,7 +130,10 @@ export default function MahasiswaLogbook() {
   }, [])
 
   const resetForm = () => {
-    setForm({ tanggal: '', kegiatan: '', deskripsi: '', jam_mulai: '', jam_selesai: '', bukti: null })
+    setForm({
+      tanggal: '', topik: '', tugas: '', hasil: '', kendala: '',
+      link_dokumentasi_drive: '', jam_mulai: '', jam_selesai: '', bukti: null
+    })
     setBuktiType('file')
     setBuktiLink('')
   }
@@ -146,90 +155,111 @@ export default function MahasiswaLogbook() {
   }
 
   const handleSubmit = async (e) => {
-  e.preventDefault()
+    e.preventDefault()
 
-  const normalizedBuktiLink = buktiType === 'link' ? normalizeUrl(buktiLink) : buktiLink
-  if (buktiType === 'link' && normalizedBuktiLink !== buktiLink) {
-    setBuktiLink(normalizedBuktiLink)
-  }
+    const normalizedBuktiLink = buktiType === 'link' ? normalizeUrl(buktiLink) : buktiLink
+    if (buktiType === 'link' && normalizedBuktiLink !== buktiLink) {
+      setBuktiLink(normalizedBuktiLink)
+    }
 
-  if (!form.tanggal || !form.kegiatan || !form.deskripsi?.trim() || !form.jam_mulai || !form.jam_selesai) {
-    return toast.error('Tanggal, jam mulai/selesai, kegiatan, dan deskripsi wajib diisi!')
-  }
-  if (!hitungDurasiMenit(form.jam_mulai, form.jam_selesai)) {
-    return toast.error('Jam selesai harus setelah jam mulai!')
-  }
-  if (pelatihanList.length > 1 && !selectedPelatihanId) {
-    return toast.error('Pilih pelatihan terlebih dahulu!')
-  }
-  const hasBukti = (buktiType === 'file' && !!form.bukti) || (buktiType === 'link' && !!normalizedBuktiLink?.trim())
-  if (!hasBukti) {
-    return toast.error('Bukti kegiatan wajib diisi (upload file atau link)!')
-  }
+    const normalizedLinkDokumentasi = normalizeUrl(form.link_dokumentasi_drive)
+    if (normalizedLinkDokumentasi !== form.link_dokumentasi_drive) {
+      setForm(f => ({ ...f, link_dokumentasi_drive: normalizedLinkDokumentasi }))
+    }
 
-  if (submitting) return                
-  setSubmitting(true)                   
+    if (!form.tanggal || !form.topik || !form.tugas || !form.hasil?.trim() || !form.jam_mulai || !form.jam_selesai) {
+      return toast.error('Tanggal, jam mulai/selesai, topik, tugas/proyek, dan hasil wajib diisi!')
+    }
+    if (!normalizedLinkDokumentasi?.trim()) {
+      return toast.error('Link Dokumentasi (Drive) wajib diisi!')
+    }
+    if (!hitungDurasiMenit(form.jam_mulai, form.jam_selesai)) {
+      return toast.error('Jam selesai harus setelah jam mulai!')
+    }
+    if (pelatihanList.length > 1 && !selectedPelatihanId) {
+      return toast.error('Pilih pelatihan terlebih dahulu!')
+    }
+    const hasBukti = (buktiType === 'file' && !!form.bukti) || (buktiType === 'link' && !!normalizedBuktiLink?.trim())
+    if (!hasBukti) {
+      return toast.error('Bukti kegiatan wajib diisi (upload file atau link)!')
+    }
 
-  if (!navigator.onLine) {
+    if (submitting) return
+    setSubmitting(true)
+
+    if (!navigator.onLine) {
+      try {
+        await saveToQueue({
+          method: 'POST',
+          url: '/mahasiswa/logbook',
+          data: {
+            tanggal: form.tanggal,
+            topik: form.topik,
+            tugas: form.tugas,
+            hasil: form.hasil,
+            kendala: form.kendala || undefined,
+            link_dokumentasi_drive: normalizedLinkDokumentasi,
+            jam_mulai: form.jam_mulai,
+            jam_selesai: form.jam_selesai,
+            pelatihan_id: selectedPelatihanId || undefined,
+            bukti_link: buktiType === 'link' ? normalizedBuktiLink : undefined,
+          },
+          file: buktiType === 'file' && form.bukti
+            ? { blob: form.bukti, filename: form.bukti.name, fieldName: 'bukti' }
+            : undefined,
+        })
+        toast.success('Offline! Logbook akan otomatis terkirim saat online.')
+        setModalOpen(false)
+        resetForm()
+      } catch {
+        toast.error('Gagal menyimpan data offline')
+      } finally {
+        setSubmitting(false)
+      }
+      return
+    }
+
     try {
-      await saveToQueue({
-        method: 'POST',
-        url: '/mahasiswa/logbook',
-        data: {
-          tanggal: form.tanggal,
-          kegiatan: form.kegiatan,
-          deskripsi: form.deskripsi,
-          jam_mulai: form.jam_mulai,
-          jam_selesai: form.jam_selesai,
-          pelatihan_id: selectedPelatihanId || undefined,
-          bukti_link: buktiType === 'link' ? normalizedBuktiLink : undefined,
-        },
-        file: buktiType === 'file' && form.bukti
-          ? { blob: form.bukti, filename: form.bukti.name, fieldName: 'bukti' }
-          : undefined,
-      })
-      toast.success('Offline! Logbook akan otomatis terkirim saat online.')
+      const formData = new FormData()
+      formData.append('tanggal', form.tanggal)
+      formData.append('topik', form.topik)
+      formData.append('tugas', form.tugas)
+      formData.append('hasil', form.hasil)
+      if (form.kendala) formData.append('kendala', form.kendala)
+      formData.append('link_dokumentasi_drive', normalizedLinkDokumentasi)
+      formData.append('jam_mulai', form.jam_mulai)
+      formData.append('jam_selesai', form.jam_selesai)
+      if (selectedPelatihanId) formData.append('pelatihan_id', selectedPelatihanId)
+      if (buktiType === 'file' && form.bukti) formData.append('bukti', form.bukti)
+      if (buktiType === 'link' && normalizedBuktiLink) formData.append('bukti_link', normalizedBuktiLink)
+      await api.post('/mahasiswa/logbook', formData, { headers: { 'Content-Type': 'multipart/form-data' } })
+      toast.success('Logbook berhasil ditambahkan!')
       setModalOpen(false)
       resetForm()
-    } catch {
-      toast.error('Gagal menyimpan data offline')
-    } finally {
-      setSubmitting(false)               
-    }
-    return
+      fetchAll()
+    } catch (err) {
+      toast.error(err.response?.data?.message || 'Gagal menyimpan logbook')
+    } finally { setSubmitting(false) }
   }
-
-  try {
-    const formData = new FormData()
-    formData.append('tanggal', form.tanggal)
-    formData.append('kegiatan', form.kegiatan)
-    formData.append('deskripsi', form.deskripsi)
-    formData.append('jam_mulai', form.jam_mulai)
-    formData.append('jam_selesai', form.jam_selesai)
-    if (selectedPelatihanId) formData.append('pelatihan_id', selectedPelatihanId)
-    if (buktiType === 'file' && form.bukti) formData.append('bukti', form.bukti)
-    if (buktiType === 'link' && normalizedBuktiLink) formData.append('bukti_link', normalizedBuktiLink)
-    await api.post('/mahasiswa/logbook', formData, { headers: { 'Content-Type': 'multipart/form-data' } })
-    toast.success('Logbook berhasil ditambahkan!')
-    setModalOpen(false)
-    resetForm()
-    fetchAll()
-  } catch (err) {
-    toast.error(err.response?.data?.message || 'Gagal menyimpan logbook')
-  } finally { setSubmitting(false) }
-}
 
   const handleEditSubmit = async (e) => {
     e.preventDefault()
-
 
     const normalizedEditBuktiLink = editBuktiType === 'link' ? normalizeUrl(editBuktiLink) : editBuktiLink
     if (editBuktiType === 'link' && normalizedEditBuktiLink !== editBuktiLink) {
       setEditBuktiLink(normalizedEditBuktiLink)
     }
 
-    if (!editForm.kegiatan || !editForm.deskripsi?.trim() || !editForm.jam_mulai || !editForm.jam_selesai) {
-      return toast.error('Jam mulai/selesai, judul kegiatan, dan deskripsi wajib diisi!')
+    const normalizedEditLinkDokumentasi = normalizeUrl(editForm.link_dokumentasi_drive)
+    if (normalizedEditLinkDokumentasi !== editForm.link_dokumentasi_drive) {
+      setEditForm(f => ({ ...f, link_dokumentasi_drive: normalizedEditLinkDokumentasi }))
+    }
+
+    if (!editForm.topik || !editForm.tugas || !editForm.hasil?.trim() || !editForm.jam_mulai || !editForm.jam_selesai) {
+      return toast.error('Jam mulai/selesai, topik, tugas/proyek, dan hasil wajib diisi!')
+    }
+    if (!normalizedEditLinkDokumentasi?.trim()) {
+      return toast.error('Link Dokumentasi (Drive) wajib diisi!')
     }
     if (!hitungDurasiMenit(editForm.jam_mulai, editForm.jam_selesai)) {
       return toast.error('Jam selesai harus setelah jam mulai!')
@@ -245,8 +275,11 @@ export default function MahasiswaLogbook() {
       if (editForm.bukti || editForm.hapusBukti || (editBuktiType === 'link' && normalizedEditBuktiLink)) {
         const formData = new FormData()
         formData.append('tanggal', editLog.tanggal)
-        formData.append('kegiatan', editForm.kegiatan)
-        formData.append('deskripsi', editForm.deskripsi)
+        formData.append('topik', editForm.topik)
+        formData.append('tugas', editForm.tugas)
+        formData.append('hasil', editForm.hasil)
+        if (editForm.kendala) formData.append('kendala', editForm.kendala)
+        formData.append('link_dokumentasi_drive', normalizedEditLinkDokumentasi)
         formData.append('jam_mulai', editForm.jam_mulai)
         formData.append('jam_selesai', editForm.jam_selesai)
         if (editForm.hapusBukti) formData.append('hapus_bukti', '1')
@@ -256,8 +289,11 @@ export default function MahasiswaLogbook() {
       } else {
         await api.put(`/mahasiswa/logbook/${editLog.id}`, {
           tanggal: editLog.tanggal,
-          kegiatan: editForm.kegiatan,
-          deskripsi: editForm.deskripsi,
+          topik: editForm.topik,
+          tugas: editForm.tugas,
+          hasil: editForm.hasil,
+          kendala: editForm.kendala || undefined,
+          link_dokumentasi_drive: normalizedEditLinkDokumentasi,
           jam_mulai: editForm.jam_mulai,
           jam_selesai: editForm.jam_selesai,
         })
@@ -306,7 +342,7 @@ export default function MahasiswaLogbook() {
             </div>
             <div className="min-w-0">
               <div className="flex items-center gap-2 flex-wrap">
-                <p className="font-semibold text-gray-800 text-sm line-clamp-1">{log.kegiatan}</p>
+                <p className="font-semibold text-gray-800 text-sm line-clamp-1">{log.topik}</p>
                 <span className={`text-xs font-medium px-2 py-0.5 rounded-full border flex-shrink-0 ${statusCfg.color} ${statusCfg.bg} ${statusCfg.border}`}>
                   {statusCfg.label}
                 </span>
@@ -334,8 +370,11 @@ export default function MahasiswaLogbook() {
                 e.stopPropagation()
                 setEditLog(log)
                 setEditForm({
-                  kegiatan: log.kegiatan,
-                  deskripsi: log.deskripsi || '',
+                  topik: log.topik || '',
+                  tugas: log.tugas || '',
+                  hasil: log.hasil || '',
+                  kendala: log.kendala || '',
+                  link_dokumentasi_drive: log.link_dokumentasi_drive || '',
                   jam_mulai: log.jam_mulai ? log.jam_mulai.slice(0, 5) : '',
                   jam_selesai: log.jam_selesai ? log.jam_selesai.slice(0, 5) : '',
                   bukti: null,
@@ -357,10 +396,29 @@ export default function MahasiswaLogbook() {
         {isExpanded && (
           <div className="border-t border-gray-100">
             <div className="px-6 py-4 space-y-4 max-w-4xl mx-auto">
-              {log.deskripsi && (
+              {log.tugas && (
                 <div>
-                  <p className="text-xs font-semibold text-gray-400 uppercase tracking-wide mb-0.5">Deskripsi</p>
-                  <p className="text-sm text-gray-700 text-justify">{log.deskripsi}</p>
+                  <p className="text-xs font-semibold text-gray-400 uppercase tracking-wide mb-0.5">Tugas/Proyek</p>
+                  <p className="text-sm text-gray-700 text-justify">{log.tugas}</p>
+                </div>
+              )}
+              {log.hasil && (
+                <div>
+                  <p className="text-xs font-semibold text-gray-400 uppercase tracking-wide mb-0.5">Hasil</p>
+                  <p className="text-sm text-gray-700 text-justify">{log.hasil}</p>
+                </div>
+              )}
+              {log.kendala && (
+                <div>
+                  <p className="text-xs font-semibold text-gray-400 uppercase tracking-wide mb-0.5">Kendala</p>
+                  <p className="text-sm text-gray-700 text-justify">{log.kendala}</p>
+                </div>
+              )}
+              {log.link_dokumentasi_drive && (
+                <div>
+                  <p className="text-xs font-semibold text-gray-400 uppercase tracking-wide mb-0.5">Link Dokumentasi</p>
+                  <a href={log.link_dokumentasi_drive} target="_blank" rel="noreferrer"
+                    className="text-sm text-blue-600 hover:underline break-all">{log.link_dokumentasi_drive}</a>
                 </div>
               )}
               {log.bukti_link && (
@@ -377,7 +435,7 @@ export default function MahasiswaLogbook() {
                     <BuktiPreview
                       path={isFileUpload ? log.bukti_link : null}
                       link={isFileUpload ? null : log.bukti_link}
-                      filename={log.kegiatan}
+                      filename={log.topik}
                     />
                   </div>
                 </div>
@@ -452,11 +510,18 @@ export default function MahasiswaLogbook() {
           <h1 className="text-xl font-bold text-gray-800">Logbook Kegiatan</h1>
           <p className="text-sm text-gray-500 mt-0.5">Catat kegiatan harian Capstone Project kamu</p>
         </div>
-        <button onClick={() => setModalOpen(true)}
-          className="flex items-center gap-2 bg-blue-600 text-white px-4 py-2.5 rounded-xl text-sm font-semibold hover:bg-blue-700">
-          <Plus className="w-4 h-4" />
-          Tambah
-        </button>
+        <div className="flex items-center gap-2">
+          <button onClick={() => window.open('/api/mahasiswa/logbook/export-pdf', '_blank')}
+            className="flex items-center gap-2 border border-gray-200 text-gray-600 px-4 py-2.5 rounded-xl text-sm font-semibold hover:bg-gray-50">
+            <FileText className="w-4 h-4" />
+            Export PDF
+          </button>
+          <button onClick={() => setModalOpen(true)}
+            className="flex items-center gap-2 bg-blue-600 text-white px-4 py-2.5 rounded-xl text-sm font-semibold hover:bg-blue-700">
+            <Plus className="w-4 h-4" />
+            Tambah
+          </button>
+        </div>
       </div>
 
       {/* Banner offline */}
@@ -529,23 +594,36 @@ export default function MahasiswaLogbook() {
                   onChange={e => setForm({ ...form, tanggal: e.target.value })}
                   className="w-full border border-gray-200 rounded-xl px-3.5 py-2.5 text-sm focus:outline-none focus:border-blue-500" />
               </div>
+
               <div>
-                <label className="block text-xs font-semibold text-gray-500 uppercase tracking-wide mb-1.5">Judul Kegiatan *</label>
-                <input type="text" value={form.kegiatan}
-                  onChange={e => setForm({ ...form, kegiatan: e.target.value })}
-                  placeholder="Contoh: Implementasi fitur login"
+                <label className="block text-xs font-semibold text-gray-500 uppercase tracking-wide mb-1.5">Topik yang Dipelajari *</label>
+                <input type="text" value={form.topik}
+                  onChange={e => setForm({ ...form, topik: e.target.value })}
+                  placeholder="Contoh: React Hooks & State Management"
                   className="w-full border border-gray-200 rounded-xl px-3.5 py-2.5 text-sm focus:outline-none focus:border-blue-500" />
               </div>
               <div>
-                <label className="block text-xs font-semibold text-gray-500 uppercase tracking-wide mb-1.5">
-                  Deskripsi Kegiatan *
-                </label>
-                <textarea value={form.deskripsi}
-                  onChange={e => setForm({ ...form, deskripsi: e.target.value })}
-                  rows={3}
-                  required
+                <label className="block text-xs font-semibold text-gray-500 uppercase tracking-wide mb-1.5">Tugas/Proyek yang Dikerjakan *</label>
+                <textarea value={form.tugas}
+                  onChange={e => setForm({ ...form, tugas: e.target.value })}
+                  rows={2}
                   className="w-full border border-gray-200 rounded-xl px-3.5 py-2.5 text-sm focus:outline-none focus:border-blue-500 resize-none" />
               </div>
+              <div>
+                <label className="block text-xs font-semibold text-gray-500 uppercase tracking-wide mb-1.5">Hasil *</label>
+                <textarea value={form.hasil}
+                  onChange={e => setForm({ ...form, hasil: e.target.value })}
+                  rows={2}
+                  className="w-full border border-gray-200 rounded-xl px-3.5 py-2.5 text-sm focus:outline-none focus:border-blue-500 resize-none" />
+              </div>
+              <div>
+                <label className="block text-xs font-semibold text-gray-500 uppercase tracking-wide mb-1.5">Kendala <span className="text-gray-400 normal-case font-normal">(opsional)</span></label>
+                <textarea value={form.kendala}
+                  onChange={e => setForm({ ...form, kendala: e.target.value })}
+                  rows={2}
+                  className="w-full border border-gray-200 rounded-xl px-3.5 py-2.5 text-sm focus:outline-none focus:border-blue-500 resize-none" />
+              </div>
+
               <div>
                 <label className="block text-xs font-semibold text-gray-500 uppercase tracking-wide mb-1.5">Jam Mulai &amp; Selesai *</label>
                 <div className="flex gap-2 items-center">
@@ -558,6 +636,14 @@ export default function MahasiswaLogbook() {
                     className="flex-1 border border-gray-200 rounded-xl px-3.5 py-2.5 text-sm focus:outline-none focus:border-blue-500" />
                 </div>
                 {previewDurasi() && <p className="text-xs text-blue-500 font-medium mt-1.5">Durasi: {previewDurasi()}</p>}
+              </div>
+
+              <div>
+                <label className="block text-xs font-semibold text-gray-500 uppercase tracking-wide mb-1.5">Link Dokumentasi (Drive) *</label>
+                <input type="text" value={form.link_dokumentasi_drive}
+                  onChange={e => setForm({ ...form, link_dokumentasi_drive: e.target.value })}
+                  placeholder="https://drive.google.com/..."
+                  className="w-full border border-gray-200 rounded-xl px-3.5 py-2.5 text-sm focus:outline-none focus:border-blue-500" />
               </div>
 
               <div>
@@ -649,21 +735,34 @@ export default function MahasiswaLogbook() {
             </div>
             <form onSubmit={handleEditSubmit} className="p-5 space-y-4">
               <div>
-                <label className="block text-xs font-semibold text-gray-500 uppercase tracking-wide mb-1.5">Judul Kegiatan *</label>
-                <input type="text" value={editForm.kegiatan}
-                  onChange={e => setEditForm({ ...editForm, kegiatan: e.target.value })}
+                <label className="block text-xs font-semibold text-gray-500 uppercase tracking-wide mb-1.5">Topik yang Dipelajari *</label>
+                <input type="text" value={editForm.topik}
+                  onChange={e => setEditForm({ ...editForm, topik: e.target.value })}
+                  placeholder="Contoh: React Hooks & State Management"
                   className="w-full border border-gray-200 rounded-xl px-3.5 py-2.5 text-sm focus:outline-none focus:border-blue-500" />
               </div>
               <div>
-                <label className="block text-xs font-semibold text-gray-500 uppercase tracking-wide mb-1.5">
-                  Deskripsi *
-                </label>
-                <textarea value={editForm.deskripsi}
-                  onChange={e => setEditForm({ ...editForm, deskripsi: e.target.value })}
-                  rows={3}
-                  required
+                <label className="block text-xs font-semibold text-gray-500 uppercase tracking-wide mb-1.5">Tugas/Proyek yang Dikerjakan *</label>
+                <textarea value={editForm.tugas}
+                  onChange={e => setEditForm({ ...editForm, tugas: e.target.value })}
+                  rows={2}
                   className="w-full border border-gray-200 rounded-xl px-3.5 py-2.5 text-sm focus:outline-none focus:border-blue-500 resize-none" />
               </div>
+              <div>
+                <label className="block text-xs font-semibold text-gray-500 uppercase tracking-wide mb-1.5">Hasil *</label>
+                <textarea value={editForm.hasil}
+                  onChange={e => setEditForm({ ...editForm, hasil: e.target.value })}
+                  rows={2}
+                  className="w-full border border-gray-200 rounded-xl px-3.5 py-2.5 text-sm focus:outline-none focus:border-blue-500 resize-none" />
+              </div>
+              <div>
+                <label className="block text-xs font-semibold text-gray-500 uppercase tracking-wide mb-1.5">Kendala <span className="text-gray-400 normal-case font-normal">(opsional)</span></label>
+                <textarea value={editForm.kendala}
+                  onChange={e => setEditForm({ ...editForm, kendala: e.target.value })}
+                  rows={2}
+                  className="w-full border border-gray-200 rounded-xl px-3.5 py-2.5 text-sm focus:outline-none focus:border-blue-500 resize-none" />
+              </div>
+
               <div>
                 <label className="block text-xs font-semibold text-gray-500 uppercase tracking-wide mb-1.5">Jam Mulai &amp; Selesai *</label>
                 <div className="flex gap-2 items-center">
@@ -680,6 +779,14 @@ export default function MahasiswaLogbook() {
                     Durasi: {formatDurasi(hitungDurasiMenit(editForm.jam_mulai, editForm.jam_selesai))}
                   </p>
                 )}
+              </div>
+
+              <div>
+                <label className="block text-xs font-semibold text-gray-500 uppercase tracking-wide mb-1.5">Link Dokumentasi (Drive) *</label>
+                <input type="text" value={editForm.link_dokumentasi_drive}
+                  onChange={e => setEditForm({ ...editForm, link_dokumentasi_drive: e.target.value })}
+                  placeholder="https://drive.google.com/..."
+                  className="w-full border border-gray-200 rounded-xl px-3.5 py-2.5 text-sm focus:outline-none focus:border-blue-500" />
               </div>
 
               <div>
