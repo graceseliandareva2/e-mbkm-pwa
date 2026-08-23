@@ -1370,11 +1370,11 @@ const getLogbookMahasiswa = async (req, res) => {
     if (!pengajuan_id)
       return res.status(400).json({ message: "pengajuan_id wajib diisi." });
 
-    const [rows] = await db.query(
-      `SELECT id_logbook AS id, tanggal, jam_mulai, jam_selesai, kegiatan, durasi_menit, status, bukti_link, cloudinary_public_id
-       FROM logbook WHERE pengajuan_id = ? ORDER BY tanggal DESC`,
-      [pengajuan_id],
-    );
+   const [rows] = await db.query(
+  `SELECT id_logbook AS id, tanggal, jam_mulai, jam_selesai, topik, tugas, hasil, kendala, durasi_menit, status, bukti_link, cloudinary_public_id
+   FROM logbook WHERE pengajuan_id = ? ORDER BY tanggal DESC`,
+  [pengajuan_id],
+);
     res.json({ data: rows });
   } catch (error) {
     console.error("getLogbookMahasiswa (staff) error:", error);

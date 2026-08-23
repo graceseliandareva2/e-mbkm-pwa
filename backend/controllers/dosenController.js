@@ -473,14 +473,14 @@ const verifikasiLogbook = async (req, res) => {
 
     await db.query("UPDATE logbook SET status = ?, feedback_dosen = ?, verified_at = NOW() WHERE id_logbook = ?", [status, feedback_dosen, id]);
 
-    const [logbook] = await db.query(
-      `SELECT l.kegiatan, p.mahasiswa_id AS user_id, u.nama, u.email
-       FROM logbook l
-       JOIN pengajuan p ON p.id_pengajuan = l.pengajuan_id
-       JOIN users u ON p.mahasiswa_id = u.id_users
-       WHERE l.id_logbook = ?`,
-      [id]
-    );
+   const [logbook] = await db.query(
+  `SELECT l.topik, p.mahasiswa_id AS user_id, u.nama, u.email
+   FROM logbook l
+   JOIN pengajuan p ON p.id_pengajuan = l.pengajuan_id
+   JOIN users u ON p.mahasiswa_id = u.id_users
+   WHERE l.id_logbook = ?`,
+  [id]
+);
 
     if (logbook.length) {
       const mhs = logbook[0];
@@ -506,8 +506,8 @@ const verifikasiLogbook = async (req, res) => {
                 <p>Halo <strong>${mhs.nama}</strong>,</p>
                 ${
                   status === "diverifikasi"
-                    ? `<p>${iconSuccessSvg}Logbook kegiatan <strong>"${mhs.kegiatan}"</strong> kamu telah <span style="color: #16a34a; font-weight: bold;">diverifikasi</span> oleh dosen pembimbing.</p>`
-                    : `<p>${iconWarningSvg}Logbook kegiatan <strong>"${mhs.kegiatan}"</strong> kamu memerlukan <span style="color: #dc2626; font-weight: bold;">revisi</span>.</p>
+                 ? `<p>${iconSuccessSvg}Logbook kegiatan <strong>"${mhs.topik}"</strong> kamu telah <span style="color: #16a34a; font-weight: bold;">diverifikasi</span> oleh dosen pembimbing.</p>`
+: `<p>${iconWarningSvg}Logbook kegiatan <strong>"${mhs.topik}"</strong> kamu memerlukan <span style="color: #dc2626; font-weight: bold;">revisi</span>.</p>
                      <div style="background: #fef2f2; border-left: 4px solid #dc2626; padding: 12px 16px; border-radius: 4px; margin: 16px 0;">
                        <p style="margin: 0; color: #7f1d1d;"><strong>Feedback Dosen:</strong></p>
                        <p style="margin: 8px 0 0; color: #991b1b;">${feedback_dosen}</p>
@@ -682,7 +682,7 @@ const getAktivitasTerbaru = async (req, res) => {
     const [logbooks] = await db.query(
       `
       SELECT 'logbook' as tipe, l.id_logbook AS id, m.nama as nama_mahasiswa, m.nim,
-        l.created_at, l.status, l.kegiatan as deskripsi
+        l.created_at, l.status, l.topik as deskripsi
       FROM logbook l
       JOIN pengajuan pc ON pc.id_pengajuan = l.pengajuan_id
       JOIN users m ON pc.mahasiswa_id = m.id_users

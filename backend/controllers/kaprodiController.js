@@ -791,11 +791,10 @@ const getDetailMonitoring = async (req, res) => {
     const minJam = periodeInfo?.min_jam_pengajuan ?? 0;
 
     const [logbook] = await db.query(
-      `SELECT id_logbook AS id, tanggal, jam_mulai, jam_selesai, kegiatan, durasi_menit, status, bukti_link, cloudinary_public_id
+      `SELECT id_logbook AS id, tanggal, jam_mulai, jam_selesai, topik, tugas, hasil, kendala, durasi_menit, status, bukti_link, cloudinary_public_id
        FROM logbook WHERE pengajuan_id = ? ORDER BY tanggal DESC`,
       [pengajuan_id]
     );
-
     const totalJamTerverifikasi = logbook
       .filter((l) => l.status === "diverifikasi")
       .reduce((sum, l) => sum + (Number(l.durasi_menit) || 0), 0) / 60;
