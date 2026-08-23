@@ -64,7 +64,7 @@ async function getLogbookExportData(pengajuanId) {
   // Kolom detail_pengajuan.waktu_studi_independen sudah tidak diisi form -- yang ditampilkan
   // di sini adalah durasi_pelatihan_jam (mis. "30 jam"), sesuai field yang benar-benar diisi mahasiswa.
   const waktuStudiIndependen = pengajuanRows[0].durasi_pelatihan_jam != null
-    ? `${pengajuanRows[0].durasi_pelatihan_jam} jam`
+    ? `${Number(pengajuanRows[0].durasi_pelatihan_jam)} jam`
     : null;
 
   return {
