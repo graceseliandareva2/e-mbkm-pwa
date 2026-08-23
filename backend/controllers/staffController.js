@@ -309,13 +309,16 @@ const importDosen = async (req, res) => {
 
     for (const row of data) {
       try {
-        const nidn = String(
-          row["NIDN"] ||
-            row["ID Dosen"] ||
-            row["id_dosen"] ||
+        // ID Dosen -- khusus buat login/username, BUKAN NIDN resmi
+        const idDosen = String(
+          row["ID Dosen"] ||
             row["Id Dosen"] ||
+            row["id_dosen"] ||
             "",
         ).trim();
+        // NIDN resmi -- ini yang ditampilkan di dokumen (logbook dll), terpisah dari ID Dosen
+        const nidn = String(row["NIDN"] || row["nidn"] || "").trim();
+
         const nama = String(
           row["Nama"] || row["nama"] || row["NAMA"] || "",
         ).trim();
@@ -324,50 +327,51 @@ const importDosen = async (req, res) => {
           String(row["Program Studi"] || row["program_studi"] || "").trim() ||
           null;
 
-        if (!nidn || !nama) {
+        if (!idDosen || !nama) {
           gagal++;
-          errors.push(`ID atau Nama kosong`);
+          errors.push(`ID Dosen atau Nama kosong`);
           continue;
         }
 
         // ID dosen ini sudah ada, dan sudah di periode yang sama
-        const [existingNidn] = await db.query(
+        const [existingIdDosen] = await db.query(
           "SELECT id_users AS id, current_periode_id FROM users WHERE id_dosen = ?",
-          [nidn],
+          [idDosen],
         );
 
         if (
-          existingNidn.length > 0 &&
-          String(existingNidn[0].current_periode_id) === String(periodeId)
+          existingIdDosen.length > 0 &&
+          String(existingIdDosen[0].current_periode_id) === String(periodeId)
         ) {
           gagal++;
-          errors.push(`ID ${nidn} sudah terdaftar di periode ini, dilewati.`);
+          errors.push(`ID ${idDosen} sudah terdaftar di periode ini, dilewati.`);
           continue;
         }
 
-        const username = email || nidn;
+        const username = email || idDosen;
         const [usernameBentrok] = await db.query(
           "SELECT id_users FROM users WHERE username = ? AND (id_dosen IS NULL OR id_dosen != ?)",
-          [username, nidn],
+          [username, idDosen],
         );
         if (usernameBentrok.length > 0) {
           gagal++;
           errors.push(
-            `Username ${username} sudah dipakai akun lain, ID ${nidn} dilewati.`,
+            `Username ${username} sudah dipakai akun lain, ID ${idDosen} dilewati.`,
           );
           continue;
         }
 
         const userId = uuidv4();
-        const hashedPassword = await bcrypt.hash(nidn, 10);
+        const hashedPassword = await bcrypt.hash(idDosen, 10);
 
         await db.query(
-          `INSERT INTO users (id_users, username, password, role, nama, email, id_dosen, program_studi, current_periode_id, imported_by)
-           VALUES (?, ?, ?, 'dosen', ?, ?, ?, ?, ?, ?)
+          `INSERT INTO users (id_users, username, password, role, nama, email, id_dosen, nidn, program_studi, current_periode_id, imported_by)
+           VALUES (?, ?, ?, 'dosen', ?, ?, ?, ?, ?, ?, ?)
            ON DUPLICATE KEY UPDATE
              username = VALUES(username),
              nama = VALUES(nama),
              email = VALUES(email),
+             nidn = VALUES(nidn),
              program_studi = VALUES(program_studi),
              current_periode_id = VALUES(current_periode_id),
              imported_by = VALUES(imported_by)`,
@@ -377,7 +381,8 @@ const importDosen = async (req, res) => {
             hashedPassword,
             nama,
             email || null,
-            nidn,
+            idDosen,
+            nidn || null,
             program_studi,
             periodeId,
             req.user.id,
@@ -416,9 +421,9 @@ const importDosen = async (req, res) => {
 
 const tambahDosen = async (req, res) => {
   try {
-    const { nidn, nama, email, program_studi, periode_id } = req.body;
+    const { id_dosen, nidn, nama, email, program_studi, periode_id } = req.body;
 
-    if (!nidn || !nama || !email || !program_studi) {
+    if (!id_dosen || !nama || !email || !program_studi) {
       return res.status(400).json({ message: "Semua field wajib diisi." });
     }
 
@@ -426,50 +431,33 @@ const tambahDosen = async (req, res) => {
     if (!targetPeriodeId) {
       return res
         .status(400)
-        .json({
-          message: "Tidak ada periode aktif dan periode_id tidak diberikan.",
-        });
+        .json({ message: "Tidak ada periode aktif dan periode_id tidak diberikan." });
     }
 
-    const [existingNidn] = await db.query(
+    const [existingIdDosen] = await db.query(
       "SELECT id_users AS id, current_periode_id FROM users WHERE id_dosen = ?",
-      [nidn],
+      [id_dosen],
     );
 
-    if (existingNidn.length > 0) {
-      if (
-        String(existingNidn[0].current_periode_id) === String(targetPeriodeId)
-      ) {
-        return res
-          .status(400)
-          .json({ message: "ID ini sudah terdaftar di periode ini." });
+    if (existingIdDosen.length > 0) {
+      if (String(existingIdDosen[0].current_periode_id) === String(targetPeriodeId)) {
+        return res.status(400).json({ message: "ID ini sudah terdaftar di periode ini." });
       }
 
       const [usernameBentrok] = await db.query(
         "SELECT id_users FROM users WHERE username = ? AND id_users != ?",
-        [email, existingNidn[0].id],
+        [email, existingIdDosen[0].id],
       );
       if (usernameBentrok.length > 0) {
-        return res
-          .status(400)
-          .json({ message: "Email ini sudah terdaftar untuk akun lain." });
+        return res.status(400).json({ message: "Email ini sudah terdaftar untuk akun lain." });
       }
 
       await db.query(
-        "UPDATE users SET username=?, nama=?, email=?, program_studi=?, current_periode_id=? WHERE id_users=?",
-        [
-          email,
-          nama,
-          email,
-          program_studi,
-          targetPeriodeId,
-          existingNidn[0].id,
-        ],
+        "UPDATE users SET username=?, nama=?, email=?, nidn=?, program_studi=?, current_periode_id=? WHERE id_users=?",
+        [email, nama, email, nidn || null, program_studi, targetPeriodeId, existingIdDosen[0].id],
       );
 
-      return res.json({
-        message: "Dosen lama berhasil didaftarkan ulang ke periode ini.",
-      });
+      return res.json({ message: "Dosen lama berhasil didaftarkan ulang ke periode ini." });
     }
 
     const [existingEmail] = await db.query(
@@ -480,19 +468,21 @@ const tambahDosen = async (req, res) => {
       return res.status(400).json({ message: "Email ini sudah terdaftar." });
     }
 
-    const hashedPassword = await bcrypt.hash(nidn, 10);
+    // Password dosen = hash dari ID Dosen (login ID), bukan dari NIDN
+    const hashedPassword = await bcrypt.hash(id_dosen, 10);
     const userId = uuidv4();
 
     await db.query(
-      `INSERT INTO users (id_users, username, password, role, nama, email, id_dosen, program_studi, current_periode_id, imported_by)
-       VALUES (?, ?, ?, 'dosen', ?, ?, ?, ?, ?, ?)`,
+      `INSERT INTO users (id_users, username, password, role, nama, email, id_dosen, nidn, program_studi, current_periode_id, imported_by)
+       VALUES (?, ?, ?, 'dosen', ?, ?, ?, ?, ?, ?, ?)`,
       [
         userId,
         email,
         hashedPassword,
         nama,
         email,
-        nidn,
+        id_dosen,
+        nidn || null,
         program_studi,
         targetPeriodeId,
         req.user.id,
@@ -509,9 +499,9 @@ const tambahDosen = async (req, res) => {
 const updateDosen = async (req, res) => {
   try {
     const { id } = req.params;
-    const { nidn, nama, email, program_studi, is_active } = req.body;
+    const { id_dosen, nidn, nama, email, program_studi, is_active } = req.body;
 
-    if (!nidn || !nama || !email || !program_studi) {
+    if (!id_dosen || !nama || !email || !program_studi) {
       return res.status(400).json({ message: "Semua field wajib diisi." });
     }
 
@@ -523,28 +513,24 @@ const updateDosen = async (req, res) => {
       return res.status(404).json({ message: "Dosen tidak ditemukan." });
     }
 
-    const [nidnBentrok] = await db.query(
+    const [idDosenBentrok] = await db.query(
       "SELECT id_users FROM users WHERE id_dosen = ? AND id_users != ?",
-      [nidn, id],
+      [id_dosen, id],
     );
-    if (nidnBentrok.length > 0) {
-      return res
-        .status(400)
-        .json({ message: "ID ini sudah terdaftar untuk akun lain." });
+    if (idDosenBentrok.length > 0) {
+      return res.status(400).json({ message: "ID ini sudah terdaftar untuk akun lain." });
     }
     const [emailBentrok] = await db.query(
       "SELECT id_users FROM users WHERE username = ? AND id_users != ?",
       [email, id],
     );
     if (emailBentrok.length > 0) {
-      return res
-        .status(400)
-        .json({ message: "Email ini sudah terdaftar untuk akun lain." });
+      return res.status(400).json({ message: "Email ini sudah terdaftar untuk akun lain." });
     }
 
     await db.query(
-      "UPDATE users SET id_dosen=?, nama=?, email=?, username=?, program_studi=?, is_active=? WHERE id_users=?",
-      [nidn, nama, email, email, program_studi, is_active ? 1 : 0, id],
+      "UPDATE users SET id_dosen=?, nidn=?, nama=?, email=?, username=?, program_studi=?, is_active=? WHERE id_users=?",
+      [id_dosen, nidn || null, nama, email, email, program_studi, is_active ? 1 : 0, id],
     );
 
     res.json({ message: "Data dosen berhasil diperbarui." });
@@ -724,11 +710,10 @@ const getDaftarDosen = async (req, res) => {
     const targetPeriodeId = periode_id || (await _getPeriodeAktifId());
 
     const params = [];
-    let query = `
-      SELECT id_users AS id, id_dosen, nama, email, program_studi, current_periode_id, is_active
-      FROM users WHERE role = 'dosen'
-    `;
-
+  let query = `
+  SELECT id_users AS id, id_dosen, nidn, nama, email, program_studi, current_periode_id, is_active
+  FROM users WHERE role = 'dosen'
+`;
     if (targetPeriodeId) {
       query += ` AND current_periode_id = ?`;
       params.push(targetPeriodeId);

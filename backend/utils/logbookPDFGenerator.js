@@ -27,23 +27,19 @@ function formatHasilKendala(hasil, kendala) {
   return `${hasilText}\nKendala: ${kendalaText}`;
 }
 
-/**
- * Ambil data pengajuan + mahasiswa + dosen pembimbing capstone + seluruh entri logbook
- * berdasarkan pengajuan_id. Dipakai bareng oleh 4 controller (mahasiswa/dosen/kaprodi/staff).
- */
 async function getLogbookExportData(pengajuanId) {
-  const [pengajuanRows] = await db.query(
-    `SELECT p.id_pengajuan AS pengajuan_id,
-            u.nim, u.nama,
-            dp.penyelenggara, dp.durasi_pelatihan_jam, dp.judul,
-            d.nama AS dosen_nama, d.id_dosen AS dosen_nidn
-     FROM pengajuan p
-     JOIN users u ON u.id_users = p.mahasiswa_id
-     LEFT JOIN detail_pengajuan dp ON dp.pengajuan_id = p.id_pengajuan
-     LEFT JOIN users d ON d.id_users = p.dosen_id
-     WHERE p.id_pengajuan = ?`,
-    [pengajuanId]
-  );
+ const [pengajuanRows] = await db.query(
+  `SELECT p.id_pengajuan AS pengajuan_id,
+          u.nim, u.nama,
+          dp.penyelenggara, dp.durasi_pelatihan_jam, dp.judul,
+          d.nama AS dosen_nama, d.nidn AS dosen_nidn
+   FROM pengajuan p
+   JOIN users u ON u.id_users = p.mahasiswa_id
+   LEFT JOIN detail_pengajuan dp ON dp.pengajuan_id = p.id_pengajuan
+   LEFT JOIN users d ON d.id_users = p.dosen_id
+   WHERE p.id_pengajuan = ?`,
+  [pengajuanId]
+);
   if (!pengajuanRows.length) return null;
 
   const [entries] = await db.query(

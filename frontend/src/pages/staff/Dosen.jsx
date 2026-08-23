@@ -6,6 +6,7 @@ import usePeriodeFilter from '../../hooks/usePeriodeFilter'
 
 const emptyTambahForm = {
   id_dosen: '',
+  nidn: '',
   nama: '',
   email: '',
   program_studi: '',
@@ -13,6 +14,7 @@ const emptyTambahForm = {
 
 const emptyEditForm = {
   id_dosen: '',
+  nidn: '',
   nama: '',
   email: '',
   program_studi: '',
@@ -86,48 +88,50 @@ export default function StaffDosen() {
     setTambahForm(prev => ({ ...prev, [name]: value }))
   }
 
-  const handleTambahSubmit = async () => {
-    const { id_dosen, nama, email, program_studi } = tambahForm
-    if (!id_dosen.trim() || !nama.trim() || !email.trim() || !program_studi.trim()) {
-      toast.error('Semua field wajib diisi!')
-      return
-    }
-    setTambahLoading(true)
-    try {
-      const res = await api.post('/staff/dosen', {
-        nidn: id_dosen,
-        nama,
-        email,
-        program_studi,
-        periode_id: selectedPeriode,
-      })
-      toast.success(res.data.message || 'Dosen berhasil ditambahkan!')
-      setShowTambah(false)
-      setTambahForm(emptyTambahForm)
-      fetchDosen()
-    } catch (err) {
-      toast.error(err.response?.data?.message || 'Gagal menambahkan dosen!')
-    } finally {
-      setTambahLoading(false)
-    }
+const handleTambahSubmit = async () => {
+  const { id_dosen, nidn, nama, email, program_studi } = tambahForm
+  if (!id_dosen.trim() || !nama.trim() || !email.trim() || !program_studi.trim()) {
+    toast.error('Semua field wajib diisi!')
+    return
   }
+  setTambahLoading(true)
+  try {
+    const res = await api.post('/staff/dosen', {
+      id_dosen,
+      nidn,
+      nama,
+      email,
+      program_studi,
+      periode_id: selectedPeriode,
+    })
+    toast.success(res.data.message || 'Dosen berhasil ditambahkan!')
+    setShowTambah(false)
+    setTambahForm(emptyTambahForm)
+    fetchDosen()
+  } catch (err) {
+    toast.error(err.response?.data?.message || 'Gagal menambahkan dosen!')
+  } finally {
+    setTambahLoading(false)
+  }
+}
 
   const handleCloseTambah = () => {
     setShowTambah(false)
     setTambahForm(emptyTambahForm)
   }
 
-  const handleOpenEdit = (row) => {
-    setEditDosenId(row.id)
-    setEditForm({
-      id_dosen: row.id_dosen || '',
-      nama: row.nama || '',
-      email: row.email || '',
-      program_studi: row.program_studi || '',
-      is_active: !!row.is_active,
-    })
-    setShowEdit(true)
-  }
+const handleOpenEdit = (row) => {
+  setEditDosenId(row.id)
+  setEditForm({
+    id_dosen: row.id_dosen || '',
+    nidn: row.nidn || '',
+    nama: row.nama || '',
+    email: row.email || '',
+    program_studi: row.program_studi || '',
+    is_active: !!row.is_active,
+  })
+  setShowEdit(true)
+}
 
   const handleEditChange = (e) => {
     const { name, value } = e.target
@@ -135,32 +139,32 @@ export default function StaffDosen() {
   }
 
   const handleEditSubmit = async () => {
-    const { id_dosen, nama, email, program_studi } = editForm
-    if (!id_dosen.trim() || !nama.trim() || !email.trim() || !program_studi.trim()) {
-      toast.error('Semua field wajib diisi!')
-      return
-    }
-    setEditLoading(true)
-    try {
-      const res = await api.put(`/staff/dosen/${editDosenId}`, {
-        nidn: id_dosen,
-        nama,
-        email,
-        program_studi,
-        is_active: editForm.is_active,
-      })
-      toast.success(res.data.message || 'Data dosen berhasil diperbarui!')
-      setShowEdit(false)
-      setEditForm(emptyEditForm)
-      setEditDosenId(null)
-      fetchDosen()
-    } catch (err) {
-      toast.error(err.response?.data?.message || 'Gagal memperbarui data dosen!')
-    } finally {
-      setEditLoading(false)
-    }
+  const { id_dosen, nidn, nama, email, program_studi } = editForm
+  if (!id_dosen.trim() || !nama.trim() || !email.trim() || !program_studi.trim()) {
+    toast.error('Semua field wajib diisi!')
+    return
   }
-
+  setEditLoading(true)
+  try {
+    const res = await api.put(`/staff/dosen/${editDosenId}`, {
+      id_dosen,
+      nidn,
+      nama,
+      email,
+      program_studi,
+      is_active: editForm.is_active,
+    })
+    toast.success(res.data.message || 'Data dosen berhasil diperbarui!')
+    setShowEdit(false)
+    setEditForm(emptyEditForm)
+    setEditDosenId(null)
+    fetchDosen()
+  } catch (err) {
+    toast.error(err.response?.data?.message || 'Gagal memperbarui data dosen!')
+  } finally {
+    setEditLoading(false)
+  }
+}
   const handleCloseEdit = () => {
     setShowEdit(false)
     setEditForm(emptyEditForm)
@@ -226,6 +230,7 @@ export default function StaffDosen() {
               <tr className="bg-gray-50">
                 <th className="text-left px-6 py-3 text-xs font-semibold text-gray-500 uppercase">No</th>
                 <th className="text-left px-6 py-3 text-xs font-semibold text-gray-500 uppercase">ID Dosen</th>
+                <th className="text-left px-6 py-3 text-xs font-semibold text-gray-500 uppercase">NIDN</th>
                 <th className="text-left px-6 py-3 text-xs font-semibold text-gray-500 uppercase">Nama</th>
                 <th className="text-left px-6 py-3 text-xs font-semibold text-gray-500 uppercase">Program Studi</th>
                 <th className="text-left px-6 py-3 text-xs font-semibold text-gray-500 uppercase">Email</th>
@@ -247,6 +252,7 @@ export default function StaffDosen() {
                 <tr key={d.id} className="hover:bg-gray-50 transition-colors">
                   <td className="px-6 py-4 text-sm text-gray-500">{i + 1}</td>
                   <td className="px-6 py-4 text-sm font-mono text-gray-700">{d.id_dosen}</td>
+                  <td className="px-6 py-4 text-sm font-mono text-gray-700">{d.nidn || '-'}</td>
                   <td className="px-6 py-4 text-sm font-medium text-gray-800">{d.nama}</td>
                   <td className="px-6 py-4 text-sm text-gray-500">{d.program_studi || '-'}</td>
                   <td className="px-6 py-4 text-sm text-gray-500">{d.email || '-'}</td>
@@ -291,6 +297,12 @@ export default function StaffDosen() {
                   placeholder="Contoh: 19.321.008"
                   className="w-full px-3 py-2.5 border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 bg-gray-50" />
               </div>
+              <div>
+  <label className="text-xs font-semibold text-gray-600 block mb-1.5">NIDN</label>
+  <input type="text" name="nidn" value={tambahForm.nidn} onChange={handleTambahChange}
+    placeholder="Contoh: 1.9725.036"
+    className="w-full px-3 py-2.5 border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 bg-gray-50" />
+</div>
               <div>
                 <label className="text-xs font-semibold text-gray-600 block mb-1.5">Nama Lengkap <span className="text-red-500">*</span></label>
                 <input type="text" name="nama" value={tambahForm.nama} onChange={handleTambahChange}
@@ -346,6 +358,12 @@ export default function StaffDosen() {
                   placeholder="Contoh: 19.321.008"
                   className="w-full px-3 py-2.5 border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-amber-400 bg-gray-50" />
               </div>
+              <div>
+  <label className="text-xs font-semibold text-gray-600 block mb-1.5">NIDN</label>
+  <input type="text" name="nidn" value={editForm.nidn} onChange={handleEditChange}
+    placeholder="Contoh: 1.9725.036"
+    className="w-full px-3 py-2.5 border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-amber-400 bg-gray-50" />
+</div>
               <div>
                 <label className="text-xs font-semibold text-gray-600 block mb-1.5">Nama Lengkap <span className="text-red-500">*</span></label>
                 <input type="text" name="nama" value={editForm.nama} onChange={handleEditChange}

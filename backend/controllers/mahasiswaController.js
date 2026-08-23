@@ -32,7 +32,7 @@ async function getPengajuanDisetujui(mahasiswaId) {
 
 async function getDosenPembimbingCapstone(pengajuanId) {
   const [rows] = await db.query(
-    `SELECT u.nama, u.id_dosen AS nidn
+    `SELECT u.nama, u.nidn
      FROM pengajuan p
      JOIN users u ON u.id_users = p.dosen_id
      WHERE p.id_pengajuan = ?`,
