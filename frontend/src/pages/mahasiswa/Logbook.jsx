@@ -69,6 +69,7 @@ export default function MahasiswaLogbook() {
   const [editBuktiLink, setEditBuktiLink] = useState('')
   const fileRef = useRef(null)
   const editFileRef = useRef(null)
+  const [exportingPdf, setExportingPdf] = useState(false)
 
   useEffect(() => {
     try {
@@ -136,6 +137,17 @@ export default function MahasiswaLogbook() {
     })
     setBuktiType('file')
     setBuktiLink('')
+  }
+
+  // Ambil link dokumentasi non-kosong dari entri logbook terbaru (logbooks sudah urut DESC dari backend)
+  const getDefaultLinkDokumentasi = () => {
+    return logbooks.find(l => l.link_dokumentasi_drive?.trim())?.link_dokumentasi_drive || ''
+  }
+
+  // Buka modal tambah logbook dengan link dokumentasi ter-prefill dari entri terakhir
+  const openAddModal = () => {
+    setForm(f => ({ ...f, link_dokumentasi_drive: getDefaultLinkDokumentasi() }))
+    setModalOpen(true)
   }
 
   const handleFileChange = (file) => {
@@ -313,6 +325,23 @@ export default function MahasiswaLogbook() {
       toast.success('Logbook dihapus!')
       fetchAll()
     } catch { toast.error('Gagal menghapus logbook') }
+  }
+
+  const handleExportPdf = async () => {
+    if (exportingPdf) return
+    setExportingPdf(true)
+    try {
+      const res = await api.get('/mahasiswa/logbook/export-pdf', { responseType: 'blob' })
+      const blob = new Blob([res.data], { type: 'application/pdf' })
+      const url = window.URL.createObjectURL(blob)
+      window.open(url, '_blank')
+      // bebasin memory setelah beberapa saat
+      setTimeout(() => window.URL.revokeObjectURL(url), 60000)
+    } catch {
+      toast.error('Gagal mengekspor PDF')
+    } finally {
+      setExportingPdf(false)
+    }
   }
 
   const isDisabled = pengajuan?.status !== 'disetujui_kaprodi' || !pengajuan?.dosen_id
@@ -511,12 +540,14 @@ export default function MahasiswaLogbook() {
           <p className="text-sm text-gray-500 mt-0.5">Catat kegiatan harian Capstone Project kamu</p>
         </div>
         <div className="flex items-center gap-2">
-          <button onClick={() => window.open('/api/mahasiswa/logbook/export-pdf', '_blank')}
-            className="flex items-center gap-2 border border-gray-200 text-gray-600 px-4 py-2.5 rounded-xl text-sm font-semibold hover:bg-gray-50">
-            <FileText className="w-4 h-4" />
+          <button onClick={handleExportPdf} disabled={exportingPdf}
+            className="flex items-center gap-2 border border-gray-200 text-gray-600 px-4 py-2.5 rounded-xl text-sm font-semibold hover:bg-gray-50 disabled:opacity-50">
+            {exportingPdf
+              ? <div className="w-4 h-4 border-2 border-gray-400 border-t-transparent rounded-full animate-spin" />
+              : <FileText className="w-4 h-4" />}
             Export PDF
           </button>
-          <button onClick={() => setModalOpen(true)}
+          <button onClick={openAddModal}
             className="flex items-center gap-2 bg-blue-600 text-white px-4 py-2.5 rounded-xl text-sm font-semibold hover:bg-blue-700">
             <Plus className="w-4 h-4" />
             Tambah
