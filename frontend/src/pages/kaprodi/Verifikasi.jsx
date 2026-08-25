@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import { Search, CheckCircle, XCircle, FileText, X, UserPlus, RefreshCw, UserMinus } from 'lucide-react'
+import { Search, CheckCircle, XCircle, FileText, X, UserPlus, RefreshCw } from 'lucide-react'
 import api from '../../utils/api'
 import toast from 'react-hot-toast'
 import { formatTanggal } from '../../utils/helpers'
@@ -123,17 +123,6 @@ export default function KaprodiVerifikasi() {
       toast.error(err.response?.data?.message || 'Gagal menyimpan dosen pembimbing!')
     } finally {
       setAssigningLoading(false)
-    }
-  }
-
-  const handleUnassignDosen = async (p) => {
-    if (!confirm(`Hapus dosen pembimbing (${p.nama_dosen}) dari pengajuan ini?`)) return
-    try {
-      await api.patch(`/kaprodi/pengajuan/${p.id}/unassign-dosen`)
-      toast.success('Dosen pembimbing berhasil dihapus!')
-      fetchPengajuan()
-    } catch (err) {
-      toast.error(err.response?.data?.message || 'Gagal menghapus dosen pembimbing!')
     }
   }
 
@@ -285,16 +274,10 @@ export default function KaprodiVerifikasi() {
                         {isDisetujui && !isAssigning && (
                           <div className="flex items-center gap-2 flex-wrap">
                             {p.dosen_id ? (
-                              <>
-                                <button onClick={() => openAssign(p)}
-                                  className="text-xs bg-purple-50 text-purple-700 hover:bg-purple-100 px-3 py-1.5 rounded-lg font-medium transition-colors flex items-center gap-1">
-                                  <RefreshCw className="w-3 h-3" /> Ganti Dosen
-                                </button>
-                                <button onClick={() => handleUnassignDosen(p)}
-                                  className="text-xs bg-orange-50 text-orange-600 hover:bg-orange-100 px-3 py-1.5 rounded-lg font-medium transition-colors flex items-center gap-1">
-                                  <UserMinus className="w-3 h-3" /> Hapus Dosen
-                                </button>
-                              </>
+                              <button onClick={() => openAssign(p)}
+                                className="text-xs bg-purple-50 text-purple-700 hover:bg-purple-100 px-3 py-1.5 rounded-lg font-medium transition-colors flex items-center gap-1">
+                                <RefreshCw className="w-3 h-3" /> Ganti Dosen
+                              </button>
                             ) : (
                               <button onClick={() => openAssign(p)}
                                 className="text-xs bg-green-50 text-green-700 hover:bg-green-100 px-3 py-1.5 rounded-lg font-medium transition-colors flex items-center gap-1">
