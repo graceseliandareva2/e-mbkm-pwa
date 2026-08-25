@@ -3,6 +3,7 @@ const db = require("../config/db");
 const { sendPushToUser } = require("../utils/pushSender");
 const { getLogbookExportData, generateLogbookPdfBuffer } = require("../utils/logbookPDFGenerator");
 const { buildExportFilename, buildContentDispositionHeader } = require("../utils/exportFilename");
+const { cariJudulMirip } = require("../utils/textSimilarity");
 
 const enforceRentangCap = async (periodeId = null) => {
   const params = [];
@@ -447,7 +448,19 @@ const getVerifikasiPengajuan = async (req, res) => {
       [periode_id]
     );
 
-    res.json({ data: rows });
+    // Deteksi kesamaan judul/topik antar pengajuan dalam periode yang sama
+    const dataMentahJudul = rows.map((r) => ({
+      id: r.id,
+      judul: r.judul,
+      nama_mahasiswa: r.nama_mahasiswa,
+      nim: r.nim,
+    }));
+    const rowsDenganKemiripan = rows.map((r) => ({
+      ...r,
+      pengajuan_mirip: cariJudulMirip(r.id, r.judul, dataMentahJudul),
+    }));
+
+    res.json({ data: rowsDenganKemiripan });
   } catch (error) {
     res.status(500).json({ message: "Terjadi kesalahan server." });
   }
