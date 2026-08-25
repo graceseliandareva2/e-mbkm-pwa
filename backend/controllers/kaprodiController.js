@@ -327,24 +327,25 @@ const getDosenRosterPA = async (req, res) => {
 const assignDosen = async (req, res) => {
   try {
     const { mahasiswa_id, dosen_id, periode_id } = req.body;
-
+ 
     if (!mahasiswa_id || !dosen_id || !periode_id) {
       return res.status(400).json({ message: "mahasiswa_id, dosen_id, dan periode_id wajib diisi." });
     }
-
+ 
     const [pengajuanRows] = await db.query(
-      `SELECT id_pengajuan, status FROM pengajuan WHERE mahasiswa_id = ? AND periode_id = ?`,
+      `SELECT id_pengajuan, status, dosen_id FROM pengajuan WHERE mahasiswa_id = ? AND periode_id = ?`,
       [mahasiswa_id, periode_id]
     );
     if (!pengajuanRows.length) {
       return res.status(404).json({ message: "Pengajuan mahasiswa ini di periode tersebut tidak ditemukan." });
     }
     const pengajuanId = pengajuanRows[0].id_pengajuan;
-
+    const isReassign = !!pengajuanRows[0].dosen_id;
+ 
     if (pengajuanRows[0].status !== 'disetujui_kaprodi') {
       return res.status(400).json({ message: "Pengajuan harus diverifikasi Kaprodi terlebih dahulu sebelum dosen pembimbing bisa di-assign." });
     }
-
+ 
     const [dosenRows] = await db.query(
       "SELECT id_users FROM users WHERE id_users = ? AND role = 'dosen' AND current_periode_id = ?",
       [dosen_id, periode_id]
@@ -352,26 +353,64 @@ const assignDosen = async (req, res) => {
     if (!dosenRows.length) {
       return res.status(400).json({ message: "Dosen tidak ditemukan atau tidak terdaftar untuk periode ini." });
     }
-
+ 
     await db.query(
       "UPDATE pengajuan SET dosen_id = ? WHERE id_pengajuan = ?",
       [dosen_id, pengajuanId]
     );
-
-    const pesan = "Dosen pembimbing untuk pengajuan capstone kamu sudah ditentukan. Kamu sekarang bisa mulai mengisi logbook.";
+ 
+    const pesan = isReassign
+      ? "Dosen pembimbing untuk pengajuan capstone kamu telah diperbarui oleh Kaprodi."
+      : "Dosen pembimbing untuk pengajuan capstone kamu sudah ditentukan. Kamu sekarang bisa mulai mengisi logbook.";
+ 
     await db.query(
       "INSERT INTO notifikasi (id_notifikasi, user_id, judul, pesan, tipe) VALUES (?, ?, ?, ?, ?)",
-      [uuidv4(), mahasiswa_id, "Dosen Pembimbing Ditentukan", pesan, "sukses"]
+      [uuidv4(), mahasiswa_id, isReassign ? "Dosen Pembimbing Diperbarui" : "Dosen Pembimbing Ditentukan", pesan, "sukses"]
     );
     await sendPushToUser(mahasiswa_id, {
-      title: "Dosen Pembimbing Ditentukan",
+      title: isReassign ? "Dosen Pembimbing Diperbarui" : "Dosen Pembimbing Ditentukan",
       body: pesan,
       url: "/mahasiswa/pengajuan",
     });
-
-    res.json({ message: "Dosen pembimbing berhasil di-assign." });
+ 
+    res.json({ message: isReassign ? "Dosen pembimbing berhasil diganti." : "Dosen pembimbing berhasil di-assign." });
   } catch (error) {
     console.error('assignDosen error:', error);
+    res.status(500).json({ message: "Terjadi kesalahan server." });
+  }
+};
+ 
+const unassignDosen = async (req, res) => {
+  try {
+    const { id } = req.params; // id_pengajuan
+ 
+    const [rows] = await db.query(
+      `SELECT id_pengajuan, mahasiswa_id, dosen_id, status FROM pengajuan WHERE id_pengajuan = ?`,
+      [id]
+    );
+    if (!rows.length) {
+      return res.status(404).json({ message: "Pengajuan tidak ditemukan." });
+    }
+    if (!rows[0].dosen_id) {
+      return res.status(400).json({ message: "Pengajuan ini belum memiliki dosen pembimbing." });
+    }
+ 
+    await db.query("UPDATE pengajuan SET dosen_id = NULL WHERE id_pengajuan = ?", [id]);
+ 
+    const pesan = "Dosen pembimbing untuk pengajuan capstone kamu telah dihapus oleh Kaprodi. Dosen pembimbing baru akan segera ditentukan.";
+    await db.query(
+      "INSERT INTO notifikasi (id_notifikasi, user_id, judul, pesan, tipe) VALUES (?, ?, ?, ?, ?)",
+      [uuidv4(), rows[0].mahasiswa_id, "Dosen Pembimbing Dihapus", pesan, "peringatan"]
+    );
+    await sendPushToUser(rows[0].mahasiswa_id, {
+      title: "Dosen Pembimbing Dihapus",
+      body: pesan,
+      url: "/mahasiswa/pengajuan",
+    });
+ 
+    res.json({ message: "Dosen pembimbing berhasil dihapus." });
+  } catch (error) {
+    console.error('unassignDosen error:', error);
     res.status(500).json({ message: "Terjadi kesalahan server." });
   }
 };
@@ -852,7 +891,7 @@ const exportLogbookPdf = async (req, res) => {
 module.exports = {
   getPeriode, tambahPeriode, updatePeriode, toggleForm,
   getDosenRosterMBKM, getDosenRosterPA,
-  assignDosen,
+  assignDosen,unassignDosen,
   getVerifikasiPengajuan, verifikasiPengajuan, hapusPengajuan,
   verifikasiDokumen, getMonitoringDokumen, getDetailMonitoring, getDashboardStats, getPengajuanDisetujui,
   getRekapNilai,

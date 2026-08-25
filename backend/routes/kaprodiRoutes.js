@@ -5,7 +5,7 @@ const {
   getPeriode, tambahPeriode, updatePeriode, toggleForm,
   getDosenRosterMBKM,
    getDosenRosterPA, 
-  assignDosen,
+  assignDosen, unassignDosen,
   getVerifikasiPengajuan,
   verifikasiPengajuan, hapusPengajuan, verifikasiDokumen, getMonitoringDokumen, getDetailMonitoring,
   getDashboardStats,
@@ -43,6 +43,7 @@ router.get('/monitoring', auth, getMonitoringDokumen);
 router.get('/monitoring/:pengajuan_id', auth, getDetailMonitoring);
 router.get('/logbook/export-pdf', auth, exportLogbookPdf);
 router.post('/assign-dosen', auth, assignDosen);
+router.patch('/pengajuan/:id/unassign-dosen', auth, unassignDosen);
 router.patch('/pengajuan/:id/verifikasi', auth, verifikasiPengajuan);
 router.patch('/dokumen/:id/verifikasi', auth, verifikasiDokumen);
 router.delete('/pengajuan/:id', auth, hapusPengajuan);

@@ -694,8 +694,6 @@ const uploadDokumen = async (req, res) => {
       return res.status(403).json({ message: "Upload dokumen hanya bisa dilakukan setelah pengajuan disetujui kaprodi dan dosen pembimbing sudah ditentukan." });
     }
 
-    // Idempotency guard: kalau client_ref_id ini udah pernah masuk sebelumnya
-    // (submission yang sama dikirim ulang oleh offline sync), jangan upload/insert lagi.
     if (client_ref_id) {
       const [dup] = await db.query(
         `SELECT d.id_dokumen AS id, d.cloudinary_url, d.status
