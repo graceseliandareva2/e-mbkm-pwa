@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import { Search, CheckCircle, XCircle, FileText, X } from 'lucide-react'
+import { Search, CheckCircle, XCircle, FileText, X, UserPlus, RefreshCw, UserMinus } from 'lucide-react'
 import api from '../../utils/api'
 import toast from 'react-hot-toast'
 import { formatTanggal } from '../../utils/helpers'
@@ -14,6 +14,11 @@ export default function KaprodiVerifikasi() {
   const [catatan, setCatatan] = useState('')
   const [processing, setProcessing] = useState(false)
 
+  // --- Assign dosen (merged in from the old dedicated page) ---
+  const [dosenList, setDosenList] = useState([])
+  const [assigningId, setAssigningId] = useState(null) // id_pengajuan currently being assigned/edited
+  const [selectedDosenId, setSelectedDosenId] = useState('')
+  const [assigningLoading, setAssigningLoading] = useState(false)
 
   const {
     periodeId: selectedPeriode,
@@ -22,29 +27,43 @@ export default function KaprodiVerifikasi() {
   } = usePeriodeFilter('kaprodi')
 
   useEffect(() => {
-  if (selectedPeriode) {
-    fetchPengajuan()
-  } else {
-    setLoading(false)
-  }
-}, [selectedPeriode])
+    if (selectedPeriode) {
+      fetchPengajuan()
+      fetchDosenRoster()
+    } else {
+      setLoading(false)
+    }
+  }, [selectedPeriode])
 
- const fetchPengajuan = async () => {
-  setLoading(true)
-  try {
-    const res = await api.get('/kaprodi/verifikasi-pengajuan', {
-      params: { periode_id: selectedPeriode }
-    })
-    setPengajuan(res.data.data || [])
-  } catch {
-    toast.error('Gagal memuat data pengajuan!')
-  } finally {
-    setLoading(false)
+  const fetchPengajuan = async () => {
+    setLoading(true)
+    try {
+      const res = await api.get('/kaprodi/verifikasi-pengajuan', {
+        params: { periode_id: selectedPeriode }
+      })
+      setPengajuan(res.data.data || [])
+    } catch {
+      toast.error('Gagal memuat data pengajuan!')
+    } finally {
+      setLoading(false)
+    }
   }
-}
+
+  const fetchDosenRoster = async () => {
+    try {
+      // sesuaikan path ini dengan route yang kamu daftarkan untuk getDosenRosterMBKM
+      const res = await api.get('/kaprodi/dosen-roster-mbkm', {
+        params: { periode_id: selectedPeriode }
+      })
+      setDosenList(res.data.data || [])
+    } catch {
+      // silent — dropdown akan kosong kalau gagal, ga perlu ganggu user dengan toast
+    }
+  }
 
   const fetchAll = async () => {
     fetchPengajuan()
+    fetchDosenRoster()
   }
 
   const handleVerifikasi = async (status) => {
@@ -65,17 +84,58 @@ export default function KaprodiVerifikasi() {
     }
   }
 
- const handleHapus = async (id) => {
-  if (!confirm('Hapus pengajuan ini? Tindakan ini tidak bisa dibatalkan.')) return
-  try {
-    await api.delete(`/kaprodi/pengajuan/${id}`)
-    toast.success('Pengajuan berhasil dihapus!')
-    setShowDetail(null)
-    fetchAll()
-  } catch (err) {
-    toast.error(err.response?.data?.message || 'Gagal menghapus pengajuan!')
+  const handleHapus = async (id) => {
+    if (!confirm('Hapus pengajuan ini? Tindakan ini tidak bisa dibatalkan.')) return
+    try {
+      await api.delete(`/kaprodi/pengajuan/${id}`)
+      toast.success('Pengajuan berhasil dihapus!')
+      setShowDetail(null)
+      fetchAll()
+    } catch (err) {
+      toast.error(err.response?.data?.message || 'Gagal menghapus pengajuan!')
+    }
   }
-}
+
+  const openAssign = (p) => {
+    setAssigningId(p.id)
+    setSelectedDosenId(p.dosen_id ? String(p.dosen_id) : '')
+  }
+
+  const cancelAssign = () => {
+    setAssigningId(null)
+    setSelectedDosenId('')
+  }
+
+  const handleAssignDosen = async (p) => {
+    if (!selectedDosenId) return
+    setAssigningLoading(true)
+    try {
+      // sesuaikan path ini dengan route yang kamu daftarkan untuk assignDosen
+      await api.post('/kaprodi/assign-dosen', {
+        mahasiswa_id: p.mahasiswa_id,
+        dosen_id: selectedDosenId,
+        periode_id: selectedPeriode,
+      })
+      toast.success(p.dosen_id ? 'Dosen pembimbing berhasil diganti!' : 'Dosen pembimbing berhasil di-assign!')
+      cancelAssign()
+      fetchPengajuan()
+    } catch (err) {
+      toast.error(err.response?.data?.message || 'Gagal menyimpan dosen pembimbing!')
+    } finally {
+      setAssigningLoading(false)
+    }
+  }
+
+  const handleUnassignDosen = async (p) => {
+    if (!confirm(`Hapus dosen pembimbing (${p.nama_dosen}) dari pengajuan ini?`)) return
+    try {
+      await api.patch(`/kaprodi/pengajuan/${p.id}/unassign-dosen`)
+      toast.success('Dosen pembimbing berhasil dihapus!')
+      fetchPengajuan()
+    } catch (err) {
+      toast.error(err.response?.data?.message || 'Gagal menghapus dosen pembimbing!')
+    }
+  }
 
   const getStatusBadge = (status) => {
     const map = {
@@ -98,7 +158,7 @@ export default function KaprodiVerifikasi() {
     <div className="space-y-5">
       <div>
         <h1 className="text-2xl font-bold text-gray-800">Pengajuan Capstone & MBKM</h1>
-        <p className="text-gray-500 text-sm mt-1">Verifikasi pengajuan dari mahasiswa</p>
+        <p className="text-gray-500 text-sm mt-1">Verifikasi pengajuan & assign dosen pembimbing mahasiswa</p>
       </div>
 
       <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-4 flex flex-col sm:flex-row gap-3">
@@ -115,14 +175,14 @@ export default function KaprodiVerifikasi() {
           <option value="disetujui_kaprodi">Disetujui</option>
           <option value="ditolak">Ditolak</option>
         </select>
-       <select
-  value={selectedPeriode ?? ''}
-  onChange={e => setLocalPeriode(periode.find(p => String(p.id) === String(e.target.value)))}
-  className="px-3 py-2 border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 bg-gray-50">
-  {periode.map(p => (
-    <option key={p.id} value={String(p.id)}>{p.nama_periode}</option>
-  ))}
-</select>
+        <select
+          value={selectedPeriode ?? ''}
+          onChange={e => setLocalPeriode(periode.find(p => String(p.id) === String(e.target.value)))}
+          className="px-3 py-2 border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 bg-gray-50">
+          {periode.map(p => (
+            <option key={p.id} value={String(p.id)}>{p.nama_periode}</option>
+          ))}
+        </select>
       </div>
 
       <div className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden">
@@ -139,22 +199,25 @@ export default function KaprodiVerifikasi() {
                 <th className="text-left px-6 py-3 text-xs font-semibold text-gray-500 uppercase">Pelatihan</th>
                 <th className="text-left px-6 py-3 text-xs font-semibold text-gray-500 uppercase">Tanggal</th>
                 <th className="text-left px-6 py-3 text-xs font-semibold text-gray-500 uppercase">Status</th>
+                <th className="text-left px-6 py-3 text-xs font-semibold text-gray-500 uppercase">Dosen Pembimbing</th>
                 <th className="text-left px-6 py-3 text-xs font-semibold text-gray-500 uppercase">Aksi</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-gray-100">
               {loading ? (
-                <tr><td colSpan={6} className="text-center py-12">
+                <tr><td colSpan={7} className="text-center py-12">
                   <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-blue-600 mx-auto" />
                 </td></tr>
               ) : filtered.length === 0 ? (
-                <tr><td colSpan={6} className="text-center py-12 text-gray-400 text-sm">
+                <tr><td colSpan={7} className="text-center py-12 text-gray-400 text-sm">
                   <FileText className="w-10 h-10 mx-auto mb-2 text-gray-200" />
                   Belum ada pengajuan
                 </td></tr>
               ) : filtered.map((p, i) => {
                 const { cls, label } = getStatusBadge(p.status)
                 const pelatihanUtama = p.nama_pelatihan || '-'
+                const isDisetujui = p.status === 'disetujui_kaprodi'
+                const isAssigning = assigningId === p.id
 
                 return (
                   <tr key={p.id} className="hover:bg-gray-50 transition-colors">
@@ -170,16 +233,76 @@ export default function KaprodiVerifikasi() {
                     <td className="px-6 py-4 align-top">
                       <span className={`px-2.5 py-1 rounded-full text-xs font-medium ${cls}`}>{label}</span>
                     </td>
+
+                    <td className="px-6 py-4 align-top min-w-[160px]">
+                      {!isDisetujui ? (
+                        <span className="text-xs text-gray-300">-</span>
+                      ) : isAssigning ? (
+                        <div className="flex flex-col gap-1.5">
+                          <select
+                            value={selectedDosenId}
+                            onChange={e => setSelectedDosenId(e.target.value)}
+                            className="text-xs border border-gray-200 rounded-lg px-2 py-1.5 bg-gray-50 focus:outline-none focus:ring-2 focus:ring-blue-500">
+                            <option value="">Pilih dosen...</option>
+                            {dosenList.map(d => (
+                              <option key={d.id} value={d.id}>{d.nama}</option>
+                            ))}
+                          </select>
+                          <div className="flex gap-1.5">
+                            <button
+                              onClick={() => handleAssignDosen(p)}
+                              disabled={!selectedDosenId || assigningLoading}
+                              className="text-xs bg-blue-600 hover:bg-blue-700 text-white px-2.5 py-1 rounded-lg font-medium disabled:opacity-60 flex-1">
+                              {assigningLoading ? '...' : 'Simpan'}
+                            </button>
+                            <button
+                              onClick={cancelAssign}
+                              className="text-xs bg-gray-100 hover:bg-gray-200 text-gray-600 px-2.5 py-1 rounded-lg font-medium">
+                              Batal
+                            </button>
+                          </div>
+                        </div>
+                      ) : p.dosen_id ? (
+                        <p className="text-sm text-gray-700 font-medium">{p.nama_dosen}</p>
+                      ) : (
+                        <span className="text-xs text-gray-400 italic">Belum ditentukan</span>
+                      )}
+                    </td>
+
                     <td className="px-6 py-4 align-top">
-                      <div className="flex items-center gap-2">
-                        <button onClick={() => { setShowDetail(p); setCatatan('') }}
-                          className="text-xs bg-blue-50 text-blue-700 hover:bg-blue-100 px-3 py-1.5 rounded-lg font-medium transition-colors">
-                          Detail
-                        </button>
-                        <button onClick={() => handleHapus(p.id)}
-                          className="text-xs bg-red-50 text-red-600 hover:bg-red-100 px-3 py-1.5 rounded-lg font-medium transition-colors">
-                          Hapus
-                        </button>
+                      <div className="flex flex-col gap-2">
+                        <div className="flex items-center gap-2">
+                          <button onClick={() => { setShowDetail(p); setCatatan('') }}
+                            className="text-xs bg-blue-50 text-blue-700 hover:bg-blue-100 px-3 py-1.5 rounded-lg font-medium transition-colors">
+                            Detail
+                          </button>
+                          <button onClick={() => handleHapus(p.id)}
+                            className="text-xs bg-red-50 text-red-600 hover:bg-red-100 px-3 py-1.5 rounded-lg font-medium transition-colors">
+                            Hapus
+                          </button>
+                        </div>
+
+                        {isDisetujui && !isAssigning && (
+                          <div className="flex items-center gap-2 flex-wrap">
+                            {p.dosen_id ? (
+                              <>
+                                <button onClick={() => openAssign(p)}
+                                  className="text-xs bg-purple-50 text-purple-700 hover:bg-purple-100 px-3 py-1.5 rounded-lg font-medium transition-colors flex items-center gap-1">
+                                  <RefreshCw className="w-3 h-3" /> Ganti Dosen
+                                </button>
+                                <button onClick={() => handleUnassignDosen(p)}
+                                  className="text-xs bg-orange-50 text-orange-600 hover:bg-orange-100 px-3 py-1.5 rounded-lg font-medium transition-colors flex items-center gap-1">
+                                  <UserMinus className="w-3 h-3" /> Hapus Dosen
+                                </button>
+                              </>
+                            ) : (
+                              <button onClick={() => openAssign(p)}
+                                className="text-xs bg-green-50 text-green-700 hover:bg-green-100 px-3 py-1.5 rounded-lg font-medium transition-colors flex items-center gap-1">
+                                <UserPlus className="w-3 h-3" /> Assign Dosen
+                              </button>
+                            )}
+                          </div>
+                        )}
                       </div>
                     </td>
                   </tr>
@@ -193,12 +316,12 @@ export default function KaprodiVerifikasi() {
       {showDetail && (
         <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4">
           <div className="bg-white rounded-2xl shadow-2xl w-full max-w-lg max-h-[90vh] overflow-y-auto">
-           <div className="flex items-center justify-between p-6 border-b border-gray-100">
-  <h2 className="font-bold text-gray-800">Detail Pengajuan</h2>
-  <button onClick={() => setShowDetail(null)} className="p-2 hover:bg-gray-100 rounded-xl">
-    <X className="w-5 h-5 text-gray-500" />
-  </button>
-</div>
+            <div className="flex items-center justify-between p-6 border-b border-gray-100">
+              <h2 className="font-bold text-gray-800">Detail Pengajuan</h2>
+              <button onClick={() => setShowDetail(null)} className="p-2 hover:bg-gray-100 rounded-xl">
+                <X className="w-5 h-5 text-gray-500" />
+              </button>
+            </div>
             <div className="p-6 space-y-4">
               <div className="bg-blue-50 rounded-xl p-4 space-y-2">
                 <div className="flex justify-between">
@@ -215,6 +338,12 @@ export default function KaprodiVerifikasi() {
                     {getStatusBadge(showDetail.status).label}
                   </span>
                 </div>
+                {showDetail.dosen_id && (
+                  <div className="flex justify-between">
+                    <span className="text-xs text-gray-500">Dosen Pembimbing</span>
+                    <span className="text-xs font-semibold text-gray-700">{showDetail.nama_dosen}</span>
+                  </div>
+                )}
               </div>
 
               <div className="space-y-3">

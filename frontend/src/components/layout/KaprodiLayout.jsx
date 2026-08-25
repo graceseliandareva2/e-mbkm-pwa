@@ -1,8 +1,8 @@
-import { Outlet, NavLink, useNavigate, useLocation } from 'react-router-dom'
+import { Outlet, NavLink, useNavigate } from 'react-router-dom'
 import { useState } from 'react'
 import {
   LayoutDashboard, Calendar, Users, UserCheck,
-  BarChart3, CheckSquare, LogOut, Menu, X, Bell, User, ChevronDown, GraduationCap
+  BarChart3, CheckSquare, LogOut, Menu, X, Bell, User, GraduationCap
 } from 'lucide-react'
 import useAuthStore from '../../store/authStore'
 import toast from 'react-hot-toast'
@@ -12,28 +12,17 @@ import PeriodeSelector from '../common/PeriodeSelector'
 const navItems = [
   { to: '/kaprodi/dashboard',  icon: LayoutDashboard, label: 'Dashboard' },
   { to: '/kaprodi/periode',    icon: Calendar,        label: 'Kelola Periode' },
-  // submenu mahasiswa ditangani terpisah
+  { to: '/kaprodi/mahasiswa',  icon: Users,           label: 'Data Mahasiswa' },
   { to: '/kaprodi/dosen',      icon: UserCheck,       label: 'Data Dosen' },
   { to: '/kaprodi/monitoring', icon: BarChart3,       label: 'Monitoring' },
   { to: '/kaprodi/verifikasi', icon: CheckSquare,     label: 'Pengajuan' },
   { to: '/kaprodi/biodata',    icon: User,            label: 'Biodata' },
 ]
 
-const mahasiswaSubMenu = [
-  { to: '/kaprodi/mahasiswa',        label: 'Data Mahasiswa' },
-  { to: '/kaprodi/assign-dosen',     label: 'Assign Dosen' },
-]
-
 export default function KaprodiLayout() {
   const [sidebarOpen, setSidebarOpen] = useState(false)
   const { logout } = useAuthStore()
   const navigate = useNavigate()
-  const location = useLocation()
-
-  const isMahasiswaActive = location.pathname.startsWith('/kaprodi/mahasiswa') ||
-    location.pathname.startsWith('/kaprodi/assign-dosen')
-
-  const [mahasiswaOpen, setMahasiswaOpen] = useState(isMahasiswaActive)
 
   const handleLogout = () => {
     logout()
@@ -70,59 +59,7 @@ export default function KaprodiLayout() {
 
         {/* Nav */}
         <nav className="flex-1 px-3 py-4 space-y-1 overflow-y-auto">
-
-          {/* Dashboard & Kelola Periode */}
-          {navItems.slice(0, 2).map((item) => {
-            const Icon = item.icon
-            return (
-              <NavLink key={item.to} to={item.to}
-                onClick={() => setSidebarOpen(false)}
-                className={({ isActive }) =>
-                  `flex items-center gap-3 px-4 py-2.5 rounded-xl text-sm font-medium transition-all
-                  ${isActive
-                    ? 'bg-white text-blue-800 font-semibold shadow-sm'
-                    : 'text-white/80 hover:bg-white/15 hover:text-white'}`
-                }>
-                <Icon className="w-4 h-4 flex-shrink-0" />
-                <span>{item.label}</span>
-              </NavLink>
-            )
-          })}
-
-          {/* Submenu Kelola Mahasiswa */}
-          <div>
-            <button
-              onClick={() => setMahasiswaOpen(prev => !prev)}
-              className={`flex items-center gap-3 px-4 py-2.5 rounded-xl text-sm font-medium w-full transition-all
-                ${isMahasiswaActive
-                  ? 'bg-white/15 text-white'
-                  : 'text-white/80 hover:bg-white/15 hover:text-white'}`}
-            >
-              <Users className="w-4 h-4 flex-shrink-0" />
-              <span className="flex-1 text-left">Mahasiswa</span>
-              <ChevronDown className={`w-3.5 h-3.5 transition-transform duration-200 ${mahasiswaOpen ? 'rotate-180' : ''}`} />
-            </button>
-
-            {mahasiswaOpen && (
-              <div className="mt-1 ml-4 pl-3 border-l border-white/20 space-y-0.5">
-                {mahasiswaSubMenu.map((sub) => (
-                  <NavLink key={sub.to} to={sub.to}
-                    onClick={() => setSidebarOpen(false)}
-                    className={({ isActive }) =>
-                      `flex items-center px-3 py-2 rounded-xl text-sm font-medium transition-all
-                      ${isActive
-                        ? 'bg-white text-blue-800 font-semibold shadow-sm'
-                        : 'text-white/75 hover:bg-white/15 hover:text-white'}`
-                    }>
-                    {sub.label}
-                  </NavLink>
-                ))}
-              </div>
-            )}
-          </div>
-
-          {/* Sisa nav items */}
-          {navItems.slice(2).map((item) => {
+          {navItems.map((item) => {
             const Icon = item.icon
             return (
               <NavLink key={item.to} to={item.to}
