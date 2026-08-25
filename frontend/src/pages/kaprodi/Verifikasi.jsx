@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import { Search, CheckCircle, XCircle, FileText, X, UserPlus, RefreshCw } from 'lucide-react'
+import { Search, CheckCircle, XCircle, FileText, X, UserPlus, RefreshCw, AlertTriangle } from 'lucide-react'
 import api from '../../utils/api'
 import toast from 'react-hot-toast'
 import { formatTanggal } from '../../utils/helpers'
@@ -215,9 +215,17 @@ export default function KaprodiVerifikasi() {
                       <p className="text-sm font-medium text-gray-800">{p.nama_mahasiswa}</p>
                       <p className="text-xs text-gray-400">{p.nim}</p>
                     </td>
-                    <td className="px-6 py-4 text-sm text-gray-700 max-w-xs align-top">
-                      <p className="truncate">{pelatihanUtama}</p>
-                    </td>
+                   <td className="px-6 py-4 text-sm text-gray-700 max-w-xs align-top">
+  <p className="truncate">{pelatihanUtama}</p>
+  {p.pengajuan_mirip?.length > 0 && (
+    <div className="flex items-center gap-1 mt-1">
+      <AlertTriangle className="w-3 h-3 text-orange-500 shrink-0" />
+      <span className="text-xs text-orange-600 font-medium">
+        Mirip {p.pengajuan_mirip.length} judul lain
+      </span>
+    </div>
+  )}
+</td>
                     <td className="px-6 py-4 text-xs text-gray-500 align-top">{formatTanggal(p.created_at)}</td>
                     <td className="px-6 py-4 align-top">
                       <span className={`px-2.5 py-1 rounded-full text-xs font-medium ${cls}`}>{label}</span>
@@ -350,6 +358,26 @@ export default function KaprodiVerifikasi() {
                   <p className="text-sm text-gray-700">{Number(showDetail.durasi_pelatihan_jam ?? 0)} jam</p>
                 </div>
 
+{showDetail.pengajuan_mirip?.length > 0 && (
+  <div className="bg-orange-50 rounded-xl p-3 border border-orange-100 space-y-2">
+    <p className="text-xs font-bold text-orange-700 flex items-center gap-1">
+      <AlertTriangle className="w-3.5 h-3.5" /> Terdeteksi Judul Mirip
+    </p>
+    {showDetail.pengajuan_mirip.map((m) => (
+      <div key={m.id} className="text-xs bg-white rounded-lg p-2 border border-orange-100">
+        <div className="flex justify-between items-center">
+          <span className="font-medium text-gray-700">{m.nama_mahasiswa} ({m.nim})</span>
+          <span className={`px-1.5 py-0.5 rounded-full font-semibold ${
+            m.level === 'sangat_mirip' ? 'bg-red-100 text-red-700' : 'bg-orange-100 text-orange-700'
+          }`}>
+            {m.skor}% mirip
+          </span>
+        </div>
+        <p className="text-gray-500 mt-0.5">{m.judul}</p>
+      </div>
+    ))}
+  </div>
+)}
                 <div className={`flex justify-between px-3 py-2 rounded-xl text-sm font-semibold ${Number(showDetail.durasi_pelatihan_jam ?? 0) >= 48 ? 'bg-green-50 text-green-700' : 'bg-orange-50 text-orange-700'}`}>
                   <span>Total Waktu Pembelajaran</span>
                   <span>{Number(showDetail.durasi_pelatihan_jam ?? 0)} jam</span>
