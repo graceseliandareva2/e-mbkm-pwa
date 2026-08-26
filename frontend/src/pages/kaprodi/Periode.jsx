@@ -33,6 +33,15 @@ const defaultForm = {
   is_active: 1,
 };
 
+// Field-field "tanggal selesai" yang otomatis mengikuti akhir rentang periode
+// saat pertama kali diisi/diubah, tapi tetap bisa di-override manual setelahnya.
+const SELESAI_CASCADE_KEYS = [
+  "tanggal_selesai_pengajuan",
+  "tanggal_selesai_logbook",
+  "tanggal_selesai_ppt",
+  "tanggal_selesai_laporan",
+];
+
 const toInputDate = (val) => {
   if (!val) return "";
   const d = new Date(val);
@@ -96,6 +105,29 @@ export default function KaprodiPeriode() {
       is_active: p.is_active,
     });
     setShowModal(true);
+  };
+
+  // Handler khusus untuk field tanggal di form.
+  // Cascade auto-fill HANYA berlaku saat tambah periode baru (editData null):
+  // mengubah "tanggal_selesai" (akhir rentang periode) akan otomatis
+  // mengisi semua tanggal selesai turunan (pengajuan/logbook/ppt/laporan)
+  // dengan nilai yang sama sebagai default awal.
+  // Saat mode edit periode yang sudah ada, tiap field independen —
+  // mengubah tanggal_selesai tidak menimpa field lain yang sudah diisi;
+  // masing-masing field selesai (pengajuan/logbook/ppt/laporan) hanya
+  // mengikuti nilai yang memang kamu edit langsung di field itu.
+  const handleTanggalChange = (key, value) => {
+    if (key === "tanggal_selesai" && !editData) {
+      setForm((prev) => {
+        const next = { ...prev, tanggal_selesai: value };
+        SELESAI_CASCADE_KEYS.forEach((k) => {
+          next[k] = value;
+        });
+        return next;
+      });
+    } else {
+      setForm((prev) => ({ ...prev, [key]: value }));
+    }
   };
 
   const handleSubmit = async (e) => {
@@ -386,10 +418,17 @@ export default function KaprodiPeriode() {
                         value={form[key]}
                         required
                         onChange={(e) =>
-                          setForm({ ...form, [key]: e.target.value })
+                          handleTanggalChange(key, e.target.value)
                         }
                         className="w-full px-3 py-2.5 border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 bg-gray-50"
                       />
+                      {key === "tanggal_selesai" && !editData && (
+                        <p className="text-xs text-gray-400 mt-1">
+                          Tanggal selesai pengajuan, logbook, PPT, dan laporan
+                          akhir akan otomatis mengikuti tanggal ini. Kamu
+                          masih bisa mengubahnya satu per satu di bawah.
+                        </p>
+                      )}
                     </div>
                   ))}
                 </div>
@@ -443,7 +482,7 @@ export default function KaprodiPeriode() {
                         type="date"
                         value={form[key]}
                         onChange={(e) =>
-                          setForm({ ...form, [key]: e.target.value })
+                          handleTanggalChange(key, e.target.value)
                         }
                         className="w-full px-3 py-2.5 border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 bg-gray-50"
                       />
@@ -482,7 +521,7 @@ export default function KaprodiPeriode() {
                         type="date"
                         value={form[key]}
                         onChange={(e) =>
-                          setForm({ ...form, [key]: e.target.value })
+                          handleTanggalChange(key, e.target.value)
                         }
                         className="w-full px-3 py-2.5 border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 bg-gray-50"
                       />

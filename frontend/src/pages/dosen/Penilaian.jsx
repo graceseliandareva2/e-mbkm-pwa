@@ -27,54 +27,6 @@ const formatDurasi = (jam) => {
   return `${j} jam ${m} menit`;
 };
 
-const RUBRIK = [
-  {
-    no: 1,
-    aspek: "Kesesuaian Program dan Topik Pembelajaran",
-    kode: "CPL03, CPMK033",
-    bobot: 15,
-    field: "nilai_kesesuaian",
-    deskripsi:
-      "Linearitas topik studi independen dengan bidang prodi serta pemenuhan terhadap kebutuhan industri atau penguataan kompetensi profesional",
-  },
-  {
-    no: 2,
-    aspek: "Proyek/Karya Tugas Akhir",
-    kode: "CPL09, CPMK091, CPMK092",
-    bobot: 30,
-    field: "nilai_proyek",
-    deskripsi:
-      "Kualitas hasil proyek akhir selama pelatihan, baik berupa aplikasi, modul, laporan, atau prototipe",
-  },
-  {
-    no: 3,
-    aspek: "Evaluasi Pembelajaran Mandiri dan Pemanfaatan",
-    kode: "CPL09, CPMK093",
-    bobot: 15,
-    field: "nilai_evaluasi",
-    deskripsi:
-      "Refleksi dan penjabaran bagaimana mahasiswa menerapkan ilmu dari bootcamp dalam studi atau dunia kerja nyata",
-  },
-  {
-    no: 4,
-    aspek: "Laporan Akhir dan Portofolio",
-    kode: "CPL07, CPMK072",
-    bobot: 20,
-    field: "nilai_laporan",
-    deskripsi:
-      "Kelengkapan dokumentasi hasil pembelajaran, portofolio proyek, serta refleksi proses pembelajaran selama studi independen",
-  },
-  {
-    no: 5,
-    aspek: "Presentasi Refleksi Pembelajaran",
-    kode: "CPL06, CPMK063",
-    bobot: 20,
-    field: "nilai_presentasi",
-    deskripsi:
-      "Kemampuan menyampaikan capaian pembelajaran, tantangan, serta nilai-nilai yang diperoleh dari studi independen secara lisan",
-  },
-];
-
 const getGrade = (nilai) => {
   if (nilai >= 85) return { grade: "A", color: "text-green-600 bg-green-50" };
   if (nilai >= 75) return { grade: "B", color: "text-blue-600 bg-blue-50" };
@@ -134,16 +86,17 @@ export default function DosenPenilaian() {
   const [submitting, setSubmitting] = useState(false);
   const [saved, setSaved] = useState(false);
   const [search, setSearch] = useState('');
-  const [nilai, setNilai] = useState({
-    nilai_kesesuaian: "",
-    nilai_proyek: "",
-    nilai_evaluasi: "",
-    nilai_laporan: "",
-    nilai_presentasi: "",
-  });
 
-  const [hasPenilaian, setHasPenilaian] = useState(false); 
-  const [finalizedAt, setFinalizedAt] = useState(null);    
+  // Rubrik sekarang datang dari API (rubrik_penilaian), bukan array hardcode.
+  // Setiap item: { id_rubrik, field_key, aspek, kode_cpl, deskripsi, bobot, urutan }
+  const [rubrikList, setRubrikList] = useState([]);
+  const [loadingRubrik, setLoadingRubrik] = useState(true);
+
+  // nilai sekarang object dinamis: { [id_rubrik]: "85" }
+  const [nilai, setNilai] = useState({});
+
+  const [hasPenilaian, setHasPenilaian] = useState(false);
+  const [finalizedAt, setFinalizedAt] = useState(null);
   const [showLockConfirm, setShowLockConfirm] = useState(false);
   const [locking, setLocking] = useState(false);
   const isLocked = !!finalizedAt;
@@ -154,6 +107,23 @@ export default function DosenPenilaian() {
     loading: loadingPeriode,
     setLocalPeriode,
   } = usePeriodeFilter('dosen_pembimbing')
+
+  useEffect(() => {
+    fetchRubrik();
+  }, []);
+
+  const fetchRubrik = async () => {
+    setLoadingRubrik(true);
+    try {
+      const res = await api.get("/dosen/rubrik");
+      setRubrikList(res.data.data || []);
+    } catch (err) {
+      console.error(err);
+      toast.error("Gagal memuat rubrik penilaian.");
+    } finally {
+      setLoadingRubrik(false);
+    }
+  };
 
   useEffect(() => {
     if (loadingPeriode) return
@@ -188,13 +158,18 @@ export default function DosenPenilaian() {
     setSaved(false);
     setHasPenilaian(!!mhs.penilaian_id);
     setFinalizedAt(mhs.finalized_at ?? null);
-    setNilai({
-      nilai_kesesuaian: mhs.nilai_kesesuaian ?? "",
-      nilai_proyek:     mhs.nilai_proyek     ?? "",
-      nilai_evaluasi:   mhs.nilai_evaluasi   ?? "",
-      nilai_laporan:    mhs.nilai_laporan    ?? "",
-      nilai_presentasi: mhs.nilai_presentasi ?? "",
+
+    // Prefill dari detail_nilai (array {rubrik_id, nilai}) yang dikirim backend;
+    // rubrik yang belum pernah diisi otomatis kosong.
+    const detailMap = new Map(
+      (mhs.detail_nilai || []).map((d) => [d.rubrik_id, d.nilai])
+    );
+    const nilaiAwal = {};
+    rubrikList.forEach((r) => {
+      const v = detailMap.get(r.id_rubrik);
+      nilaiAwal[r.id_rubrik] = v !== undefined && v !== null ? String(v) : "";
     });
+    setNilai(nilaiAwal);
     setView("form");
   };
 
@@ -203,34 +178,36 @@ export default function DosenPenilaian() {
     setSelectedMhs(null);
   };
 
-  const nilaiAkhir = RUBRIK.reduce((sum, r) => {
-    const val = parseFloat(nilai[r.field]) || 0;
-    return sum + (val * r.bobot) / 100;
+  const nilaiAkhir = rubrikList.reduce((sum, r) => {
+    const val = parseFloat(nilai[r.id_rubrik]) || 0;
+    return sum + (val * parseFloat(r.bobot)) / 100;
   }, 0);
 
-  const allFilled = RUBRIK.every(
-    (r) => nilai[r.field] !== "" && !isNaN(parseFloat(nilai[r.field])),
-  );
+  const allFilled =
+    rubrikList.length > 0 &&
+    rubrikList.every(
+      (r) => nilai[r.id_rubrik] !== "" && nilai[r.id_rubrik] !== undefined && !isNaN(parseFloat(nilai[r.id_rubrik])),
+    );
   const { grade, color } = getGrade(nilaiAkhir);
 
   const handleSubmit = async (e) => {
     e.preventDefault();
-    if (isLocked) return; 
+    if (isLocked) return;
+    if (rubrikList.length === 0) return toast.error("Belum ada rubrik penilaian aktif. Hubungi kaprodi.");
     if (!allFilled) return toast.error("Semua nilai rubrik wajib diisi!");
-    for (const r of RUBRIK) {
-      const v = parseFloat(nilai[r.field]);
+    for (const r of rubrikList) {
+      const v = parseFloat(nilai[r.id_rubrik]);
       if (v < 0 || v > 100)
         return toast.error(`Nilai ${r.aspek} harus antara 0-100!`);
     }
     setSubmitting(true);
     try {
-    
       await api.post("/dosen/penilaian", {
         pengajuan_id: selectedMhs.pengajuan_id,
-        ...Object.fromEntries(
-          RUBRIK.map((r) => [r.field, parseFloat(nilai[r.field])]),
-        ),
-        nilai_akhir: nilaiAkhir.toFixed(2),
+        nilai: rubrikList.map((r) => ({
+          rubrik_id: r.id_rubrik,
+          nilai: parseFloat(nilai[r.id_rubrik]),
+        })),
       });
       toast.success("Penilaian berhasil disimpan!");
       setSaved(true);
@@ -415,7 +392,8 @@ export default function DosenPenilaian() {
 
                     <button
                       onClick={() => handlePilihMhs(mhs)}
-                      className="ml-auto px-4 py-2 bg-blue-600 text-white text-xs font-semibold rounded-xl hover:bg-blue-700 transition"
+                      disabled={loadingRubrik}
+                      className="ml-auto px-4 py-2 bg-blue-600 text-white text-xs font-semibold rounded-xl hover:bg-blue-700 transition disabled:opacity-50"
                     >
                       {mhsLocked ? "Lihat Nilai" : mhs.penilaian_id ? "Edit Nilai" : "Beri Nilai"}
                     </button>
@@ -501,58 +479,64 @@ export default function DosenPenilaian() {
             <h2 className="font-semibold text-gray-800">Rubrik Penilaian</h2>
           </div>
 
-          <div className="divide-y divide-gray-50">
-            {RUBRIK.map((r) => (
-              <div key={r.field} className="p-4 sm:p-5">
-                <div className="flex items-start justify-between gap-4">
-                  <div className="flex-1 min-w-0">
-                    <div className="flex items-center gap-2 flex-wrap mb-1">
-                      <span className="w-6 h-6 bg-blue-100 text-blue-700 rounded-lg text-xs font-bold flex items-center justify-center flex-shrink-0">
-                        {r.no}
-                      </span>
-                      <p className="font-semibold text-gray-800 text-sm">{r.aspek}</p>
-                      <span className="text-xs text-gray-400">({r.kode})</span>
-                      <span className="text-xs font-semibold text-blue-600 bg-blue-50 px-2 py-0.5 rounded-full">
-                        Bobot {r.bobot}%
-                      </span>
-                    </div>
-                    <p className="text-xs text-gray-500 ml-8">{r.deskripsi}</p>
-                  </div>
-                  <div className="w-24 flex-shrink-0">
-                    <input
-                      type="number"
-                      min="0"
-                      max="100"
-                      step="0.5"
-                      value={nilai[r.field]}
-                      disabled={isLocked}
-                      onChange={(e) => {
-                        setNilai({ ...nilai, [r.field]: e.target.value });
-                        setSaved(false);
-                      }}
-                      className={inputClass}
-                    />
-                    <p className="text-xs text-center text-gray-400 mt-1">0 – 100</p>
-                  </div>
-                </div>
-                {nilai[r.field] !== "" && !isNaN(parseFloat(nilai[r.field])) && (
-                  <div className="mt-2 ml-8">
-                    <div className="flex items-center gap-2">
-                      <div className="flex-1 bg-gray-100 rounded-full h-1.5">
-                        <div
-                          className="bg-blue-400 h-1.5 rounded-full transition-all"
-                          style={{ width: `${Math.min(parseFloat(nilai[r.field]), 100)}%` }}
-                        />
+          {rubrikList.length === 0 ? (
+            <div className="p-6 text-center text-sm text-gray-500">
+              Belum ada rubrik penilaian aktif. Hubungi kaprodi untuk mengatur rubrik.
+            </div>
+          ) : (
+            <div className="divide-y divide-gray-50">
+              {rubrikList.map((r, idx) => (
+                <div key={r.id_rubrik} className="p-4 sm:p-5">
+                  <div className="flex items-start justify-between gap-4">
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-center gap-2 flex-wrap mb-1">
+                        <span className="w-6 h-6 bg-blue-100 text-blue-700 rounded-lg text-xs font-bold flex items-center justify-center flex-shrink-0">
+                          {idx + 1}
+                        </span>
+                        <p className="font-semibold text-gray-800 text-sm">{r.aspek}</p>
+                        {r.kode_cpl && <span className="text-xs text-gray-400">({r.kode_cpl})</span>}
+                        <span className="text-xs font-semibold text-blue-600 bg-blue-50 px-2 py-0.5 rounded-full">
+                          Bobot {r.bobot}%
+                        </span>
                       </div>
-                      <span className="text-xs text-gray-500 flex-shrink-0">
-                        +{((parseFloat(nilai[r.field]) * r.bobot) / 100).toFixed(1)} poin
-                      </span>
+                      {r.deskripsi && <p className="text-xs text-gray-500 ml-8">{r.deskripsi}</p>}
+                    </div>
+                    <div className="w-24 flex-shrink-0">
+                      <input
+                        type="number"
+                        min="0"
+                        max="100"
+                        step="0.5"
+                        value={nilai[r.id_rubrik] ?? ""}
+                        disabled={isLocked}
+                        onChange={(e) => {
+                          setNilai({ ...nilai, [r.id_rubrik]: e.target.value });
+                          setSaved(false);
+                        }}
+                        className={inputClass}
+                      />
+                      <p className="text-xs text-center text-gray-400 mt-1">0 – 100</p>
                     </div>
                   </div>
-                )}
-              </div>
-            ))}
-          </div>
+                  {nilai[r.id_rubrik] !== "" && nilai[r.id_rubrik] !== undefined && !isNaN(parseFloat(nilai[r.id_rubrik])) && (
+                    <div className="mt-2 ml-8">
+                      <div className="flex items-center gap-2">
+                        <div className="flex-1 bg-gray-100 rounded-full h-1.5">
+                          <div
+                            className="bg-blue-400 h-1.5 rounded-full transition-all"
+                            style={{ width: `${Math.min(parseFloat(nilai[r.id_rubrik]), 100)}%` }}
+                          />
+                        </div>
+                        <span className="text-xs text-gray-500 flex-shrink-0">
+                          +{((parseFloat(nilai[r.id_rubrik]) * r.bobot) / 100).toFixed(1)} poin
+                        </span>
+                      </div>
+                    </div>
+                  )}
+                </div>
+              ))}
+            </div>
+          )}
 
           <div className="px-5 py-4 bg-gray-50 border-t border-gray-100">
             <div className="flex items-center justify-between">
