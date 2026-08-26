@@ -20,7 +20,9 @@ const {
 
 const {
   getSemuaRubrik,
+  tambahRubrik,
   updateRubrik,
+  nonaktifkanRubrik,
   updateBobotBulk,
 } = require('../controllers/rubrikController');
 
@@ -55,7 +57,9 @@ router.patch('/dokumen/:id/verifikasi', auth, verifikasiDokumen);
 router.delete('/pengajuan/:id', auth, hapusPengajuan);
 
 router.get('/rubrik', auth, getSemuaRubrik);
+router.post('/rubrik', auth, tambahRubrik);
 router.put('/rubrik/:id', auth, updateRubrik);
+router.patch('/rubrik/:id/nonaktifkan', auth, nonaktifkanRubrik);
 router.put('/rubrik-bulk', auth, updateBobotBulk);
 
 module.exports = router;
