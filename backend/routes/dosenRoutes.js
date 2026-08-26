@@ -9,7 +9,6 @@ const {
   finalisasiNilai, exportLogbookPdf,
 } = require('../controllers/dosenController');
 
-// tambahkan ini:
 const { getRubrikAktif } = require('../controllers/rubrikController');
 
 const auth = [verifyToken, authorizeRoles('dosen')];
@@ -25,7 +24,6 @@ router.get('/periode', auth, async (req, res) => {
   }
 });
 
-// tambahkan ini:
 router.get('/rubrik', auth, getRubrikAktif);
 
 router.get('/aktivitas-terbaru', auth, getAktivitasTerbaru);

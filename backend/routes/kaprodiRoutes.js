@@ -18,6 +18,12 @@ const {
   getDaftarMahasiswa, getDaftarDosen,
 } = require('../controllers/staffController');
 
+const {
+  getSemuaRubrik,
+  updateRubrik,
+  updateBobotBulk,
+} = require('../controllers/rubrikController');
+
 const auth = [verifyToken, authorizeRoles('kaprodi')];
 
 router.get('/dashboard-stats', auth, getDashboardStats);
@@ -47,5 +53,9 @@ router.patch('/pengajuan/:id/unassign-dosen', auth, unassignDosen);
 router.patch('/pengajuan/:id/verifikasi', auth, verifikasiPengajuan);
 router.patch('/dokumen/:id/verifikasi', auth, verifikasiDokumen);
 router.delete('/pengajuan/:id', auth, hapusPengajuan);
+
+router.get('/rubrik', auth, getSemuaRubrik);
+router.put('/rubrik/:id', auth, updateRubrik);
+router.put('/rubrik-bulk', auth, updateBobotBulk);
 
 module.exports = router;

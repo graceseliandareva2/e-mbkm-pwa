@@ -147,10 +147,69 @@ const nonaktifkanRubrik = async (req, res) => {
   }
 };
 
+// PUT /kaprodi/rubrik-bulk -> update banyak bobot sekaligus, divalidasi total 100% sekali di akhir
+const updateBobotBulk = async (req, res) => {
+  const { rubrik } = req.body; // [{ id_rubrik, bobot }, ...]
+
+  if (!Array.isArray(rubrik) || rubrik.length === 0) {
+    return res.status(400).json({ message: "Data rubrik wajib diisi." });
+  }
+
+  // Validasi tiap bobot
+  for (const r of rubrik) {
+    const v = parseFloat(r.bobot);
+    if (!r.id_rubrik || isNaN(v) || v < 0 || v > 100) {
+      return res.status(400).json({ message: "Setiap bobot harus angka 0-100." });
+    }
+  }
+
+  const conn = await db.getConnection();
+  try {
+    // Ambil semua rubrik aktif yang ADA di database, supaya rubrik yang tidak
+    // ikut dikirim di payload tetap dihitung dengan bobot lamanya
+    const [existingRows] = await conn.query(
+      "SELECT id_rubrik, bobot FROM rubrik_penilaian WHERE is_active = 1"
+    );
+
+    const bobotBaruMap = new Map(rubrik.map((r) => [r.id_rubrik, parseFloat(r.bobot)]));
+    const totalBaru = existingRows.reduce((sum, row) => {
+      const bobotDipakai = bobotBaruMap.has(row.id_rubrik)
+        ? bobotBaruMap.get(row.id_rubrik)
+        : parseFloat(row.bobot);
+      return sum + bobotDipakai;
+    }, 0);
+
+    if (Math.abs(totalBaru - 100) > EPSILON) {
+      conn.release();
+      return res.status(400).json({
+        message: `Total bobot rubrik aktif harus 100%. Saat ini totalnya ${totalBaru.toFixed(2)}%.`,
+      });
+    }
+
+    await conn.beginTransaction();
+    for (const r of rubrik) {
+      await conn.query("UPDATE rubrik_penilaian SET bobot = ? WHERE id_rubrik = ?", [
+        parseFloat(r.bobot),
+        r.id_rubrik,
+      ]);
+    }
+    await conn.commit();
+
+    res.json({ message: "Semua bobot rubrik berhasil diperbarui." });
+  } catch (error) {
+    await conn.rollback();
+    console.error(error);
+    res.status(500).json({ message: "Terjadi kesalahan server." });
+  } finally {
+    conn.release();
+  }
+};
+
 module.exports = {
   getRubrikAktif,
   getSemuaRubrik,
   tambahRubrik,
   updateRubrik,
   nonaktifkanRubrik,
+  updateBobotBulk,
 };
