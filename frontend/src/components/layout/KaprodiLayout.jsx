@@ -2,7 +2,8 @@ import { Outlet, NavLink, useNavigate } from 'react-router-dom'
 import { useState } from 'react'
 import {
   LayoutDashboard, Calendar, Users, UserCheck,
-  BarChart3, CheckSquare, LogOut, Menu, X, Bell, User, GraduationCap
+  BarChart3, CheckSquare, LogOut, Menu, X, Bell, User, GraduationCap,
+  Award
 } from 'lucide-react'
 import useAuthStore from '../../store/authStore'
 import toast from 'react-hot-toast'
@@ -16,6 +17,7 @@ const navItems = [
   { to: '/kaprodi/dosen',      icon: UserCheck,       label: 'Data Dosen' },
   { to: '/kaprodi/monitoring', icon: BarChart3,       label: 'Monitoring' },
   { to: '/kaprodi/verifikasi', icon: CheckSquare,     label: 'Pengajuan' },
+  { to: '/kaprodi/rubrik',     icon: Award,           label: 'Rubrik Penilaian' },
   { to: '/kaprodi/biodata',    icon: User,            label: 'Biodata' },
 ]
 

@@ -56,6 +56,7 @@ const KaprodiDosen = lazy(() => import("./pages/kaprodi/Dosen"));
 const KaprodiMonitoring = lazy(() => import("./pages/kaprodi/Monitoring"));
 const KaprodiVerifikasi = lazy(() => import("./pages/kaprodi/Verifikasi"));
 const KaprodiBiodata = lazy(() => import("./pages/kaprodi/Biodata"));
+const KaprodiRubrik = lazy(() => import("./pages/kaprodi/Rubrik"));
 
 const StaffDashboard = lazy(() => import("./pages/staff/Dashboard"));
 const StaffPengajuan = lazy(() => import("./pages/staff/Pengajuan"));
@@ -199,6 +200,7 @@ export default function App() {
             <Route path="dosen" element={<KaprodiDosen />} />
             <Route path="monitoring" element={<KaprodiMonitoring />} />
             <Route path="biodata" element={<KaprodiBiodata />} />
+            <Route path="rubrik" element={<KaprodiRubrik />} />
           </Route>
 
           <Route
