@@ -11,7 +11,7 @@ import { normalizeUrl } from '../../utils/normalizeUrl'
 // constants 
 const CACHE_KEY = 'pengajuan'
 const CACHE_KEY_MIN_JAM = 'min_jam_pengajuan'
-const DEFAULT_MIN_JAM = 48
+const DEFAULT_MIN_JAM = 30
 
 const STATUS_CONFIG = {
   menunggu:          { label: 'Menunggu Review',  color: 'text-yellow-600', bg: 'bg-yellow-50',  border: 'border-yellow-200', icon: Clock },

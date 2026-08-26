@@ -8,6 +8,10 @@ const {
   eksporPenilaianPDF, eksporSemuaPenilaianPDF, getMahasiswaSiapDinilai,
   finalisasiNilai, exportLogbookPdf,
 } = require('../controllers/dosenController');
+
+// tambahkan ini:
+const { getRubrikAktif } = require('../controllers/rubrikController');
+
 const auth = [verifyToken, authorizeRoles('dosen')];
 
 router.get('/periode', auth, async (req, res) => {
@@ -20,6 +24,9 @@ router.get('/periode', auth, async (req, res) => {
     res.status(500).json({ message: 'Terjadi kesalahan server.' });
   }
 });
+
+// tambahkan ini:
+router.get('/rubrik', auth, getRubrikAktif);
 
 router.get('/aktivitas-terbaru', auth, getAktivitasTerbaru);
 router.get('/mahasiswa-bimbingan', auth, getMahasiswaBimbingan);
