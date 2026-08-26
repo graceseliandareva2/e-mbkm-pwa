@@ -496,7 +496,7 @@ export default function DosenPenilaian() {
                         <p className="font-semibold text-gray-800 text-sm">{r.aspek}</p>
                         {r.kode_cpl && <span className="text-xs text-gray-400">({r.kode_cpl})</span>}
                         <span className="text-xs font-semibold text-blue-600 bg-blue-50 px-2 py-0.5 rounded-full">
-                          Bobot {r.bobot}%
+                         Bobot {parseFloat(r.bobot)}%
                         </span>
                       </div>
                       {r.deskripsi && <p className="text-xs text-gray-500 ml-8">{r.deskripsi}</p>}

@@ -124,8 +124,8 @@ export default function KaprodiRubrik() {
       setRubrikList(data);
       const initialBobot = {};
       data.forEach((r) => {
-        initialBobot[r.id_rubrik] = String(r.bobot);
-      });
+  initialBobot[r.id_rubrik] = String(parseFloat(r.bobot)); // jadi "15"
+});
       setBobot(initialBobot);
     } catch (err) {
       console.error(err);
@@ -143,8 +143,8 @@ export default function KaprodiRubrik() {
   const totalValid = Math.abs(totalBobot - 100) < 0.01;
 
   const adaPerubahan = rubrikList.some(
-    (r) => bobot[r.id_rubrik] !== String(r.bobot)
-  );
+  (r) => bobot[r.id_rubrik] !== String(parseFloat(r.bobot))
+);
 
   const handleChange = (id, value) => {
     setBobot({ ...bobot, [id]: value });
