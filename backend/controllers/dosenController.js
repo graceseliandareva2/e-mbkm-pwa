@@ -25,6 +25,22 @@ async function isDosenPembimbingPengajuan(dosenId, pengajuanId) {
   return rows.length > 0;
 }
 
+function getGrade(nilai) {
+  const n = parseFloat(nilai) || 0;
+  if (n >= 85) return "A";
+  if (n >= 75) return "B";
+  if (n >= 65) return "C";
+  if (n >= 55) return "D";
+  return "E";
+}
+
+// Ambil rubrik aktif dari DB, dipakai buat hitung nilai_akhir & validasi payload
+async function getRubrikAktifList() {
+  const [rows] = await db.query(
+    "SELECT id_rubrik, field_key, aspek, kode_cpl, deskripsi, bobot, urutan FROM rubrik_penilaian WHERE is_active = 1 ORDER BY urutan ASC, created_at ASC"
+  );
+  return rows;
+}
 
 const getMahasiswaBimbingan = async (req, res) => {
   try {
@@ -68,6 +84,9 @@ const getMahasiswaBimbingan = async (req, res) => {
   }
 };
 
+// Sekarang menyertakan detail_nilai (array {rubrik_id, nilai}) per mahasiswa,
+// dibangun dari detail_penilaian via JSON_ARRAYAGG supaya frontend bisa
+// prefill form rubrik yang sudah pernah diisi, dinamis sesuai rubrik aktif saat ini.
 const getMahasiswaSiapDinilai = async (req, res) => {
   try {
     const dsn = await getDosenProfile(req.user.id);
@@ -88,9 +107,12 @@ const getMahasiswaSiapDinilai = async (req, res) => {
           WHERE l.pengajuan_id = pc.id_pengajuan AND l.status = 'diverifikasi'
         ), 0) as total_jam_logbook,
         pn.id_penilaian as penilaian_id,
-        pn.nilai_kesesuaian, pn.nilai_proyek, pn.nilai_evaluasi,
-        pn.nilai_laporan, pn.nilai_presentasi,
-        pn.nilai_akhir, pn.grade, pn.finalized_at
+        pn.nilai_akhir, pn.grade, pn.finalized_at,
+        COALESCE((
+          SELECT JSON_ARRAYAGG(JSON_OBJECT('rubrik_id', dtl.rubrik_id, 'nilai', dtl.nilai))
+          FROM detail_penilaian dtl
+          WHERE dtl.penilaian_id = pn.id_penilaian
+        ), JSON_ARRAY()) as detail_nilai
       FROM pengajuan pc
       JOIN users m ON pc.mahasiswa_id = m.id_users
       JOIN periode per ON pc.periode_id = per.id_periode
@@ -101,8 +123,7 @@ const getMahasiswaSiapDinilai = async (req, res) => {
       GROUP BY m.id_users, m.nim, m.nama, m.program_studi,
         pc.id_pengajuan, pc.periode_id, per.nama_periode, per.min_jam_pengajuan,
         dp.judul, dp.nama_pelatihan,
-        pn.id_penilaian, pn.nilai_kesesuaian, pn.nilai_proyek, pn.nilai_evaluasi,
-        pn.nilai_laporan, pn.nilai_presentasi, pn.nilai_akhir, pn.grade, pn.finalized_at
+        pn.id_penilaian, pn.nilai_akhir, pn.grade, pn.finalized_at
       HAVING punya_ppt >= 1 
         AND punya_laporan >= 1 
         AND total_jam_logbook >= per.min_jam_pengajuan
@@ -111,22 +132,33 @@ const getMahasiswaSiapDinilai = async (req, res) => {
       periode_id ? [dsn.id, periode_id] : [dsn.id]
     );
 
-    res.json({ data: rows });
+    // detail_nilai kadang balik sebagai string JSON tergantung driver -> parse aman
+    const data = rows.map((r) => ({
+      ...r,
+      detail_nilai: typeof r.detail_nilai === "string" ? JSON.parse(r.detail_nilai) : r.detail_nilai || [],
+    }));
+
+    res.json({ data });
   } catch (error) {
     console.error(error);
     res.status(500).json({ message: "Terjadi kesalahan server." });
   }
 };
 
+// Payload sekarang: { pengajuan_id, nilai: [{ rubrik_id, nilai }, ...] }
+// bukan lagi field fix nilai_kesesuaian/nilai_proyek/dst.
 const berikanPenilaian = async (req, res) => {
   try {
     const dsn = await getDosenProfile(req.user.id);
     if (!dsn) return res.status(404).json({ message: "Data dosen tidak ditemukan." });
 
-    const { pengajuan_id, nilai_kesesuaian, nilai_proyek, nilai_evaluasi, nilai_laporan, nilai_presentasi } = req.body;
+    const { pengajuan_id, nilai } = req.body;
 
     if (!pengajuan_id) {
       return res.status(400).json({ message: "pengajuan_id wajib diisi." });
+    }
+    if (!Array.isArray(nilai) || nilai.length === 0) {
+      return res.status(400).json({ message: "Data nilai rubrik wajib diisi." });
     }
 
     const authorized = await isDosenPembimbingPengajuan(dsn.id, pengajuan_id);
@@ -134,19 +166,28 @@ const berikanPenilaian = async (req, res) => {
       return res.status(403).json({ message: "Kamu bukan dosen pembimbing untuk pengajuan ini." });
     }
 
-    const nilai_akhir = (
-      parseFloat(nilai_kesesuaian) * 0.15 +
-      parseFloat(nilai_proyek) * 0.3 +
-      parseFloat(nilai_evaluasi) * 0.15 +
-      parseFloat(nilai_laporan) * 0.2 +
-      parseFloat(nilai_presentasi) * 0.2
-    ).toFixed(2);
+    const rubrikAktif = await getRubrikAktifList();
+    if (rubrikAktif.length === 0) {
+      return res.status(400).json({ message: "Belum ada rubrik penilaian aktif. Hubungi kaprodi." });
+    }
 
-    let grade = "E";
-    if (nilai_akhir >= 85) grade = "A";
-    else if (nilai_akhir >= 75) grade = "B";
-    else if (nilai_akhir >= 65) grade = "C";
-    else if (nilai_akhir >= 55) grade = "D";
+    const nilaiByRubrik = new Map(nilai.map((n) => [n.rubrik_id, n.nilai]));
+
+    // semua rubrik aktif wajib ada nilainya
+    for (const r of rubrikAktif) {
+      const v = parseFloat(nilaiByRubrik.get(r.id_rubrik));
+      if (nilaiByRubrik.get(r.id_rubrik) === undefined || isNaN(v)) {
+        return res.status(400).json({ message: `Nilai untuk aspek "${r.aspek}" wajib diisi!` });
+      }
+      if (v < 0 || v > 100) {
+        return res.status(400).json({ message: `Nilai ${r.aspek} harus antara 0-100!` });
+      }
+    }
+
+    const nilai_akhir = rubrikAktif
+      .reduce((sum, r) => sum + (parseFloat(nilaiByRubrik.get(r.id_rubrik)) * parseFloat(r.bobot)) / 100, 0)
+      .toFixed(2);
+    const grade = getGrade(nilai_akhir);
 
     const [existing] = await db.query("SELECT id_penilaian, finalized_at FROM penilaian WHERE pengajuan_id = ?", [pengajuan_id]);
 
@@ -154,18 +195,33 @@ const berikanPenilaian = async (req, res) => {
       return res.status(403).json({ message: "Nilai sudah difinalisasi dan tidak bisa diubah lagi." });
     }
 
+    let penilaianId;
     if (existing.length) {
-      await db.query(
-        `UPDATE penilaian SET nilai_kesesuaian=?, nilai_proyek=?, nilai_evaluasi=?, nilai_laporan=?, nilai_presentasi=?, nilai_akhir=?, grade=? WHERE id_penilaian=?`,
-        [nilai_kesesuaian, nilai_proyek, nilai_evaluasi, nilai_laporan, nilai_presentasi, nilai_akhir, grade, existing[0].id_penilaian]
-      );
+      penilaianId = existing[0].id_penilaian;
+      await db.query(`UPDATE penilaian SET nilai_akhir=?, grade=? WHERE id_penilaian=?`, [nilai_akhir, grade, penilaianId]);
     } else {
+      penilaianId = uuidv4();
       await db.query(
-        `INSERT INTO penilaian (id_penilaian, pengajuan_id, dosen_id, nilai_kesesuaian, nilai_proyek, nilai_evaluasi, nilai_laporan, nilai_presentasi, nilai_akhir, grade)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-        [uuidv4(), pengajuan_id, dsn.id, nilai_kesesuaian, nilai_proyek, nilai_evaluasi, nilai_laporan, nilai_presentasi, nilai_akhir, grade]
+        `INSERT INTO penilaian (id_penilaian, pengajuan_id, dosen_id, nilai_akhir, grade)
+         VALUES (?, ?, ?, ?, ?)`,
+        [penilaianId, pengajuan_id, dsn.id, nilai_akhir, grade]
       );
     }
+
+    // Ganti seluruh detail_penilaian dgn nilai baru (rubrik yang dihapus/ditambah
+    // di antara pengisian tidak menyisakan baris usang)
+    await db.query("DELETE FROM detail_penilaian WHERE penilaian_id = ?", [penilaianId]);
+    const detailValues = rubrikAktif.map((r) => [
+      uuidv4(),
+      penilaianId,
+      r.id_rubrik,
+      parseFloat(nilaiByRubrik.get(r.id_rubrik)),
+    ]);
+    await db.query(
+      "INSERT INTO detail_penilaian (id_detail_penilaian, penilaian_id, rubrik_id, nilai) VALUES ?",
+      [detailValues]
+    );
+
     res.json({ message: "nilai berhasil disimpan.", nilai_akhir, grade });
   } catch (error) {
     console.error(error);
@@ -218,6 +274,20 @@ const eksporPenilaianPDF = async (req, res) => {
     if (!rows.length) return res.status(404).json({ message: "Data penilaian tidak ditemukan." });
 
     const data = rows[0];
+
+    // Rincian per rubrik diambil dinamis dari detail_penilaian + rubrik_penilaian
+    // (snapshot bobot & aspek SAAT nilai itu diisi/rubrik masih aktif, bukan definisi rubrik saat ini)
+    const [rubrikRows] = await db.query(
+      `
+      SELECT r.aspek, r.bobot, dtl.nilai
+      FROM detail_penilaian dtl
+      JOIN rubrik_penilaian r ON r.id_rubrik = dtl.rubrik_id
+      WHERE dtl.penilaian_id = ?
+      ORDER BY r.urutan ASC
+    `,
+      [data.id_penilaian]
+    );
+
     const doc = new PDFDocument({ margin: 50 });
 
     const filename = buildExportFilename({
@@ -258,14 +328,6 @@ const eksporPenilaianPDF = async (req, res) => {
     doc.font("Helvetica-Bold").fontSize(12).text("Rincian Penilaian per Rubrik", { underline: true });
     doc.moveDown(0.5);
 
-    const RUBRIK = [
-      { no: 1, aspek: "Kesesuaian Program dan Topik Pembelajaran", field: "nilai_kesesuaian", bobot: 15 },
-      { no: 2, aspek: "Proyek/Karya Tugas Akhir", field: "nilai_proyek", bobot: 30 },
-      { no: 3, aspek: "Evaluasi Pembelajaran Mandiri", field: "nilai_evaluasi", bobot: 15 },
-      { no: 4, aspek: "Laporan Akhir dan Portofolio", field: "nilai_laporan", bobot: 20 },
-      { no: 5, aspek: "Presentasi Refleksi Pembelajaran", field: "nilai_presentasi", bobot: 20 },
-    ];
-
     const colX = [50, 75, 295, 360, 420, 480];
     const headerY = doc.y;
     doc.font("Helvetica-Bold").fontSize(10);
@@ -279,13 +341,14 @@ const eksporPenilaianPDF = async (req, res) => {
     doc.moveDown(0.3);
 
     doc.font("Helvetica").fontSize(10);
-    RUBRIK.forEach((r) => {
-      const nilaiVal = parseFloat(data[r.field]) || 0;
-      const kontribusi = ((nilaiVal * r.bobot) / 100).toFixed(2);
+    rubrikRows.forEach((r, i) => {
+      const nilaiVal = parseFloat(r.nilai) || 0;
+      const bobotVal = parseFloat(r.bobot) || 0;
+      const kontribusi = ((nilaiVal * bobotVal) / 100).toFixed(2);
       const rowY = doc.y;
-      doc.text(String(r.no), colX[0], rowY, { width: 25, lineBreak: false });
+      doc.text(String(i + 1), colX[0], rowY, { width: 25, lineBreak: false });
       doc.text(r.aspek, colX[1], rowY, { width: 215, lineBreak: false });
-      doc.text(`${r.bobot}%`, colX[2], rowY, { width: 55, lineBreak: false });
+      doc.text(`${bobotVal}%`, colX[2], rowY, { width: 55, lineBreak: false });
       doc.text(nilaiVal.toFixed(2), colX[3], rowY, { width: 55, lineBreak: false });
       doc.text(kontribusi, colX[4], rowY, { width: 65, lineBreak: false });
       doc.moveDown(1);
